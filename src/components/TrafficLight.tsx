@@ -58,7 +58,7 @@ export function TrafficLightPicker({
           aria-pressed={value === opt}
           title={TRAFFIC_LABEL[opt]}
           className={cn(
-            'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
+            'flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs transition-colors',
             value === opt ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:bg-secondary/60',
           )}
         >

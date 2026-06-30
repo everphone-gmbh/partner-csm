@@ -21,7 +21,7 @@ import { useSession } from '@/app/SessionContext'
 import { canApprove, canViewSensitiveFields, redactContactForRole } from '@/domain/roles'
 import { localSummarizer } from '@/domain/ai'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Avatar } from '@/components/ui/avatar'
+import { EditableAvatar } from '@/components/EditableAvatar'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { TrafficLightBadge, TrafficLightPicker } from '@/components/TrafficLight'
@@ -77,6 +77,12 @@ export function ContactProfile() {
     void mockRepository.updateContact(raw.id, { sentiment })
   }
 
+  const handlePhoto = (photoUrl: string) => {
+    if (!raw) return
+    setRaw({ ...raw, photoUrl })
+    void mockRepository.updateContact(raw.id, { photoUrl })
+  }
+
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
   if (!view) {
     return (
@@ -98,7 +104,7 @@ export function ContactProfile() {
       {/* Identity */}
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5 sm:flex-row sm:items-start">
-          <Avatar src={view.photoUrl} name={view.fullName} className="size-16 text-lg" />
+          <EditableAvatar src={view.photoUrl} name={view.fullName} onChange={handlePhoto} />
           <div className="min-w-0 flex-1 space-y-2">
             <div>
               <h1 className="text-xl font-semibold leading-tight">{view.fullName}</h1>

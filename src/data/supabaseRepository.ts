@@ -128,6 +128,7 @@ export function mapRowToActivity(row: ActivityRow, resolveName: NameResolver = (
 export function patchToRow(patch: Partial<Contact>): Record<string, unknown> {
   const row: Record<string, unknown> = {}
   if (patch.sentiment !== undefined) row.sentiment = patch.sentiment
+  if (patch.photoUrl !== undefined) row.photo_url = patch.photoUrl
   if (patch.freeText !== undefined) row.free_text = patch.freeText
   if (patch.linkedin !== undefined) {
     row.linkedin_status = patch.linkedin.status
