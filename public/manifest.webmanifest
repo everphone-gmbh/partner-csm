@@ -1,0 +1,14 @@
+{
+  "name": "Partner CSM",
+  "short_name": "Partner CSM",
+  "description": "Internes Partner-Beziehungs-CRM für Telekom-Kontakte",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#e20074",
+  "icons": [
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+  ]
+}

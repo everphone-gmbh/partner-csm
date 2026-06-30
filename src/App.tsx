@@ -4,6 +4,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { Dashboard } from '@/features/dashboard/Dashboard'
 import { ContactList } from '@/features/contacts/ContactList'
 import { ContactProfile } from '@/features/contacts/ContactProfile'
+import { ContactFormPage } from '@/features/contacts/ContactFormPage'
 
 export default function App() {
   return (
@@ -14,7 +15,9 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/contacts" element={<ContactList />} />
+            <Route path="/contacts/new" element={<ContactFormPage />} />
             <Route path="/contacts/:id" element={<ContactProfile />} />
+            <Route path="/contacts/:id/edit" element={<ContactFormPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </AppShell>

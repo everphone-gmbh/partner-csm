@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from
 import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
+  Pencil,
   Cake,
   Mail,
   MapPin,
@@ -21,6 +22,7 @@ import { useSession } from '@/app/SessionContext'
 import { canApprove, canViewSensitiveFields, redactContactForRole } from '@/domain/roles'
 import { localSummarizer } from '@/domain/ai'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { buttonVariants } from '@/components/ui/button'
 import { EditableAvatar } from '@/components/EditableAvatar'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -99,7 +101,17 @@ export function ContactProfile() {
 
   return (
     <div className="space-y-4">
-      <BackLink />
+      <div className="flex items-center justify-between gap-2">
+        <BackLink />
+        {canApprove(user.role) && (
+          <Link
+            to={`/contacts/${view.id}/edit`}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            <Pencil className="size-4" /> Bearbeiten
+          </Link>
+        )}
+      </div>
 
       {/* Identity */}
       <Card>

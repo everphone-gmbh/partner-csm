@@ -35,4 +35,20 @@ describe('mockRepository', () => {
     expect(updated.sentiment).toBe('green')
     expect(typeof updated.updatedAt).toBe('string')
   })
+
+  it('creates a contact with sensible defaults', async () => {
+    const before = (await mockRepository.listContacts()).length
+    const created = await mockRepository.createContact({
+      fullName: 'Neue Person',
+      position: 'Einkauf',
+      regionId: 'r-nord',
+      relationshipManagerId: 'u-alex',
+    })
+    expect(created.id).toMatch(/^c-local-/)
+    expect(created.sentiment).toBe('neutral')
+    expect(created.linkedin.status).toBe('unknown')
+    expect(created.wonCustomersCount).toBe(0)
+    const after = (await mockRepository.listContacts()).length
+    expect(after).toBe(before + 1)
+  })
 })

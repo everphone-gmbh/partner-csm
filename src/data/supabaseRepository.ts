@@ -11,7 +11,7 @@ import type {
   TrafficLight,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
-import type { NewActivity, Repository } from './repository'
+import type { NewActivity, NewContact, Repository } from './repository'
 
 // ⚠ PRE-BUILT, NOT YET INTEGRATION-TESTED against the live DB.
 // Blocked on applying the migrations (the SQL executor 404s for this tenant).
@@ -196,6 +196,42 @@ export class SupabaseRepository implements Repository {
     if (error) throw new Error(error.message)
     if (!data) return undefined
     return mapRowToContact(data as unknown as ContactRow, this.resolver(names))
+  }
+
+  async createContact(input: NewContact): Promise<Contact> {
+    const { data, error } = await this.client
+      .from('contacts')
+      .insert({
+        full_name: input.fullName,
+        position: input.position,
+        region_id: input.regionId,
+        relationship_manager_id: input.relationshipManagerId,
+        email: input.email ?? null,
+        birthday: input.birthday ?? null,
+        location: input.location ?? null,
+        family_status: input.familyStatus ?? null,
+        children: input.children ?? null,
+        pets: input.pets ?? null,
+        active_devices: input.activeDevices ?? null,
+        won_customers_count: input.wonCustomersCount ?? 0,
+        free_text: input.freeText ?? null,
+        linkedin_status: input.linkedin?.status ?? 'unknown',
+        linkedin_url: input.linkedin?.url ?? null,
+        linkedin_verified_at: input.linkedin?.verifiedAt ?? null,
+      })
+      .select('id')
+      .single()
+    if (error) throw new Error(error.message)
+    const id = (data as { id: string }).id
+    if (input.sideFacts?.length) {
+      const { error: sfErr } = await this.client
+        .from('side_facts')
+        .insert(input.sideFacts.map((f) => ({ contact_id: id, label: f.label, category: f.category })))
+      if (sfErr) throw new Error(sfErr.message)
+    }
+    const created = await this.getContact(id)
+    if (!created) throw new Error('created contact not found after insert')
+    return created
   }
 
   async updateContact(id: string, patch: Partial<Contact>): Promise<Contact> {

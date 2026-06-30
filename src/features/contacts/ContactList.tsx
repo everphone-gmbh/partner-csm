@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Check, X, HelpCircle } from 'lucide-react'
+import { Search, Check, X, HelpCircle, Plus } from 'lucide-react'
 import type { AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
 import { mockRepository } from '@/data/mockRepository'
 import { useSession } from '@/app/SessionContext'
-import { ROLE_RANK } from '@/domain/roles'
+import { canApprove, ROLE_RANK } from '@/domain/roles'
 import { Input } from '@/components/ui/input'
+import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -70,12 +71,19 @@ export function ContactList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold">Kontakte</h1>
-        <p className="text-sm text-muted-foreground">
-          {loading ? 'Lädt…' : `${visible.length} von ${contacts.length} Kontakten`}
-          {isAccountManager && user.regionId ? ` · Region ${regionName(user.regionId)}` : ''}
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold">Kontakte</h1>
+          <p className="text-sm text-muted-foreground">
+            {loading ? 'Lädt…' : `${visible.length} von ${contacts.length} Kontakten`}
+            {isAccountManager && user.regionId ? ` · Region ${regionName(user.regionId)}` : ''}
+          </p>
+        </div>
+        {canApprove(user.role) && (
+          <Link to="/contacts/new" className={buttonVariants({ size: 'sm' })}>
+            <Plus className="size-4" /> Neuer Kontakt
+          </Link>
+        )}
       </div>
 
       <div className="relative">
