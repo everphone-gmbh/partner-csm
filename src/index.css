@@ -1,0 +1,148 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Telekom-Magenta theme for the Partner CSM tool.
+  Magenta (#E20074) is the dominant brand colour; an Everphone-teal accent
+  and the red/amber/green relationship traffic-light are first-class tokens.
+  Brand fonts (TeleNeo / Titillium Web) can be wired in later; system stack for now.
+*/
+
+:root {
+  --radius: 0.75rem;
+
+  --background: #ffffff;
+  --foreground: #0a0a0b;
+
+  --card: #ffffff;
+  --card-foreground: #0a0a0b;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0b;
+
+  /* Telekom Magenta */
+  --primary: #e20074;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+
+  --muted: #f4f4f5;
+  --muted-foreground: #6b6772;
+
+  /* Everphone teal accent */
+  --accent: #e6f7f4;
+  --accent-foreground: #0a6c5f;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: #e7e5ea;
+  --input: #e7e5ea;
+  --ring: #e20074;
+
+  /* Brand + semantic extras */
+  --magenta: #e20074;
+  --magenta-foreground: #ffffff;
+  --teal: #14a89b;
+
+  /* Relationship traffic-light */
+  --status-green: #16a34a;
+  --status-amber: #f59e0b;
+  --status-red: #dc2626;
+  --status-neutral: #a1a1aa;
+}
+
+.dark {
+  --background: #131217;
+  --foreground: #f4f3f6;
+
+  --card: #1b1a21;
+  --card-foreground: #f4f3f6;
+  --popover: #1b1a21;
+  --popover-foreground: #f4f3f6;
+
+  --primary: #ff2f9e;
+  --primary-foreground: #1a0010;
+
+  --secondary: #26242d;
+  --secondary-foreground: #f4f3f6;
+
+  --muted: #26242d;
+  --muted-foreground: #a5a1ad;
+
+  --accent: #0e2b28;
+  --accent-foreground: #5fe6d4;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --border: #2e2c37;
+  --input: #2e2c37;
+  --ring: #ff2f9e;
+
+  --magenta: #ff2f9e;
+  --magenta-foreground: #1a0010;
+  --teal: #2dd4bf;
+
+  --status-green: #22c55e;
+  --status-amber: #fbbf24;
+  --status-red: #f87171;
+  --status-neutral: #71717a;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-magenta: var(--magenta);
+  --color-magenta-foreground: var(--magenta-foreground);
+  --color-teal: var(--teal);
+
+  --color-status-green: var(--status-green);
+  --color-status-amber: var(--status-amber);
+  --color-status-red: var(--status-red);
+  --color-status-neutral: var(--status-neutral);
+
+  --font-sans: 'Titillium Web', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    margin: 0;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: none;
+  }
+}
