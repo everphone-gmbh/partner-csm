@@ -133,3 +133,23 @@ export interface Reminder {
   done: boolean
   createdByName: string
 }
+
+// --- Event notes (quick capture on site) ---
+
+export type NoteAttachmentKind = 'image' | 'audio'
+
+export interface NoteAttachment {
+  id: string
+  kind: NoteAttachmentKind
+  url: string // data URL in the mock; Storage object URL in production
+  name?: string
+}
+
+export interface EventNote {
+  id: string
+  eventId: string
+  text: string
+  authorName: string
+  createdAt: string
+  attachments: NoteAttachment[]
+}

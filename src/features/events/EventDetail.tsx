@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/format'
 import { ATTENDANCE_LABEL, ATTENDANCE_ORDER, ATTENDANCE_VARIANT } from './eventMeta'
+import { EventNotes } from './EventNotes'
 
 const selectCls =
   'h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -121,6 +122,8 @@ export function EventDetail() {
           {event.description && <p className="text-sm text-foreground">{event.description}</p>}
         </CardContent>
       </Card>
+
+      <EventNotes eventId={event.id} />
 
       <Card>
         <CardHeader>

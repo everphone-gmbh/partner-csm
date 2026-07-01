@@ -32,4 +32,16 @@ describe('events', () => {
     const ev = await mockRepository.createEvent({ name: 'Test Event', date: '2026-11-01' })
     expect(ev.id).toMatch(/^ev-local-/)
   })
+
+  it('adds an event note and lists notes newest first', async () => {
+    const created = await mockRepository.addEventNote({
+      eventId: 'ev-digitalx',
+      text: 'Aktuelle Notiz',
+      authorName: 'Tester',
+      attachments: [],
+    })
+    expect(created.id).toMatch(/^en-local-/)
+    const notes = await mockRepository.listEventNotes('ev-digitalx')
+    expect(notes[0].text).toBe('Aktuelle Notiz')
+  })
 })

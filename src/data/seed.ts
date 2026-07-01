@@ -4,6 +4,7 @@ import type {
   Contact,
   EventAttendee,
   EventItem,
+  EventNote,
   Region,
   Reminder,
 } from '@/domain/types'
@@ -330,5 +331,16 @@ export const seedReminders: Reminder[] = [
     text: 'Geburtstagsgruß vorbereiten',
     done: false,
     createdByName: 'Olaf Gründel',
+  },
+]
+
+export const seedEventNotes: EventNote[] = [
+  {
+    id: 'en-1',
+    eventId: 'ev-digitalx',
+    text: 'Standaufbau läuft, Telekom-Lounge ist bezogen. Anke kommt gegen 14 Uhr.',
+    authorName: 'Alexandra v. Königsmarck',
+    createdAt: '2026-06-30T08:00:00.000Z',
+    attachments: [],
   },
 ]

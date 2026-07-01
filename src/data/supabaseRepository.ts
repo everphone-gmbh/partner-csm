@@ -7,7 +7,9 @@ import type {
   Contact,
   EventAttendee,
   EventItem,
+  EventNote,
   LinkedInStatus,
+  NoteAttachment,
   Region,
   Reminder,
   Role,
@@ -15,7 +17,14 @@ import type {
   TrafficLight,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
-import type { NewActivity, NewContact, NewEvent, NewReminder, Repository } from './repository'
+import type {
+  NewActivity,
+  NewContact,
+  NewEvent,
+  NewEventNote,
+  NewReminder,
+  Repository,
+} from './repository'
 
 // ⚠ PRE-BUILT, NOT YET INTEGRATION-TESTED against the live DB.
 // Blocked on applying the migrations (the SQL executor 404s for this tenant).
@@ -177,6 +186,26 @@ export function mapRowToReminder(row: ReminderRow): Reminder {
     text: row.text,
     done: row.done,
     createdByName: row.created_by_name,
+  }
+}
+
+export interface EventNoteRow {
+  id: string
+  event_id: string
+  text: string
+  author_name: string
+  attachments: NoteAttachment[] | null
+  created_at: string
+}
+
+export function mapRowToEventNote(row: EventNoteRow): EventNote {
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    text: row.text,
+    authorName: row.author_name,
+    createdAt: row.created_at,
+    attachments: row.attachments ?? [],
   }
 }
 
@@ -429,5 +458,30 @@ export class SupabaseRepository implements Repository {
   async deleteReminder(id: string): Promise<void> {
     const { error } = await this.client.from('reminders').delete().eq('id', id)
     if (error) throw new Error(error.message)
+  }
+
+  async listEventNotes(eventId: string): Promise<EventNote[]> {
+    const { data, error } = await this.client
+      .from('event_notes')
+      .select('id, event_id, text, author_name, attachments, created_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as EventNoteRow[]).map(mapRowToEventNote)
+  }
+
+  async addEventNote(input: NewEventNote): Promise<EventNote> {
+    const { data, error } = await this.client
+      .from('event_notes')
+      .insert({
+        event_id: input.eventId,
+        text: input.text,
+        author_name: input.authorName,
+        attachments: input.attachments,
+      })
+      .select('id, event_id, text, author_name, attachments, created_at')
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToEventNote(data as unknown as EventNoteRow)
   }
 }

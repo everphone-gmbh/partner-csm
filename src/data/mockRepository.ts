@@ -1,10 +1,25 @@
-import type { Activity, AttendanceStatus, Contact, EventItem, Reminder } from '@/domain/types'
+import type {
+  Activity,
+  AttendanceStatus,
+  Contact,
+  EventItem,
+  EventNote,
+  Reminder,
+} from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
-import type { NewActivity, NewContact, NewEvent, NewReminder, Repository } from './repository'
+import type {
+  NewActivity,
+  NewContact,
+  NewEvent,
+  NewEventNote,
+  NewReminder,
+  Repository,
+} from './repository'
 import {
   seedActivities,
   seedContacts,
   seedEventAttendees,
+  seedEventNotes,
   seedEvents,
   seedReminders,
   seedRegions,
@@ -26,6 +41,7 @@ class MockRepository implements Repository {
   private activities = clone(seedActivities)
   private events = clone(seedEvents)
   private attendees = clone(seedEventAttendees)
+  private eventNotes = clone(seedEventNotes)
   private reminders = clone(seedReminders)
   private seq = 1
 
@@ -183,6 +199,27 @@ class MockRepository implements Repository {
 
   async deleteReminder(id: string) {
     this.reminders = this.reminders.filter((r) => r.id !== id)
+  }
+
+  async listEventNotes(eventId: string) {
+    return clone(
+      this.eventNotes
+        .filter((n) => n.eventId === eventId)
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+    )
+  }
+
+  async addEventNote(input: NewEventNote) {
+    const note: EventNote = {
+      id: `en-local-${this.seq++}`,
+      eventId: input.eventId,
+      text: input.text,
+      authorName: input.authorName,
+      createdAt: nowIso(),
+      attachments: input.attachments,
+    }
+    this.eventNotes.push(note)
+    return clone(note)
   }
 }
 

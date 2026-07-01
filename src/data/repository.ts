@@ -5,7 +5,9 @@ import type {
   Contact,
   EventAttendee,
   EventItem,
+  EventNote,
   LinkedInInfo,
+  NoteAttachment,
   Region,
   Reminder,
   SideFact,
@@ -52,6 +54,13 @@ export interface NewReminder {
   createdByName: string
 }
 
+export interface NewEventNote {
+  eventId: string
+  text: string
+  authorName: string
+  attachments: NoteAttachment[]
+}
+
 /**
  * Data-access seam. The first draft binds to an in-memory mock; a Supabase
  * implementation will later satisfy the same interface with zero UI changes.
@@ -75,6 +84,8 @@ export interface Repository {
     patch: { status?: AttendanceStatus; purpose?: string },
   ): Promise<EventAttendee>
   removeAttendee(eventId: string, contactId: string): Promise<void>
+  listEventNotes(eventId: string): Promise<EventNote[]>
+  addEventNote(input: NewEventNote): Promise<EventNote>
   /** All reminders, or just those for one contact when contactId is given. */
   listReminders(contactId?: string): Promise<Reminder[]>
   addReminder(input: NewReminder): Promise<Reminder>
