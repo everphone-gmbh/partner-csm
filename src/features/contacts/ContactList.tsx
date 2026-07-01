@@ -1,19 +1,23 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Check, X, HelpCircle, Plus, Map as MapIcon, List as ListIcon } from 'lucide-react'
-import type { AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
+import type { Activity, AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canApprove } from '@/domain/roles'
 import { useScopedContacts } from '@/app/useScopedContacts'
+import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { Input } from '@/components/ui/input'
 import { buttonVariants } from '@/components/ui/button'
 import { GermanyMap } from './GermanyMap'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { AttentionBadge } from '@/components/AttentionBadge'
 import { TrafficLightDot, TRAFFIC_LABEL } from '@/components/TrafficLight'
 import { cn } from '@/lib/utils'
+
+type SortMode = 'name' | 'stale'
 
 const LINKEDIN_MINI: Record<LinkedInStatus, { icon: typeof Check; cls: string; title: string }> = {
   has_account: { icon: Check, cls: 'text-status-green', title: 'LinkedIn vorhanden' },
@@ -27,9 +31,11 @@ export function ContactList() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [regions, setRegions] = useState<Region[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
   const [q, setQ] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
+  const [sortMode, setSortMode] = useState<SortMode>('name')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -38,17 +44,29 @@ export function ContactList() {
       repository.listContacts(),
       repository.listRegions(),
       repository.listUsers(),
-    ]).then(([c, r, u]) => {
+      repository.listAllActivities(),
+    ]).then(([c, r, u, a]) => {
       if (!active) return
       setContacts(c)
       setRegions(r)
       setUsers(u)
+      setActivities(a)
       setLoading(false)
     })
     return () => {
       active = false
     }
   }, [])
+
+  const today = useMemo(() => new Date(), [])
+  const attentionByContact = useMemo(() => {
+    const map = new Map<string, { days: number; level: ReturnType<typeof computeAttentionLevel> }>()
+    for (const c of contacts) {
+      const days = daysSinceTouch(c, activities, today)
+      map.set(c.id, { days, level: computeAttentionLevel(days) })
+    }
+    return map
+  }, [contacts, activities, today])
 
   const regionName = (id: string) => regions.find((r) => r.id === id)?.name ?? '—'
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
@@ -66,8 +84,12 @@ export function ContactList() {
           c.position.toLowerCase().includes(term),
       )
     }
-    return [...list].sort((a, b) => a.fullName.localeCompare(b.fullName, 'de'))
-  }, [roleScoped, q, regionFilter])
+    return [...list].sort((a, b) =>
+      sortMode === 'stale'
+        ? (attentionByContact.get(b.id)?.days ?? 0) - (attentionByContact.get(a.id)?.days ?? 0)
+        : a.fullName.localeCompare(b.fullName, 'de'),
+    )
+  }, [roleScoped, q, regionFilter, sortMode, attentionByContact])
 
   return (
     <div className="space-y-4">
@@ -96,25 +118,40 @@ export function ContactList() {
         />
       </div>
 
-      <div className="flex gap-1">
-        {([
-          { mode: 'list', label: 'Liste', icon: ListIcon },
-          { mode: 'map', label: 'Karte', icon: MapIcon },
-        ] as const).map(({ mode, label, icon: Icon }) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => setViewMode(mode)}
-            className={cn(
-              'inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs transition-colors',
-              viewMode === mode
-                ? 'border-transparent bg-primary text-primary-foreground'
-                : 'border-border text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Icon className="size-3.5" /> {label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1">
+          {([
+            { mode: 'list', label: 'Liste', icon: ListIcon },
+            { mode: 'map', label: 'Karte', icon: MapIcon },
+          ] as const).map(({ mode, label, icon: Icon }) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setViewMode(mode)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs transition-colors',
+                viewMode === mode
+                  ? 'border-transparent bg-primary text-primary-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Icon className="size-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+        {viewMode === 'list' && (
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            Sortierung
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              className="h-7 rounded-md border border-input bg-background px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="name">Name</option>
+              <option value="stale">Zuletzt aktiv</option>
+            </select>
+          </label>
+        )}
       </div>
 
       {!isAccountManager && (
@@ -158,6 +195,7 @@ export function ContactList() {
         {visible.map((c) => {
           const mini = LINKEDIN_MINI[c.linkedin.status]
           const MiniIcon = mini.icon
+          const attention = attentionByContact.get(c.id)
           return (
             <Link key={c.id} to={`/contacts/${c.id}`} className="group">
               <Card className="flex items-center gap-3 p-3 transition-colors group-hover:border-primary/40 group-hover:bg-secondary/40">
@@ -174,6 +212,11 @@ export function ContactList() {
                     <span>·</span>
                     <span className="truncate">{regionName(c.regionId)}</span>
                   </div>
+                  {attention && attention.level !== 'ok' && (
+                    <div className="mt-1">
+                      <AttentionBadge level={attention.level} days={attention.days} />
+                    </div>
+                  )}
                 </div>
                 <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
                   {userName(c.relationshipManagerId).split(' ')[0]}

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, Cake, TrendingUp, Users } from 'lucide-react'
-import type { Contact, Region, Reminder } from '@/domain/types'
+import { AlarmClock, Bell, Cake, TrendingUp, Users } from 'lucide-react'
+import type { Activity, Contact, Region, Reminder } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canViewSensitiveFields } from '@/domain/roles'
 import { useScopedContacts } from '@/app/useScopedContacts'
+import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
@@ -18,6 +19,7 @@ export function Dashboard() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [regions, setRegions] = useState<Region[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -26,11 +28,13 @@ export function Dashboard() {
       repository.listContacts(),
       repository.listRegions(),
       repository.listReminders(),
-    ]).then(([c, r, rem]) => {
+      repository.listAllActivities(),
+    ]).then(([c, r, rem, a]) => {
       if (!active) return
       setContacts(c)
       setRegions(r)
       setReminders(rem)
+      setActivities(a)
       setLoading(false)
     })
     return () => {
@@ -39,6 +43,14 @@ export function Dashboard() {
   }, [])
 
   const { scoped } = useScopedContacts(contacts)
+  const needsAttention = useMemo(() => {
+    const today = new Date()
+    return scoped
+      .map((c) => ({ contact: c, days: daysSinceTouch(c, activities, today) }))
+      .filter(({ days }) => computeAttentionLevel(days) !== 'ok')
+      .sort((a, b) => b.days - a.days)
+      .slice(0, 8)
+  }, [scoped, activities])
   const regionName = (id: string) => regions.find((r) => r.id === id)?.name ?? id
   const coverage = useMemo(() => computeRegionCoverage(scoped), [scoped])
   const summary = useMemo(() => overallSummary(scoped), [scoped])
@@ -78,6 +90,38 @@ export function Dashboard() {
           <StatCard icon={Cake} label="Geburtstage (30 T.)" value={String(birthdays.length)} />
         )}
       </div>
+
+      {needsAttention.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Braucht Aufmerksamkeit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1">
+              {needsAttention.map(({ contact, days }) => (
+                <li key={contact.id}>
+                  <Link
+                    to={`/contacts/${contact.id}`}
+                    className="flex items-center gap-3 rounded-md p-1.5 hover:bg-secondary/50"
+                  >
+                    <Avatar src={contact.photoUrl} name={contact.fullName} className="size-9" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{contact.fullName}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Seit {days} Tagen kein Kontakt
+                      </div>
+                    </div>
+                    <Badge variant={days >= 90 ? 'destructive' : 'warning'}>
+                      <AlarmClock className="size-3" />
+                      {days} T.
+                    </Badge>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {openReminders.length > 0 && (
         <Card>
