@@ -9,12 +9,13 @@ import type {
   EventItem,
   LinkedInStatus,
   Region,
+  Reminder,
   Role,
   SideFact,
   TrafficLight,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
-import type { NewActivity, NewContact, NewEvent, Repository } from './repository'
+import type { NewActivity, NewContact, NewEvent, NewReminder, Repository } from './repository'
 
 // ⚠ PRE-BUILT, NOT YET INTEGRATION-TESTED against the live DB.
 // Blocked on applying the migrations (the SQL executor 404s for this tenant).
@@ -156,6 +157,26 @@ export function mapRowToEvent(row: EventRow): EventItem {
     date: row.event_date,
     location: row.location ?? undefined,
     description: row.description ?? undefined,
+  }
+}
+
+export interface ReminderRow {
+  id: string
+  contact_id: string
+  due_date: string
+  text: string
+  done: boolean
+  created_by_name: string
+}
+
+export function mapRowToReminder(row: ReminderRow): Reminder {
+  return {
+    id: row.id,
+    contactId: row.contact_id,
+    dueDate: row.due_date,
+    text: row.text,
+    done: row.done,
+    createdByName: row.created_by_name,
   }
 }
 
@@ -365,6 +386,48 @@ export class SupabaseRepository implements Repository {
       .delete()
       .eq('event_id', eventId)
       .eq('contact_id', contactId)
+    if (error) throw new Error(error.message)
+  }
+
+  async listReminders(contactId?: string): Promise<Reminder[]> {
+    const base = this.client
+      .from('reminders')
+      .select('id, contact_id, due_date, text, done, created_by_name')
+      .order('due_date')
+    const { data, error } = await (contactId ? base.eq('contact_id', contactId) : base)
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as ReminderRow[]).map(mapRowToReminder)
+  }
+
+  async addReminder(input: NewReminder): Promise<Reminder> {
+    const { data, error } = await this.client
+      .from('reminders')
+      .insert({
+        contact_id: input.contactId,
+        due_date: input.dueDate,
+        text: input.text,
+        created_by_name: input.createdByName,
+        done: false,
+      })
+      .select('id, contact_id, due_date, text, done, created_by_name')
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToReminder(data as unknown as ReminderRow)
+  }
+
+  async toggleReminder(id: string, done: boolean): Promise<Reminder> {
+    const { data, error } = await this.client
+      .from('reminders')
+      .update({ done })
+      .eq('id', id)
+      .select('id, contact_id, due_date, text, done, created_by_name')
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToReminder(data as unknown as ReminderRow)
+  }
+
+  async deleteReminder(id: string): Promise<void> {
+    const { error } = await this.client.from('reminders').delete().eq('id', id)
     if (error) throw new Error(error.message)
   }
 }

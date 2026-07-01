@@ -1,4 +1,12 @@
-import type { Activity, AppUser, Contact, EventAttendee, EventItem, Region } from '@/domain/types'
+import type {
+  Activity,
+  AppUser,
+  Contact,
+  EventAttendee,
+  EventItem,
+  Region,
+  Reminder,
+} from '@/domain/types'
 
 // Seed data for the first draft. Fictional Telekom partner contacts — no real
 // personal data. Today (demo) is 2026-06-30.
@@ -296,4 +304,31 @@ export const seedEventAttendees: (EventAttendee & { eventId: string })[] = [
   { eventId: 'ev-digitalx', contactId: 'c-sandra', status: 'invited', purpose: 'Erstkontakt vertiefen' },
   { eventId: 'ev-ciomove', contactId: 'c-michael', status: 'accepted', purpose: 'Cloud-Ausbau Sachsen Digital' },
   { eventId: 'ev-ciomove', contactId: 'c-nicole', status: 'accepted', purpose: 'Bestandsbeziehung pflegen' },
+]
+
+export const seedReminders: Reminder[] = [
+  {
+    id: 'rem-1',
+    contactId: 'c-anke',
+    dueDate: '2026-07-02',
+    text: 'Angebot über 150 Devices nachfassen (bis KW 28)',
+    done: false,
+    createdByName: 'Alexandra v. Königsmarck',
+  },
+  {
+    id: 'rem-2',
+    contactId: 'c-thomas',
+    dueDate: '2026-06-28',
+    text: 'Reaktion auf Produktunterlagen einholen',
+    done: false,
+    createdByName: 'Olaf Gründel',
+  },
+  {
+    id: 'rem-3',
+    contactId: 'c-nicole',
+    dueDate: '2026-07-06',
+    text: 'Geburtstagsgruß vorbereiten',
+    done: false,
+    createdByName: 'Olaf Gründel',
+  },
 ]

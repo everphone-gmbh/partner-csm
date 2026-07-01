@@ -7,6 +7,7 @@ import type {
   EventItem,
   LinkedInInfo,
   Region,
+  Reminder,
   SideFact,
 } from '@/domain/types'
 
@@ -44,6 +45,13 @@ export interface NewEvent {
   description?: string
 }
 
+export interface NewReminder {
+  contactId: string
+  dueDate: string
+  text: string
+  createdByName: string
+}
+
 /**
  * Data-access seam. The first draft binds to an in-memory mock; a Supabase
  * implementation will later satisfy the same interface with zero UI changes.
@@ -67,4 +75,9 @@ export interface Repository {
     patch: { status?: AttendanceStatus; purpose?: string },
   ): Promise<EventAttendee>
   removeAttendee(eventId: string, contactId: string): Promise<void>
+  /** All reminders, or just those for one contact when contactId is given. */
+  listReminders(contactId?: string): Promise<Reminder[]>
+  addReminder(input: NewReminder): Promise<Reminder>
+  toggleReminder(id: string, done: boolean): Promise<Reminder>
+  deleteReminder(id: string): Promise<void>
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { Cake, TrendingUp, Users } from 'lucide-react'
-import type { Contact, Region } from '@/domain/types'
+import { Bell, Cake, TrendingUp, Users } from 'lucide-react'
+import type { Contact, Region, Reminder } from '@/domain/types'
 import { mockRepository } from '@/data/mockRepository'
 import { useSession } from '@/app/SessionContext'
 import { canViewSensitiveFields, ROLE_RANK } from '@/domain/roles'
@@ -9,21 +9,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { TrafficLightDot } from '@/components/TrafficLight'
-import { formatDate } from '@/lib/format'
+import { formatDate, daysUntil } from '@/lib/format'
 import { computeRegionCoverage, overallSummary, upcomingBirthdays } from './dashboardStats'
 
 export function Dashboard() {
   const { user } = useSession()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [regions, setRegions] = useState<Region[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
-    Promise.all([mockRepository.listContacts(), mockRepository.listRegions()]).then(([c, r]) => {
+    Promise.all([
+      mockRepository.listContacts(),
+      mockRepository.listRegions(),
+      mockRepository.listReminders(),
+    ]).then(([c, r, rem]) => {
       if (!active) return
       setContacts(c)
       setRegions(r)
+      setReminders(rem)
       setLoading(false)
     })
     return () => {
@@ -44,6 +50,15 @@ export function Dashboard() {
     () => (canSensitive ? upcomingBirthdays(scoped, 30, new Date()) : []),
     [scoped, canSensitive],
   )
+  const scopedIds = useMemo(() => new Set(scoped.map((c) => c.id)), [scoped])
+  const openReminders = useMemo(
+    () =>
+      reminders
+        .filter((r) => !r.done && scopedIds.has(r.contactId))
+        .sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1)),
+    [reminders, scopedIds],
+  )
+  const contactName = (cid: string) => contacts.find((c) => c.id === cid)?.fullName ?? cid
 
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
 
@@ -66,6 +81,43 @@ export function Dashboard() {
           <StatCard icon={Cake} label="Geburtstage (30 T.)" value={String(birthdays.length)} />
         )}
       </div>
+
+      {openReminders.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Offene Reminder</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1">
+              {openReminders.map((r) => {
+                const d = daysUntil(r.dueDate)
+                const overdue = d !== null && d < 0
+                return (
+                  <li key={r.id}>
+                    <Link
+                      to={`/contacts/${r.contactId}`}
+                      className="flex items-center gap-3 rounded-md p-1.5 hover:bg-secondary/50"
+                    >
+                      <Bell className="size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm">{r.text}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {contactName(r.contactId)} · {formatDate(r.dueDate)}
+                        </div>
+                      </div>
+                      <Badge
+                        variant={overdue ? 'destructive' : d !== null && d <= 3 ? 'warning' : 'secondary'}
+                      >
+                        {overdue ? 'überfällig' : d === 0 ? 'heute' : `in ${d} T.`}
+                      </Badge>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

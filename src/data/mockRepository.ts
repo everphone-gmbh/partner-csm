@@ -1,11 +1,12 @@
-import type { Activity, AttendanceStatus, Contact, EventItem } from '@/domain/types'
+import type { Activity, AttendanceStatus, Contact, EventItem, Reminder } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
-import type { NewActivity, NewContact, NewEvent, Repository } from './repository'
+import type { NewActivity, NewContact, NewEvent, NewReminder, Repository } from './repository'
 import {
   seedActivities,
   seedContacts,
   seedEventAttendees,
   seedEvents,
+  seedReminders,
   seedRegions,
   seedUsers,
 } from './seed'
@@ -25,6 +26,7 @@ class MockRepository implements Repository {
   private activities = clone(seedActivities)
   private events = clone(seedEvents)
   private attendees = clone(seedEventAttendees)
+  private reminders = clone(seedReminders)
   private seq = 1
 
   async listRegions() {
@@ -150,6 +152,37 @@ class MockRepository implements Repository {
     this.attendees = this.attendees.filter(
       (a) => !(a.eventId === eventId && a.contactId === contactId),
     )
+  }
+
+  async listReminders(contactId?: string) {
+    const items = contactId
+      ? this.reminders.filter((r) => r.contactId === contactId)
+      : this.reminders
+    return clone([...items].sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1)))
+  }
+
+  async addReminder(input: NewReminder) {
+    const reminder: Reminder = {
+      id: `rem-local-${this.seq++}`,
+      contactId: input.contactId,
+      dueDate: input.dueDate,
+      text: input.text,
+      done: false,
+      createdByName: input.createdByName,
+    }
+    this.reminders.push(reminder)
+    return clone(reminder)
+  }
+
+  async toggleReminder(id: string, done: boolean) {
+    const idx = this.reminders.findIndex((r) => r.id === id)
+    if (idx < 0) throw new Error(`reminder ${id} not found`)
+    this.reminders[idx] = { ...this.reminders[idx], done }
+    return clone(this.reminders[idx])
+  }
+
+  async deleteReminder(id: string) {
+    this.reminders = this.reminders.filter((r) => r.id !== id)
   }
 }
 

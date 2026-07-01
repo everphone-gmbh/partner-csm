@@ -115,3 +115,14 @@ export interface EventAttendee {
   /** "Wofür" — why they're coming / what to discuss on site. */
   purpose?: string
 }
+
+// --- Reminders (self-set) ---
+
+export interface Reminder {
+  id: string
+  contactId: string
+  dueDate: string // YYYY-MM-DD
+  text: string
+  done: boolean
+  createdByName: string
+}

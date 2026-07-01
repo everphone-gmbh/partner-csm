@@ -16,6 +16,16 @@ export function formatDateTime(iso?: string): string {
   return `${date}, ${time}`
 }
 
+/** Whole days until a calendar date (negative = in the past). */
+export function daysUntil(dateStr: string | undefined, today: Date = new Date()): number | null {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return null
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.round((target.getTime() - start.getTime()) / 86_400_000)
+}
+
 /** Day-of-year aware "days until next birthday" from a YYYY-MM-DD string. */
 export function daysUntilBirthday(birthday: string | undefined, today: Date = new Date()): number | null {
   if (!birthday) return null

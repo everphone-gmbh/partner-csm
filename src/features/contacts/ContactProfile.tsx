@@ -45,6 +45,7 @@ import { EditableAvatar } from '@/components/EditableAvatar'
 import { TrafficLightBadge, TrafficLightPicker } from '@/components/TrafficLight'
 import { LinkedInField, LinkedInPicker } from '@/components/LinkedInField'
 import { Logbook } from '@/features/activities/Logbook'
+import { RemindersCard } from '@/features/reminders/RemindersCard'
 import { formatDate, daysUntilBirthday } from '@/lib/format'
 
 const selectCls =
@@ -196,6 +197,7 @@ export function ContactProfile() {
             </CardContent>
           </Card>
           <NotizCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
+          <RemindersCard contactId={view.id} />
         </div>
 
         {/* Right: logbook (stacks below on mobile) */}
