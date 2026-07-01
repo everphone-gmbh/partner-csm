@@ -60,6 +60,12 @@ export interface SideFact {
   category: SideFactCategory
 }
 
+export interface GalleryPhoto {
+  id: string
+  url: string
+  caption?: string
+}
+
 export interface Region {
   id: string
   name: string
@@ -92,6 +98,7 @@ export interface Contact {
   freeText?: string
   sideFacts: SideFact[]
   customers: CustomerLink[]
+  gallery?: GalleryPhoto[]
   createdAt: string
   updatedAt: string
 }
