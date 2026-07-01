@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { Search, Check, X, HelpCircle, Plus } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Search, Check, X, HelpCircle, Plus, Map as MapIcon, List as ListIcon } from 'lucide-react'
 import type { AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
 import { mockRepository } from '@/data/mockRepository'
 import { useSession } from '@/app/SessionContext'
 import { canApprove, ROLE_RANK } from '@/domain/roles'
 import { Input } from '@/components/ui/input'
 import { buttonVariants } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { GermanyMap } from './GermanyMap'
+import { Card, CardContent } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { TrafficLightDot, TRAFFIC_LABEL } from '@/components/TrafficLight'
@@ -21,11 +22,13 @@ const LINKEDIN_MINI: Record<LinkedInStatus, { icon: typeof Check; cls: string; t
 
 export function ContactList() {
   const { user } = useSession()
+  const navigate = useNavigate()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [regions, setRegions] = useState<Region[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
   const [q, setQ] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -50,6 +53,14 @@ export function ContactList() {
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
 
   const isAccountManager = ROLE_RANK[user.role] === ROLE_RANK.account_manager
+
+  const roleScoped = useMemo(
+    () =>
+      isAccountManager && user.regionId
+        ? contacts.filter((c) => c.regionId === user.regionId)
+        : contacts,
+    [contacts, isAccountManager, user.regionId],
+  )
 
   const visible = useMemo(() => {
     let list = contacts
@@ -96,6 +107,27 @@ export function ContactList() {
         />
       </div>
 
+      <div className="flex gap-1">
+        {([
+          { mode: 'list', label: 'Liste', icon: ListIcon },
+          { mode: 'map', label: 'Karte', icon: MapIcon },
+        ] as const).map(({ mode, label, icon: Icon }) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setViewMode(mode)}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs transition-colors',
+              viewMode === mode
+                ? 'border-transparent bg-primary text-primary-foreground'
+                : 'border-border text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icon className="size-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+
       {!isAccountManager && (
         <div className="flex flex-wrap gap-1.5">
           <FilterChip active={regionFilter === null} onClick={() => setRegionFilter(null)}>
@@ -113,6 +145,26 @@ export function ContactList() {
         </div>
       )}
 
+      {viewMode === 'map' ? (
+        <Card>
+          <CardContent className="pt-5">
+            <GermanyMap
+              regions={regions}
+              contacts={roleScoped}
+              activeRegion={regionFilter}
+              onSelectRegion={(id) => {
+                setRegionFilter(id)
+                setViewMode('list')
+              }}
+              onSelectContact={(id) => navigate(`/contacts/${id}`)}
+            />
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Region antippen zum Filtern · Punkt = Kontakt (Farbe = Beziehungsstatus)
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {visible.map((c) => {
           const mini = LINKEDIN_MINI[c.linkedin.status]
@@ -145,6 +197,8 @@ export function ContactList() {
 
       {!loading && visible.length === 0 && (
         <p className="py-8 text-center text-sm text-muted-foreground">Keine Kontakte gefunden.</p>
+      )}
+        </>
       )}
     </div>
   )
