@@ -73,6 +73,7 @@ export interface Repository {
   createContact(input: NewContact): Promise<Contact>
   updateContact(id: string, patch: Partial<Contact>): Promise<Contact>
   listActivities(contactId: string): Promise<Activity[]>
+  listAllActivities(): Promise<Activity[]>
   addActivity(input: NewActivity): Promise<Activity>
   listEvents(): Promise<EventItem[]>
   getEvent(id: string): Promise<EventItem | undefined>

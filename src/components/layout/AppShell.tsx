@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { CalendarDays, LayoutGrid, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, LayoutGrid, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
@@ -46,10 +46,15 @@ const NAV = [
 ]
 
 function BottomNav() {
+  const { user } = useSession()
+  const items =
+    user.role === 'overall_admin'
+      ? [...NAV, { to: '/monitoring', label: 'Monitoring', icon: BarChart3 }]
+      : NAV
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-5xl">
-        {NAV.map(({ to, label, icon: Icon }) => (
+        {items.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

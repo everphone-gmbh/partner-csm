@@ -121,6 +121,10 @@ class MockRepository implements Repository {
     return clone(activity)
   }
 
+  async listAllActivities() {
+    return clone(this.activities)
+  }
+
   async listEvents() {
     return clone(this.events)
   }

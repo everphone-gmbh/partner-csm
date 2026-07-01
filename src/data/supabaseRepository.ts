@@ -346,6 +346,19 @@ export class SupabaseRepository implements Repository {
     return mapRowToActivity(data as unknown as ActivityRow, this.resolver(names))
   }
 
+  async listAllActivities(): Promise<Activity[]> {
+    const [{ data, error }, names] = await Promise.all([
+      this.client
+        .from('activities')
+        .select('id, contact_id, type, occurred_at, author_id, body, ai_summary')
+        .order('occurred_at', { ascending: false }),
+      this.names(),
+    ])
+    if (error) throw new Error(error.message)
+    const resolve = this.resolver(names)
+    return ((data ?? []) as unknown as ActivityRow[]).map((row) => mapRowToActivity(row, resolve))
+  }
+
   async listEvents(): Promise<EventItem[]> {
     const { data, error } = await this.client
       .from('events')
