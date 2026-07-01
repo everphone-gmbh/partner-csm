@@ -4,7 +4,8 @@ import { Bell, Cake, TrendingUp, Users } from 'lucide-react'
 import type { Contact, Region, Reminder } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
-import { canViewSensitiveFields, ROLE_RANK } from '@/domain/roles'
+import { canViewSensitiveFields } from '@/domain/roles'
+import { useScopedContacts } from '@/app/useScopedContacts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
@@ -37,11 +38,7 @@ export function Dashboard() {
     }
   }, [])
 
-  const isAM = ROLE_RANK[user.role] === ROLE_RANK.account_manager
-  const scoped = useMemo(
-    () => (isAM && user.regionId ? contacts.filter((c) => c.regionId === user.regionId) : contacts),
-    [contacts, isAM, user.regionId],
-  )
+  const { scoped } = useScopedContacts(contacts)
   const regionName = (id: string) => regions.find((r) => r.id === id)?.name ?? id
   const coverage = useMemo(() => computeRegionCoverage(scoped), [scoped])
   const summary = useMemo(() => overallSummary(scoped), [scoped])

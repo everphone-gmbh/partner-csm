@@ -4,7 +4,8 @@ import { Search, Check, X, HelpCircle, Plus, Map as MapIcon, List as ListIcon } 
 import type { AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
-import { canApprove, ROLE_RANK } from '@/domain/roles'
+import { canApprove } from '@/domain/roles'
+import { useScopedContacts } from '@/app/useScopedContacts'
 import { Input } from '@/components/ui/input'
 import { buttonVariants } from '@/components/ui/button'
 import { GermanyMap } from './GermanyMap'
@@ -52,22 +53,10 @@ export function ContactList() {
   const regionName = (id: string) => regions.find((r) => r.id === id)?.name ?? '—'
   const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '—'
 
-  const isAccountManager = ROLE_RANK[user.role] === ROLE_RANK.account_manager
-
-  const roleScoped = useMemo(
-    () =>
-      isAccountManager && user.regionId
-        ? contacts.filter((c) => c.regionId === user.regionId)
-        : contacts,
-    [contacts, isAccountManager, user.regionId],
-  )
+  const { scoped: roleScoped, isAccountManager } = useScopedContacts(contacts)
 
   const visible = useMemo(() => {
-    let list = contacts
-    // Row-level scope: account managers only see their own region (mirrors RLS).
-    if (isAccountManager && user.regionId) {
-      list = list.filter((c) => c.regionId === user.regionId)
-    }
+    let list = roleScoped
     if (regionFilter) list = list.filter((c) => c.regionId === regionFilter)
     const term = q.trim().toLowerCase()
     if (term) {
@@ -78,7 +67,7 @@ export function ContactList() {
       )
     }
     return [...list].sort((a, b) => a.fullName.localeCompare(b.fullName, 'de'))
-  }, [contacts, q, regionFilter, isAccountManager, user.regionId])
+  }, [roleScoped, q, regionFilter])
 
   return (
     <div className="space-y-4">
