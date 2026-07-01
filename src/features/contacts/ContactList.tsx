@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Check, X, HelpCircle, Plus, Map as MapIcon, List as ListIcon } from 'lucide-react'
 import type { AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canApprove, ROLE_RANK } from '@/domain/roles'
 import { Input } from '@/components/ui/input'
@@ -34,9 +34,9 @@ export function ContactList() {
   useEffect(() => {
     let active = true
     Promise.all([
-      mockRepository.listContacts(),
-      mockRepository.listRegions(),
-      mockRepository.listUsers(),
+      repository.listContacts(),
+      repository.listRegions(),
+      repository.listUsers(),
     ]).then(([c, r, u]) => {
       if (!active) return
       setContacts(c)

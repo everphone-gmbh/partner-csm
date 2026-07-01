@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown, Paperclip } from 'lucide-react'
 import type { Activity } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canViewActivityBody } from '@/domain/roles'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,7 +74,7 @@ export function Logbook({ contactId }: { contactId: string }) {
   const canBody = canViewActivityBody(user.role)
 
   const refresh = () => {
-    void mockRepository.listActivities(contactId).then(setItems)
+    void repository.listActivities(contactId).then(setItems)
   }
 
   useEffect(refresh, [contactId])

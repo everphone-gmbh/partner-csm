@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CalendarDays, MapPin, Plus, Trash2 } from 'lucide-react'
 import type { AttendanceStatus, Contact, EventAttendee, EventItem } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -24,16 +24,16 @@ export function EventDetail() {
   const [addId, setAddId] = useState('')
 
   const loadAttendees = () => {
-    if (id) void mockRepository.listEventAttendees(id).then(setAttendees)
+    if (id) void repository.listEventAttendees(id).then(setAttendees)
   }
 
   useEffect(() => {
     if (!id) return
     let active = true
     Promise.all([
-      mockRepository.getEvent(id),
-      mockRepository.listEventAttendees(id),
-      mockRepository.listContacts(),
+      repository.getEvent(id),
+      repository.listEventAttendees(id),
+      repository.listContacts(),
     ]).then(([e, a, c]) => {
       if (!active) return
       setEvent(e)
@@ -71,21 +71,21 @@ export function EventDetail() {
 
   const setStatus = async (contactId: string, status: AttendanceStatus) => {
     setAttendees((prev) => prev.map((a) => (a.contactId === contactId ? { ...a, status } : a)))
-    if (id) await mockRepository.setAttendee(id, contactId, { status })
+    if (id) await repository.setAttendee(id, contactId, { status })
   }
   const editPurpose = (contactId: string, purpose: string) =>
     setAttendees((prev) => prev.map((a) => (a.contactId === contactId ? { ...a, purpose } : a)))
   const savePurpose = async (contactId: string, purpose: string) => {
-    if (id) await mockRepository.setAttendee(id, contactId, { purpose })
+    if (id) await repository.setAttendee(id, contactId, { purpose })
   }
   const removeAttendee = async (contactId: string) => {
     if (!id) return
-    await mockRepository.removeAttendee(id, contactId)
+    await repository.removeAttendee(id, contactId)
     loadAttendees()
   }
   const addAttendee = async () => {
     if (!id || !addId) return
-    await mockRepository.setAttendee(id, addId, { status: 'invited' })
+    await repository.setAttendee(id, addId, { status: 'invited' })
     setAddId('')
     loadAttendees()
   }

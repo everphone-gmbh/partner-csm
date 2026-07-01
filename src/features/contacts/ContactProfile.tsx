@@ -31,7 +31,7 @@ import type {
   SideFact,
   TrafficLight,
 } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import {
   canApprove,
@@ -70,9 +70,9 @@ export function ContactProfile() {
     let active = true
     setLoading(true)
     Promise.all([
-      mockRepository.getContact(id),
-      mockRepository.listRegions(),
-      mockRepository.listUsers(),
+      repository.getContact(id),
+      repository.listRegions(),
+      repository.listUsers(),
     ]).then(([c, r, u]) => {
       if (!active) return
       setRaw(c)
@@ -102,7 +102,7 @@ export function ContactProfile() {
 
   const save = async (patch: Partial<Contact>) => {
     if (!raw) return
-    const updated = await mockRepository.updateContact(raw.id, patch)
+    const updated = await repository.updateContact(raw.id, patch)
     setRaw(updated)
   }
 

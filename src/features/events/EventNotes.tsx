@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Mic, Send, Square, X } from 'lucide-react'
 import type { EventNote, NoteAttachment } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -78,7 +78,7 @@ export function EventNotes({ eventId }: { eventId: string }) {
   const imgRef = useRef<HTMLInputElement>(null)
 
   const refresh = () => {
-    void mockRepository.listEventNotes(eventId).then(setNotes)
+    void repository.listEventNotes(eventId).then(setNotes)
   }
   useEffect(refresh, [eventId])
 
@@ -101,7 +101,7 @@ export function EventNotes({ eventId }: { eventId: string }) {
     if (!text.trim() && pending.length === 0) return
     setSaving(true)
     try {
-      await mockRepository.addEventNote({
+      await repository.addEventNote({
         eventId,
         text: text.trim(),
         authorName: user.name,

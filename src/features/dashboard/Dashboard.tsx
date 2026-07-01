@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, Cake, TrendingUp, Users } from 'lucide-react'
 import type { Contact, Region, Reminder } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canViewSensitiveFields, ROLE_RANK } from '@/domain/roles'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,9 +22,9 @@ export function Dashboard() {
   useEffect(() => {
     let active = true
     Promise.all([
-      mockRepository.listContacts(),
-      mockRepository.listRegions(),
-      mockRepository.listReminders(),
+      repository.listContacts(),
+      repository.listRegions(),
+      repository.listReminders(),
     ]).then(([c, r, rem]) => {
       if (!active) return
       setContacts(c)

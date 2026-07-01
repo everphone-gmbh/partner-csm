@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarDays, MapPin, Plus, Users } from 'lucide-react'
 import type { EventItem } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,11 +20,11 @@ export function EventsList() {
   const [location, setLocation] = useState('')
 
   const load = () => {
-    void mockRepository.listEvents().then(async (evs) => {
+    void repository.listEvents().then(async (evs) => {
       setEvents(evs)
       const entries = await Promise.all(
         evs.map(async (e) => {
-          const at = await mockRepository.listEventAttendees(e.id)
+          const at = await repository.listEventAttendees(e.id)
           return [
             e.id,
             { total: at.length, accepted: at.filter((a) => a.status === 'accepted').length },
@@ -40,7 +40,7 @@ export function EventsList() {
 
   const create = async () => {
     if (!name.trim() || !date) return
-    await mockRepository.createEvent({
+    await repository.createEvent({
       name: name.trim(),
       date,
       location: location.trim() || undefined,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import type { Reminder } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,13 +17,13 @@ export function RemindersCard({ contactId }: { contactId: string }) {
   const [due, setDue] = useState('')
 
   const refresh = () => {
-    void mockRepository.listReminders(contactId).then(setItems)
+    void repository.listReminders(contactId).then(setItems)
   }
   useEffect(refresh, [contactId])
 
   const add = async () => {
     if (!text.trim() || !due) return
-    await mockRepository.addReminder({
+    await repository.addReminder({
       contactId,
       dueDate: due,
       text: text.trim(),
@@ -34,11 +34,11 @@ export function RemindersCard({ contactId }: { contactId: string }) {
     refresh()
   }
   const toggle = async (r: Reminder) => {
-    await mockRepository.toggleReminder(r.id, !r.done)
+    await repository.toggleReminder(r.id, !r.done)
     refresh()
   }
   const remove = async (id: string) => {
-    await mockRepository.deleteReminder(id)
+    await repository.deleteReminder(id)
     refresh()
   }
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { ActivityType } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,7 +27,7 @@ export function AddActivity({
     if (!text) return
     setSaving(true)
     try {
-      await mockRepository.addActivity({
+      await repository.addActivity({
         contactId,
         type,
         occurredAt: new Date().toISOString(),

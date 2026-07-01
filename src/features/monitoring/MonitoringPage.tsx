@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Activity, AppUser, Contact, Region } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
@@ -24,10 +24,10 @@ export function MonitoringPage() {
     }
     let active = true
     Promise.all([
-      mockRepository.listUsers(),
-      mockRepository.listContacts(),
-      mockRepository.listAllActivities(),
-      mockRepository.listRegions(),
+      repository.listUsers(),
+      repository.listContacts(),
+      repository.listAllActivities(),
+      repository.listRegions(),
     ]).then(([u, c, a, r]) => {
       if (!active) return
       setUsers(u)

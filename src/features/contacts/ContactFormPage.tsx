@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import type { AppUser, Contact, LinkedInInfo, LinkedInStatus, Region, SideFact } from '@/domain/types'
-import { mockRepository } from '@/data/mockRepository'
+import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canApprove, ROLE_LABEL } from '@/domain/roles'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -95,9 +95,9 @@ export function ContactFormPage() {
   useEffect(() => {
     let active = true
     Promise.all([
-      mockRepository.listRegions(),
-      mockRepository.listUsers(),
-      id ? mockRepository.getContact(id) : Promise.resolve(undefined),
+      repository.listRegions(),
+      repository.listUsers(),
+      id ? repository.getContact(id) : Promise.resolve(undefined),
     ]).then(([r, u, c]) => {
       if (!active) return
       setRegions(r)
@@ -163,10 +163,10 @@ export function ContactFormPage() {
     }
     try {
       if (isEdit && id) {
-        await mockRepository.updateContact(id, payload)
+        await repository.updateContact(id, payload)
         navigate(`/contacts/${id}`)
       } else {
-        const created = await mockRepository.createContact(payload)
+        const created = await repository.createContact(payload)
         navigate(`/contacts/${created.id}`)
       }
     } finally {
