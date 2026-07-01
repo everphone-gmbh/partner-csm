@@ -6,6 +6,7 @@ import { Dashboard } from '@/features/dashboard/Dashboard'
 import { ContactList } from '@/features/contacts/ContactList'
 import { ContactProfile } from '@/features/contacts/ContactProfile'
 import { ContactFormPage } from '@/features/contacts/ContactFormPage'
+import { ContactImportPage } from '@/features/contacts/ContactImportPage'
 import { EventsList } from '@/features/events/EventsList'
 import { EventDetail } from '@/features/events/EventDetail'
 import { MonitoringPage } from '@/features/monitoring/MonitoringPage'
@@ -21,6 +22,7 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/contacts" element={<ContactList />} />
               <Route path="/contacts/new" element={<ContactFormPage />} />
+              <Route path="/contacts/import" element={<ContactImportPage />} />
               <Route path="/contacts/:id" element={<ContactProfile />} />
               <Route path="/contacts/:id/edit" element={<ContactFormPage />} />
               <Route path="/events" element={<EventsList />} />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, Check, X, HelpCircle, Plus, Map as MapIcon, List as ListIcon } from 'lucide-react'
+import { Search, Check, X, HelpCircle, Plus, Upload, Map as MapIcon, List as ListIcon } from 'lucide-react'
 import type { Activity, AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -102,9 +102,14 @@ export function ContactList() {
           </p>
         </div>
         {canApprove(user.role) && (
-          <Link to="/contacts/new" className={buttonVariants({ size: 'sm' })}>
-            <Plus className="size-4" /> Neuer Kontakt
-          </Link>
+          <div className="flex gap-2">
+            <Link to="/contacts/import" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              <Upload className="size-4" /> Importieren
+            </Link>
+            <Link to="/contacts/new" className={buttonVariants({ size: 'sm' })}>
+              <Plus className="size-4" /> Neuer Kontakt
+            </Link>
+          </div>
         )}
       </div>
 
