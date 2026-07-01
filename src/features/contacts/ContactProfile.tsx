@@ -8,8 +8,7 @@ import { canApprove, canViewSensitiveFields, redactContactForRole } from '@/doma
 import { localSummarizer } from '@/domain/ai'
 import { Card, CardContent } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
-import { Logbook } from '@/features/activities/Logbook'
-import { RemindersCard } from '@/features/reminders/RemindersCard'
+import { Timeline } from '@/features/activities/Timeline'
 import { BackLink } from './profile/shared'
 import { IdentityCard } from './profile/IdentityCard'
 import { StammdatenCard } from './profile/StammdatenCard'
@@ -127,11 +126,10 @@ export function ContactProfile() {
           <KundenCard customers={view.customers} />
           <FotogalerieCard contact={view} onSave={save} />
           <NotizCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
-          <RemindersCard contactId={view.id} />
         </div>
 
-        {/* Right: logbook (stacks below on mobile) */}
-        <Logbook contactId={view.id} />
+        {/* Right: unified activity timeline (stacks below on mobile) */}
+        <Timeline contact={view} />
       </div>
     </div>
   )
