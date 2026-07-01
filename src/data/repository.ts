@@ -27,6 +27,7 @@ export interface NewContact {
   position: string
   regionId: string
   relationshipManagerId: string
+  team?: string
   email?: string
   birthday?: string
   location?: string

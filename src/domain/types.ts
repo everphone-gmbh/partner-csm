@@ -6,6 +6,13 @@ export type Role = 'overall_admin' | 'sub_admin' | 'account_manager'
 /** Relationship traffic-light rated by RMs / management. */
 export type TrafficLight = 'green' | 'amber' | 'red' | 'neutral'
 
+/** One dated entry in a contact's sentiment (traffic-light) history. */
+export interface SentimentEntry {
+  at: string // ISO timestamp
+  value: TrafficLight
+  byName?: string
+}
+
 /**
  * LinkedIn presence is an explicit, verifiable state — not just a URL.
  * 'no_account' means "we checked, this person has none" (distinct from 'unknown').
@@ -85,6 +92,7 @@ export interface Contact {
   photoUrl?: string | null
   regionId: string
   relationshipManagerId: string
+  team?: string
   email?: string
   birthday?: string // YYYY-MM-DD
   location?: string
@@ -93,6 +101,7 @@ export interface Contact {
   pets?: string
   linkedin: LinkedInInfo
   sentiment: TrafficLight
+  sentimentHistory?: SentimentEntry[]
   activeDevices?: string
   wonCustomersCount: number
   freeText?: string

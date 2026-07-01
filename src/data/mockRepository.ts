@@ -71,6 +71,7 @@ class MockRepository implements Repository {
       photoUrl: null,
       regionId: input.regionId,
       relationshipManagerId: input.relationshipManagerId,
+      team: input.team,
       email: input.email,
       birthday: input.birthday,
       location: input.location,

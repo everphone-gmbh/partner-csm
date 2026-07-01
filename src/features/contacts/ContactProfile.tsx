@@ -18,6 +18,7 @@ import {
   Plus,
   X,
   Camera,
+  Briefcase,
 } from 'lucide-react'
 import type {
   AppUser,
@@ -26,7 +27,9 @@ import type {
   LinkedInInfo,
   LinkedInStatus,
   Region,
+  SentimentEntry,
   SideFact,
+  TrafficLight,
 } from '@/domain/types'
 import { mockRepository } from '@/data/mockRepository'
 import { useSession } from '@/app/SessionContext'
@@ -44,7 +47,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { EditableAvatar } from '@/components/EditableAvatar'
-import { TrafficLightBadge, TrafficLightPicker } from '@/components/TrafficLight'
+import { TrafficLightBadge, TrafficLightDot, TrafficLightPicker } from '@/components/TrafficLight'
 import { LinkedInField, LinkedInPicker } from '@/components/LinkedInField'
 import { Logbook } from '@/features/activities/Logbook'
 import { RemindersCard } from '@/features/reminders/RemindersCard'
@@ -103,6 +106,14 @@ export function ContactProfile() {
     setRaw(updated)
   }
 
+  const rateSentiment = (value: TrafficLight) => {
+    const history: SentimentEntry[] = [
+      ...(raw?.sentimentHistory ?? []),
+      { at: new Date().toISOString(), value, byName: user.name },
+    ]
+    void save({ sentiment: value, sentimentHistory: history })
+  }
+
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
   if (!view) {
     return (
@@ -149,14 +160,17 @@ export function ContactProfile() {
                 onSave={save}
               />
             </div>
-            <div className="shrink-0">
+            <div className="shrink-0 space-y-1">
               {canEdit ? (
-                <div className="space-y-1">
+                <>
                   <Label>Beziehung</Label>
-                  <TrafficLightPicker value={view.sentiment} onChange={(s) => save({ sentiment: s })} />
-                </div>
+                  <TrafficLightPicker value={view.sentiment} onChange={rateSentiment} />
+                </>
               ) : (
                 <TrafficLightBadge value={view.sentiment} />
+              )}
+              {(view.sentimentHistory?.length ?? 0) > 0 && (
+                <SentimentHistory entries={view.sentimentHistory ?? []} />
               )}
             </div>
           </div>
@@ -218,6 +232,7 @@ interface StammDraft {
   position: string
   regionId: string
   relationshipManagerId: string
+  team: string
   email: string
   birthday: string
   location: string
@@ -234,6 +249,7 @@ function toStammDraft(c: Contact): StammDraft {
     position: c.position,
     regionId: c.regionId,
     relationshipManagerId: c.relationshipManagerId,
+    team: c.team ?? '',
     email: c.email ?? '',
     birthday: c.birthday ?? '',
     location: c.location ?? '',
@@ -280,6 +296,7 @@ function StammdatenCard({
         position: draft.position.trim(),
         regionId: draft.regionId,
         relationshipManagerId: draft.relationshipManagerId,
+        team: draft.team.trim() || undefined,
         email: draft.email.trim() || undefined,
         birthday: draft.birthday || undefined,
         location: draft.location.trim() || undefined,
@@ -333,6 +350,9 @@ function StammdatenCard({
                   ))}
                 </select>
               </EditField>
+              <EditField label="Team">
+                <Input value={draft.team} onChange={(e) => set('team', e.target.value)} />
+              </EditField>
               <EditField label="E-Mail">
                 <Input type="email" value={draft.email} onChange={(e) => set('email', e.target.value)} />
               </EditField>
@@ -374,6 +394,9 @@ function StammdatenCard({
           </>
         ) : (
           <>
+            <FieldRow icon={Briefcase} label="Team">
+              {contact.team || '—'}
+            </FieldRow>
             <FieldRow icon={Cake} label="Geburtstag" locked={!canSensitive}>
               {formatDate(contact.birthday)}
               {bdayDays !== null && bdayDays <= 30 && (
@@ -717,6 +740,21 @@ function EditField({ label, children }: { label: string; children: ReactNode }) 
     <div className="space-y-1">
       <Label>{label}</Label>
       {children}
+    </div>
+  )
+}
+
+function SentimentHistory({ entries }: { entries: SentimentEntry[] }) {
+  const recent = [...entries].slice(-4).reverse()
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+      <span>Verlauf:</span>
+      {recent.map((e, i) => (
+        <span key={i} className="inline-flex items-center gap-1">
+          <TrafficLightDot value={e.value} />
+          {formatDate(e.at)}
+        </span>
+      ))}
     </div>
   )
 }

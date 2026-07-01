@@ -18,6 +18,7 @@ interface FormState {
   position: string
   regionId: string
   relationshipManagerId: string
+  team: string
   email: string
   birthday: string
   location: string
@@ -37,6 +38,7 @@ const EMPTY: FormState = {
   position: '',
   regionId: '',
   relationshipManagerId: '',
+  team: '',
   email: '',
   birthday: '',
   location: '',
@@ -57,6 +59,7 @@ function fromContact(c: Contact): FormState {
     position: c.position,
     regionId: c.regionId,
     relationshipManagerId: c.relationshipManagerId,
+    team: c.team ?? '',
     email: c.email ?? '',
     birthday: c.birthday ?? '',
     location: c.location ?? '',
@@ -145,6 +148,7 @@ export function ContactFormPage() {
       position: form.position.trim(),
       regionId: form.regionId,
       relationshipManagerId: form.relationshipManagerId,
+      team: form.team.trim() || undefined,
       email: form.email.trim() || undefined,
       birthday: form.birthday || undefined,
       location: form.location.trim() || undefined,
@@ -232,6 +236,9 @@ export function ContactFormPage() {
                 </option>
               ))}
             </select>
+          </Field>
+          <Field label="Team">
+            <Input value={form.team} onChange={(e) => set('team', e.target.value)} />
           </Field>
         </CardContent>
       </Card>

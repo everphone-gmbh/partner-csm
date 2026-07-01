@@ -13,6 +13,7 @@ import type {
   Region,
   Reminder,
   Role,
+  SentimentEntry,
   SideFact,
   TrafficLight,
 } from '@/domain/types'
@@ -33,9 +34,9 @@ import type {
 type NameResolver = (id?: string | null) => string | undefined
 
 const CONTACT_SELECT =
-  'id, full_name, position, photo_url, region_id, relationship_manager_id, email, ' +
+  'id, full_name, position, photo_url, region_id, relationship_manager_id, team, email, ' +
   'birthday, location, family_status, children, pets, linkedin_status, linkedin_url, ' +
-  'linkedin_verified_by, linkedin_verified_at, sentiment, active_devices, ' +
+  'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, active_devices, ' +
   'won_customers_count, free_text, created_at, updated_at, ' +
   'side_facts(id,label,category), ' +
   'contact_customers(with_us, customers(id,name,salesforce_url))'
@@ -47,6 +48,7 @@ export interface ContactRow {
   photo_url: string | null
   region_id: string
   relationship_manager_id: string | null
+  team: string | null
   email: string | null
   birthday: string | null
   location: string | null
@@ -58,6 +60,7 @@ export interface ContactRow {
   linkedin_verified_by: string | null
   linkedin_verified_at: string | null
   sentiment: TrafficLight
+  sentiment_history: SentimentEntry[] | null
   active_devices: string | null
   won_customers_count: number
   free_text: string | null
@@ -88,6 +91,7 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     photoUrl: row.photo_url,
     regionId: row.region_id,
     relationshipManagerId: row.relationship_manager_id ?? '',
+    team: row.team ?? undefined,
     email: row.email ?? undefined,
     birthday: row.birthday ?? undefined,
     location: row.location ?? undefined,
@@ -101,6 +105,7 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
       verifiedAt: row.linkedin_verified_at ?? undefined,
     },
     sentiment: row.sentiment,
+    sentimentHistory: row.sentiment_history ?? undefined,
     activeDevices: row.active_devices ?? undefined,
     wonCustomersCount: row.won_customers_count ?? 0,
     freeText: row.free_text ?? undefined,
@@ -141,6 +146,8 @@ export function mapRowToActivity(row: ActivityRow, resolveName: NameResolver = (
 export function patchToRow(patch: Partial<Contact>): Record<string, unknown> {
   const row: Record<string, unknown> = {}
   if (patch.sentiment !== undefined) row.sentiment = patch.sentiment
+  if (patch.sentimentHistory !== undefined) row.sentiment_history = patch.sentimentHistory
+  if (patch.team !== undefined) row.team = patch.team
   if (patch.photoUrl !== undefined) row.photo_url = patch.photoUrl
   if (patch.freeText !== undefined) row.free_text = patch.freeText
   if (patch.linkedin !== undefined) {
@@ -277,6 +284,7 @@ export class SupabaseRepository implements Repository {
         position: input.position,
         region_id: input.regionId,
         relationship_manager_id: input.relationshipManagerId,
+        team: input.team ?? null,
         email: input.email ?? null,
         birthday: input.birthday ?? null,
         location: input.location ?? null,
