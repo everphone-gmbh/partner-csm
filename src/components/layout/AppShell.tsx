@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, LayoutGrid, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, LayoutGrid, Search, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
+import { useCommandPalette } from '@/app/CommandPaletteContext'
 import { ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
 
@@ -61,6 +62,24 @@ function RoleSwitcher({ compact }: { compact?: boolean }) {
   )
 }
 
+function SearchTrigger({ className }: { className?: string }) {
+  const { open } = useCommandPalette()
+  return (
+    <button
+      type="button"
+      onClick={open}
+      className={cn(
+        'flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground',
+        className,
+      )}
+    >
+      <Search className="size-4 shrink-0" />
+      <span className="flex-1 text-left">Suchen…</span>
+      <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[10px] sm:inline">⌘K</kbd>
+    </button>
+  )
+}
+
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return cn(
     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
@@ -74,8 +93,9 @@ function Sidebar() {
   const items = useNavItems()
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-card lg:flex">
-      <div className="px-5 py-5">
+      <div className="space-y-3 px-5 py-5">
         <Logo />
+        <SearchTrigger className="w-full" />
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {items.map(({ to, label, icon: Icon }) => (
@@ -93,10 +113,21 @@ function Sidebar() {
 }
 
 function MobileHeader() {
+  const { open } = useCommandPalette()
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-card/85 px-4 py-2.5 backdrop-blur lg:hidden">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-border bg-card/85 px-4 py-2.5 backdrop-blur lg:hidden">
       <Logo />
-      <RoleSwitcher compact />
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={open}
+          aria-label="Suchen"
+          className="flex size-9 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground"
+        >
+          <Search className="size-4" />
+        </button>
+        <RoleSwitcher compact />
+      </div>
     </header>
   )
 }
