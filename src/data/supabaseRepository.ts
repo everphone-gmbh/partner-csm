@@ -3,7 +3,10 @@ import type {
   Activity,
   ActivityType,
   AppUser,
+  AttendanceStatus,
   Contact,
+  EventAttendee,
+  EventItem,
   LinkedInStatus,
   Region,
   Role,
@@ -11,7 +14,7 @@ import type {
   TrafficLight,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
-import type { NewActivity, NewContact, Repository } from './repository'
+import type { NewActivity, NewContact, NewEvent, Repository } from './repository'
 
 // ⚠ PRE-BUILT, NOT YET INTEGRATION-TESTED against the live DB.
 // Blocked on applying the migrations (the SQL executor 404s for this tenant).
@@ -136,6 +139,24 @@ export function patchToRow(patch: Partial<Contact>): Record<string, unknown> {
     row.linkedin_verified_at = patch.linkedin.verifiedAt ?? null
   }
   return row
+}
+
+export interface EventRow {
+  id: string
+  name: string
+  event_date: string
+  location: string | null
+  description: string | null
+}
+
+export function mapRowToEvent(row: EventRow): EventItem {
+  return {
+    id: row.id,
+    name: row.name,
+    date: row.event_date,
+    location: row.location ?? undefined,
+    description: row.description ?? undefined,
+  }
 }
 
 export class SupabaseRepository implements Repository {
@@ -273,5 +294,77 @@ export class SupabaseRepository implements Repository {
     if (error) throw new Error(error.message)
     const names = await this.names()
     return mapRowToActivity(data as unknown as ActivityRow, this.resolver(names))
+  }
+
+  async listEvents(): Promise<EventItem[]> {
+    const { data, error } = await this.client
+      .from('events')
+      .select('id, name, event_date, location, description')
+      .order('event_date')
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as EventRow[]).map(mapRowToEvent)
+  }
+
+  async getEvent(id: string): Promise<EventItem | undefined> {
+    const { data, error } = await this.client
+      .from('events')
+      .select('id, name, event_date, location, description')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    return data ? mapRowToEvent(data as unknown as EventRow) : undefined
+  }
+
+  async createEvent(input: NewEvent): Promise<EventItem> {
+    const { data, error } = await this.client
+      .from('events')
+      .insert({
+        name: input.name,
+        event_date: input.date,
+        location: input.location ?? null,
+        description: input.description ?? null,
+      })
+      .select('id, name, event_date, location, description')
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToEvent(data as unknown as EventRow)
+  }
+
+  async listEventAttendees(eventId: string): Promise<EventAttendee[]> {
+    const { data, error } = await this.client
+      .from('event_attendees')
+      .select('contact_id, status, purpose')
+      .eq('event_id', eventId)
+    if (error) throw new Error(error.message)
+    return (
+      (data ?? []) as unknown as { contact_id: string; status: AttendanceStatus; purpose: string | null }[]
+    ).map((r) => ({ contactId: r.contact_id, status: r.status, purpose: r.purpose ?? undefined }))
+  }
+
+  async setAttendee(
+    eventId: string,
+    contactId: string,
+    patch: { status?: AttendanceStatus; purpose?: string },
+  ): Promise<EventAttendee> {
+    const row: Record<string, unknown> = { event_id: eventId, contact_id: contactId }
+    if (patch.status !== undefined) row.status = patch.status
+    if (patch.purpose !== undefined) row.purpose = patch.purpose
+    const { data, error } = await this.client
+      .from('event_attendees')
+      .upsert(row, { onConflict: 'event_id,contact_id' })
+      .select('contact_id, status, purpose')
+      .single()
+    if (error) throw new Error(error.message)
+    const r = data as unknown as { contact_id: string; status: AttendanceStatus; purpose: string | null }
+    return { contactId: r.contact_id, status: r.status, purpose: r.purpose ?? undefined }
+  }
+
+  async removeAttendee(eventId: string, contactId: string): Promise<void> {
+    const { error } = await this.client
+      .from('event_attendees')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('contact_id', contactId)
+    if (error) throw new Error(error.message)
   }
 }

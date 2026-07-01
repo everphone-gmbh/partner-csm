@@ -1,4 +1,4 @@
-import type { Activity, AppUser, Contact, Region } from '@/domain/types'
+import type { Activity, AppUser, Contact, EventAttendee, EventItem, Region } from '@/domain/types'
 
 // Seed data for the first draft. Fictional Telekom partner contacts — no real
 // personal data. Today (demo) is 2026-06-30.
@@ -271,4 +271,29 @@ export const seedActivities: Activity[] = [
     aiSummary: 'Produktunterlagen per Mail; in 2 Wochen nachfassen.',
     attachments: [],
   },
+]
+
+export const seedEvents: EventItem[] = [
+  {
+    id: 'ev-digitalx',
+    name: 'Digital X 2026',
+    date: '2026-10-15',
+    location: 'Köln',
+    description: 'Größte Digitalisierungs-Messe Europas — Telekom-Leitmesse.',
+  },
+  {
+    id: 'ev-ciomove',
+    name: 'CIO Move',
+    date: '2026-09-05',
+    location: 'Hamburg',
+    description: 'Exklusives C-Level-Event; Termine vorab koordinieren.',
+  },
+]
+
+export const seedEventAttendees: (EventAttendee & { eventId: string })[] = [
+  { eventId: 'ev-digitalx', contactId: 'c-anke', status: 'accepted', purpose: 'Ausweitung auf Hanse Logistik besprechen' },
+  { eventId: 'ev-digitalx', contactId: 'c-julia', status: 'invited', purpose: 'Multiplikatorin — Thema Nachhaltigkeit' },
+  { eventId: 'ev-digitalx', contactId: 'c-sandra', status: 'invited', purpose: 'Erstkontakt vertiefen' },
+  { eventId: 'ev-ciomove', contactId: 'c-michael', status: 'accepted', purpose: 'Cloud-Ausbau Sachsen Digital' },
+  { eventId: 'ev-ciomove', contactId: 'c-nicole', status: 'accepted', purpose: 'Bestandsbeziehung pflegen' },
 ]

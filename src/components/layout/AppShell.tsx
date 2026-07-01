@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { LayoutGrid, Users } from 'lucide-react'
+import { CalendarDays, LayoutGrid, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
@@ -42,6 +42,7 @@ function Header() {
 const NAV = [
   { to: '/dashboard', label: 'Übersicht', icon: LayoutGrid },
   { to: '/contacts', label: 'Kontakte', icon: Users },
+  { to: '/events', label: 'Events', icon: CalendarDays },
 ]
 
 function BottomNav() {

@@ -95,3 +95,23 @@ export interface Contact {
   createdAt: string
   updatedAt: string
 }
+
+// --- Events ---
+
+export type AttendanceStatus = 'invited' | 'accepted' | 'declined' | 'attended' | 'no_show'
+
+/** Named EventItem (not Event) to avoid shadowing the DOM Event type. */
+export interface EventItem {
+  id: string
+  name: string
+  date: string // YYYY-MM-DD
+  location?: string
+  description?: string
+}
+
+export interface EventAttendee {
+  contactId: string
+  status: AttendanceStatus
+  /** "Wofür" — why they're coming / what to discuss on site. */
+  purpose?: string
+}

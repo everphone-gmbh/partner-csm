@@ -1,4 +1,14 @@
-import type { Activity, AppUser, Contact, LinkedInInfo, Region, SideFact } from '@/domain/types'
+import type {
+  Activity,
+  AppUser,
+  AttendanceStatus,
+  Contact,
+  EventAttendee,
+  EventItem,
+  LinkedInInfo,
+  Region,
+  SideFact,
+} from '@/domain/types'
 
 export interface NewActivity {
   contactId: string
@@ -27,6 +37,13 @@ export interface NewContact {
   sideFacts?: SideFact[]
 }
 
+export interface NewEvent {
+  name: string
+  date: string
+  location?: string
+  description?: string
+}
+
 /**
  * Data-access seam. The first draft binds to an in-memory mock; a Supabase
  * implementation will later satisfy the same interface with zero UI changes.
@@ -40,4 +57,14 @@ export interface Repository {
   updateContact(id: string, patch: Partial<Contact>): Promise<Contact>
   listActivities(contactId: string): Promise<Activity[]>
   addActivity(input: NewActivity): Promise<Activity>
+  listEvents(): Promise<EventItem[]>
+  getEvent(id: string): Promise<EventItem | undefined>
+  createEvent(input: NewEvent): Promise<EventItem>
+  listEventAttendees(eventId: string): Promise<EventAttendee[]>
+  setAttendee(
+    eventId: string,
+    contactId: string,
+    patch: { status?: AttendanceStatus; purpose?: string },
+  ): Promise<EventAttendee>
+  removeAttendee(eventId: string, contactId: string): Promise<void>
 }

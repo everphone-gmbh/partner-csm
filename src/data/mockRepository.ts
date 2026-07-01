@@ -1,7 +1,14 @@
-import type { Activity, Contact } from '@/domain/types'
+import type { Activity, AttendanceStatus, Contact, EventItem } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
-import type { NewActivity, NewContact, Repository } from './repository'
-import { seedActivities, seedContacts, seedRegions, seedUsers } from './seed'
+import type { NewActivity, NewContact, NewEvent, Repository } from './repository'
+import {
+  seedActivities,
+  seedContacts,
+  seedEventAttendees,
+  seedEvents,
+  seedRegions,
+  seedUsers,
+} from './seed'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -16,6 +23,8 @@ class MockRepository implements Repository {
   private users = clone(seedUsers)
   private contacts = clone(seedContacts)
   private activities = clone(seedActivities)
+  private events = clone(seedEvents)
+  private attendees = clone(seedEventAttendees)
   private seq = 1
 
   async listRegions() {
@@ -92,6 +101,55 @@ class MockRepository implements Repository {
     }
     this.activities.push(activity)
     return clone(activity)
+  }
+
+  async listEvents() {
+    return clone(this.events)
+  }
+
+  async getEvent(id: string) {
+    const found = this.events.find((e) => e.id === id)
+    return found ? clone(found) : undefined
+  }
+
+  async createEvent(input: NewEvent) {
+    const event: EventItem = {
+      id: `ev-local-${this.seq++}`,
+      name: input.name,
+      date: input.date,
+      location: input.location,
+      description: input.description,
+    }
+    this.events.push(event)
+    return clone(event)
+  }
+
+  async listEventAttendees(eventId: string) {
+    return this.attendees
+      .filter((a) => a.eventId === eventId)
+      .map((a) => ({ contactId: a.contactId, status: a.status, purpose: a.purpose }))
+  }
+
+  async setAttendee(
+    eventId: string,
+    contactId: string,
+    patch: { status?: AttendanceStatus; purpose?: string },
+  ) {
+    let rec = this.attendees.find((a) => a.eventId === eventId && a.contactId === contactId)
+    if (!rec) {
+      rec = { eventId, contactId, status: patch.status ?? 'invited', purpose: patch.purpose }
+      this.attendees.push(rec)
+    } else {
+      if (patch.status !== undefined) rec.status = patch.status
+      if (patch.purpose !== undefined) rec.purpose = patch.purpose
+    }
+    return { contactId: rec.contactId, status: rec.status, purpose: rec.purpose }
+  }
+
+  async removeAttendee(eventId: string, contactId: string) {
+    this.attendees = this.attendees.filter(
+      (a) => !(a.eventId === eventId && a.contactId === contactId),
+    )
   }
 }
 
