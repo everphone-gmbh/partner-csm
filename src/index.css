@@ -10,25 +10,26 @@
 */
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.625rem;
 
-  --background: #ffffff;
-  --foreground: #0a0a0b;
+  /* Light neutral canvas, crisp white cards — professional SaaS feel. */
+  --background: #f6f7f9;
+  --foreground: #14151a;
 
   --card: #ffffff;
-  --card-foreground: #0a0a0b;
+  --card-foreground: #14151a;
   --popover: #ffffff;
-  --popover-foreground: #0a0a0b;
+  --popover-foreground: #14151a;
 
-  /* Telekom Magenta */
+  /* Telekom Magenta (brand accent, used sparingly) */
   --primary: #e20074;
   --primary-foreground: #ffffff;
 
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
+  --secondary: #eff1f4;
+  --secondary-foreground: #1f2430;
 
-  --muted: #f4f4f5;
-  --muted-foreground: #6b6772;
+  --muted: #eff1f4;
+  --muted-foreground: #667085;
 
   /* Everphone teal accent */
   --accent: #e6f7f4;
@@ -37,8 +38,8 @@
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  --border: #e7e5ea;
-  --input: #e7e5ea;
+  --border: #e6e8ec;
+  --input: #e6e8ec;
   --ring: #e20074;
 
   /* Brand + semantic extras */
