@@ -48,7 +48,7 @@ export function Dashboard() {
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <h1 className="text-xl font-semibold">Übersicht</h1>
         <p className="text-sm text-muted-foreground">Beziehungsstatus auf einen Blick</p>
