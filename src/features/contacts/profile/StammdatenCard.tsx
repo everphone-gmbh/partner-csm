@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Briefcase, Cake, Mail, MapPin, Heart, Users, PawPrint, Smartphone, Trophy } from 'lucide-react'
 import type { AppUser, Contact, Region } from '@/domain/types'
+import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -56,7 +57,7 @@ export function StammdatenCard({
   canSensitive: boolean
   regions: Region[]
   users: AppUser[]
-  onSave: (patch: Partial<Contact>) => Promise<void>
+  onSave: (patch: ContactPatch) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<StammDraft>(() => toStammDraft(contact))

@@ -20,11 +20,13 @@ const contactRow: ContactRow = {
   family_status: 'verheiratet',
   children: '2',
   pets: null,
+  team: null,
   linkedin_status: 'no_account',
   linkedin_url: null,
   linkedin_verified_by: 'u-alex',
   linkedin_verified_at: '2026-05-20',
   sentiment: 'green',
+  sentiment_history: null,
   active_devices: '2x iPhone',
   won_customers_count: 4,
   free_text: 'Notiz',
@@ -102,5 +104,76 @@ describe('patchToRow', () => {
 
   it('omits fields that are not in the patch', () => {
     expect(patchToRow({})).toEqual({})
+  })
+
+  it('maps the full editable Stammdaten field set to columns', () => {
+    const row = patchToRow({
+      fullName: 'Neu Name',
+      position: 'CTO',
+      regionId: 'r-2',
+      relationshipManagerId: 'u-2',
+      team: 'Team A',
+      email: 'x@example.com',
+      birthday: '1980-05-05',
+      location: 'Bonn',
+      familyStatus: 'ledig',
+      children: '1',
+      pets: 'Hund',
+      activeDevices: '1x iPad',
+      wonCustomersCount: 7,
+      freeText: 'Notiz',
+      photoUrl: 'data:x',
+      sentiment: 'red',
+      sentimentHistory: [{ at: '2026-07-01T00:00:00.000Z', value: 'red', byName: 'A' }],
+    })
+    expect(row).toEqual({
+      full_name: 'Neu Name',
+      position: 'CTO',
+      region_id: 'r-2',
+      relationship_manager_id: 'u-2',
+      team: 'Team A',
+      email: 'x@example.com',
+      birthday: '1980-05-05',
+      location: 'Bonn',
+      family_status: 'ledig',
+      children: '1',
+      pets: 'Hund',
+      active_devices: '1x iPad',
+      won_customers_count: 7,
+      free_text: 'Notiz',
+      photo_url: 'data:x',
+      sentiment: 'red',
+      sentiment_history: [{ at: '2026-07-01T00:00:00.000Z', value: 'red', byName: 'A' }],
+    })
+  })
+
+  it('clears optional columns when the key is present but undefined', () => {
+    expect(patchToRow({ team: undefined, email: undefined, birthday: undefined })).toEqual({
+      team: null,
+      email: null,
+      birthday: null,
+    })
+  })
+
+  it('writes the LinkedIn verifier id', () => {
+    const r = patchToRow({
+      linkedin: { status: 'no_account', verifiedById: 'u-1', verifiedAt: '2026-06-10' },
+    })
+    expect(r.linkedin_verified_by).toBe('u-1')
+    expect(r.linkedin_verified_at).toBe('2026-06-10')
+  })
+
+  it('produces no columns for relation-only patches (sideFacts, gallery)', () => {
+    expect(patchToRow({ sideFacts: [], gallery: [] })).toEqual({})
+  })
+})
+
+describe('mapRowToContact gallery', () => {
+  it('maps contact_photos rows to the gallery', () => {
+    const c = mapRowToContact({
+      ...contactRow,
+      contact_photos: [{ id: 'p1', url: 'data:img', caption: 'Messe' }],
+    })
+    expect(c.gallery).toEqual([{ id: 'p1', url: 'data:img', caption: 'Messe' }])
   })
 })

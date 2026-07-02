@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import type { Contact, LinkedInInfo, LinkedInStatus, SentimentEntry, TrafficLight } from '@/domain/types'
+import type { ContactPatch } from '@/data/repository'
+import { buildLinkedInInfo } from '@/domain/linkedin'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +18,7 @@ export function IdentityCard({
   canEdit,
   regionName,
   managerName,
+  viewerId,
   viewerName,
   onSave,
 }: {
@@ -23,8 +26,9 @@ export function IdentityCard({
   canEdit: boolean
   regionName?: string
   managerName?: string
+  viewerId: string
   viewerName: string
-  onSave: (patch: Partial<Contact>) => Promise<void>
+  onSave: (patch: ContactPatch) => Promise<void>
 }) {
   const rateSentiment = (value: TrafficLight) => {
     const history: SentimentEntry[] = [
@@ -59,6 +63,7 @@ export function IdentityCard({
             <LinkedInInline
               info={contact.linkedin}
               canEdit={canEdit}
+              verifierId={viewerId}
               verifierName={viewerName}
               onSave={onSave}
             />
@@ -100,13 +105,15 @@ function SentimentHistory({ entries }: { entries: SentimentEntry[] }) {
 function LinkedInInline({
   info,
   canEdit,
+  verifierId,
   verifierName,
   onSave,
 }: {
   info: LinkedInInfo
   canEdit: boolean
+  verifierId: string
   verifierName: string
-  onSave: (patch: Partial<Contact>) => Promise<void>
+  onSave: (patch: ContactPatch) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [status, setStatus] = useState<LinkedInStatus>(info.status)
@@ -135,12 +142,13 @@ function LinkedInInline({
   }
 
   const commit = async () => {
-    const next: LinkedInInfo = { status }
-    if (status === 'has_account' && url.trim()) next.url = url.trim()
-    if (status !== 'unknown') {
-      next.verifiedByName = verifierName
-      next.verifiedAt = new Date().toISOString().slice(0, 10)
-    }
+    const next = buildLinkedInInfo(
+      status,
+      url,
+      info,
+      { id: verifierId, name: verifierName },
+      new Date().toISOString().slice(0, 10),
+    )
     await onSave({ linkedin: next })
     setEditing(false)
   }

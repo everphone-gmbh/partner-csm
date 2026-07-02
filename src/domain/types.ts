@@ -22,7 +22,9 @@ export type LinkedInStatus = 'has_account' | 'no_account' | 'unknown'
 export interface LinkedInInfo {
   status: LinkedInStatus
   url?: string
-  /** Who confirmed the has/no-account state, and when (audit of the check). */
+  /** Who confirmed the has/no-account state, and when (audit of the check).
+   * The id is what the DB stores (profiles fk); the name is for display. */
+  verifiedById?: string
   verifiedByName?: string
   verifiedAt?: string // ISO date
 }

@@ -6,11 +6,14 @@ import type {
   EventAttendee,
   EventItem,
   EventNote,
+  GalleryPhoto,
   LinkedInInfo,
   NoteAttachment,
   Region,
   Reminder,
+  SentimentEntry,
   SideFact,
+  TrafficLight,
 } from '@/domain/types'
 
 export interface NewActivity {
@@ -39,6 +42,38 @@ export interface NewContact {
   freeText?: string
   linkedin?: LinkedInInfo
   sideFacts?: SideFact[]
+}
+
+/**
+ * The exhaustive set of contact fields the UI may edit. Every key here MUST
+ * be persisted by every Repository implementation — the contract tests in
+ * repositoryContract.test.ts enforce the round-trip for both backends.
+ *
+ * Semantics: key present = write it (undefined clears an optional field);
+ * key absent = leave unchanged. sideFacts is replaced wholesale; gallery is
+ * diffed by id (photos are relation rows, not a column, on Supabase).
+ */
+export interface ContactPatch {
+  fullName?: string
+  position?: string
+  photoUrl?: string | null
+  regionId?: string
+  relationshipManagerId?: string
+  team?: string
+  email?: string
+  birthday?: string
+  location?: string
+  familyStatus?: string
+  children?: string
+  pets?: string
+  linkedin?: LinkedInInfo
+  sentiment?: TrafficLight
+  sentimentHistory?: SentimentEntry[]
+  activeDevices?: string
+  wonCustomersCount?: number
+  freeText?: string
+  sideFacts?: SideFact[]
+  gallery?: GalleryPhoto[]
 }
 
 export interface NewEvent {
@@ -72,7 +107,7 @@ export interface Repository {
   listContacts(): Promise<Contact[]>
   getContact(id: string): Promise<Contact | undefined>
   createContact(input: NewContact): Promise<Contact>
-  updateContact(id: string, patch: Partial<Contact>): Promise<Contact>
+  updateContact(id: string, patch: ContactPatch): Promise<Contact>
   listActivities(contactId: string): Promise<Activity[]>
   listAllActivities(): Promise<Activity[]>
   addActivity(input: NewActivity): Promise<Activity>

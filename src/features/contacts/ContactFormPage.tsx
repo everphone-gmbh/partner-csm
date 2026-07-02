@@ -5,6 +5,7 @@ import type { AppUser, Contact, LinkedInInfo, LinkedInStatus, Region, SideFact }
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canApprove, ROLE_LABEL } from '@/domain/roles'
+import { buildLinkedInInfo } from '@/domain/linkedin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -86,6 +87,9 @@ export function ContactFormPage() {
   const allowed = canApprove(user.role)
 
   const [form, setForm] = useState<FormState>(EMPTY)
+  // LinkedIn state as loaded — needed so an unrelated edit doesn't re-stamp
+  // the verifier attribution (who checked the account, and when).
+  const [loadedLinkedin, setLoadedLinkedin] = useState<LinkedInInfo | undefined>(undefined)
   const [regions, setRegions] = useState<Region[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,8 +106,12 @@ export function ContactFormPage() {
       if (!active) return
       setRegions(r)
       setUsers(u)
-      if (c) setForm(fromContact(c))
-      else setForm((f) => ({ ...f, regionId: r[0]?.id ?? '', relationshipManagerId: u[0]?.id ?? '' }))
+      if (c) {
+        setForm(fromContact(c))
+        setLoadedLinkedin(c.linkedin)
+      } else {
+        setForm((f) => ({ ...f, regionId: r[0]?.id ?? '', relationshipManagerId: u[0]?.id ?? '' }))
+      }
       setLoading(false)
     })
     return () => {
@@ -127,17 +135,14 @@ export function ContactFormPage() {
   const removeFact = (factId: string) =>
     set('sideFacts', form.sideFacts.filter((f) => f.id !== factId))
 
-  const buildLinkedin = (): LinkedInInfo => {
-    const info: LinkedInInfo = { status: form.linkedinStatus }
-    if (form.linkedinStatus === 'has_account' && form.linkedinUrl.trim()) {
-      info.url = form.linkedinUrl.trim()
-    }
-    if (form.linkedinStatus !== 'unknown') {
-      info.verifiedByName = user.name
-      info.verifiedAt = new Date().toISOString().slice(0, 10)
-    }
-    return info
-  }
+  const buildLinkedin = (): LinkedInInfo =>
+    buildLinkedInInfo(
+      form.linkedinStatus,
+      form.linkedinUrl,
+      loadedLinkedin,
+      { id: user.id, name: user.name },
+      new Date().toISOString().slice(0, 10),
+    )
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()

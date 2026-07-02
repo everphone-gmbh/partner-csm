@@ -19,6 +19,7 @@ import type {
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
 import type {
+  ContactPatch,
   NewActivity,
   NewContact,
   NewEvent,
@@ -39,6 +40,7 @@ const CONTACT_SELECT =
   'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, active_devices, ' +
   'won_customers_count, free_text, created_at, updated_at, ' +
   'side_facts(id,label,category), ' +
+  'contact_photos(id,url,caption), ' +
   'contact_customers(with_us, customers(id,name,salesforce_url))'
 
 export interface ContactRow {
@@ -67,6 +69,7 @@ export interface ContactRow {
   created_at: string
   updated_at: string
   side_facts?: { id: string; label: string; category: string | null }[] | null
+  contact_photos?: { id: string; url: string; caption: string | null }[] | null
   contact_customers?:
     | { with_us: boolean; customers: { id: string; name: string; salesforce_url: string | null } | null }[]
     | null
@@ -101,6 +104,7 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     linkedin: {
       status: row.linkedin_status,
       url: row.linkedin_url ?? undefined,
+      verifiedById: row.linkedin_verified_by ?? undefined,
       verifiedByName: resolveName(row.linkedin_verified_by),
       verifiedAt: row.linkedin_verified_at ?? undefined,
     },
@@ -113,6 +117,11 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
       id: f.id,
       label: f.label,
       category: (f.category ?? 'other') as SideFact['category'],
+    })),
+    gallery: (row.contact_photos ?? []).map((p) => ({
+      id: p.id,
+      url: p.url,
+      caption: p.caption ?? undefined,
     })),
     customers: (row.contact_customers ?? [])
       .filter((cc) => cc.customers)
@@ -142,18 +151,88 @@ export function mapRowToActivity(row: ActivityRow, resolveName: NameResolver = (
   }
 }
 
-/** Pure mapper: domain Contact patch -> DB column patch (only editable fields). */
-export function patchToRow(patch: Partial<Contact>): Record<string, unknown> {
+/**
+ * Pure mapper: ContactPatch -> DB column patch. Exhaustive over ContactPatch:
+ * the switch narrows `key` to never, so adding a field to ContactPatch without
+ * mapping it here is a compile error (the drift that once lost edits silently).
+ * Key present + undefined clears the column (null); required-ish columns
+ * (fullName, regionId, …) are skipped on undefined instead of nulled.
+ */
+export function patchToRow(patch: ContactPatch): Record<string, unknown> {
   const row: Record<string, unknown> = {}
-  if (patch.sentiment !== undefined) row.sentiment = patch.sentiment
-  if (patch.sentimentHistory !== undefined) row.sentiment_history = patch.sentimentHistory
-  if (patch.team !== undefined) row.team = patch.team
-  if (patch.photoUrl !== undefined) row.photo_url = patch.photoUrl
-  if (patch.freeText !== undefined) row.free_text = patch.freeText
-  if (patch.linkedin !== undefined) {
-    row.linkedin_status = patch.linkedin.status
-    row.linkedin_url = patch.linkedin.url ?? null
-    row.linkedin_verified_at = patch.linkedin.verifiedAt ?? null
+  for (const key of Object.keys(patch) as (keyof ContactPatch)[]) {
+    switch (key) {
+      case 'fullName':
+        if (patch.fullName !== undefined) row.full_name = patch.fullName
+        break
+      case 'position':
+        if (patch.position !== undefined) row.position = patch.position
+        break
+      case 'regionId':
+        if (patch.regionId !== undefined) row.region_id = patch.regionId
+        break
+      case 'relationshipManagerId':
+        if (patch.relationshipManagerId !== undefined)
+          row.relationship_manager_id = patch.relationshipManagerId
+        break
+      case 'sentiment':
+        if (patch.sentiment !== undefined) row.sentiment = patch.sentiment
+        break
+      case 'wonCustomersCount':
+        if (patch.wonCustomersCount !== undefined) row.won_customers_count = patch.wonCustomersCount
+        break
+      case 'team':
+        row.team = patch.team ?? null
+        break
+      case 'email':
+        row.email = patch.email ?? null
+        break
+      case 'birthday':
+        row.birthday = patch.birthday ?? null
+        break
+      case 'location':
+        row.location = patch.location ?? null
+        break
+      case 'familyStatus':
+        row.family_status = patch.familyStatus ?? null
+        break
+      case 'children':
+        row.children = patch.children ?? null
+        break
+      case 'pets':
+        row.pets = patch.pets ?? null
+        break
+      case 'activeDevices':
+        row.active_devices = patch.activeDevices ?? null
+        break
+      case 'freeText':
+        row.free_text = patch.freeText ?? null
+        break
+      case 'photoUrl':
+        row.photo_url = patch.photoUrl ?? null
+        break
+      case 'sentimentHistory':
+        row.sentiment_history = patch.sentimentHistory ?? null
+        break
+      case 'linkedin': {
+        const li = patch.linkedin
+        if (li !== undefined) {
+          row.linkedin_status = li.status
+          row.linkedin_url = li.url ?? null
+          row.linkedin_verified_by = li.verifiedById ?? null
+          row.linkedin_verified_at = li.verifiedAt ?? null
+        }
+        break
+      }
+      case 'sideFacts':
+      case 'gallery':
+        // Relation rows, not columns — persisted separately in updateContact.
+        break
+      default: {
+        const unmapped: never = key
+        void unmapped
+      }
+    }
   }
   return row
 }
@@ -296,6 +375,7 @@ export class SupabaseRepository implements Repository {
         free_text: input.freeText ?? null,
         linkedin_status: input.linkedin?.status ?? 'unknown',
         linkedin_url: input.linkedin?.url ?? null,
+        linkedin_verified_by: input.linkedin?.verifiedById ?? null,
         linkedin_verified_at: input.linkedin?.verifiedAt ?? null,
       })
       .select('id')
@@ -313,13 +393,53 @@ export class SupabaseRepository implements Repository {
     return created
   }
 
-  async updateContact(id: string, patch: Partial<Contact>): Promise<Contact> {
-    const [{ data, error }, names] = await Promise.all([
-      this.client.from('contacts').update(patchToRow(patch)).eq('id', id).select(CONTACT_SELECT).single(),
-      this.names(),
-    ])
-    if (error) throw new Error(error.message)
-    return mapRowToContact(data as unknown as ContactRow, this.resolver(names))
+  async updateContact(id: string, patch: ContactPatch): Promise<Contact> {
+    const row = patchToRow(patch)
+    if (Object.keys(row).length > 0) {
+      const { error } = await this.client.from('contacts').update(row).eq('id', id)
+      if (error) throw new Error(error.message)
+    }
+
+    // Side facts are replaced wholesale (small rows, client-generated ids).
+    if (patch.sideFacts !== undefined) {
+      const { error: delErr } = await this.client.from('side_facts').delete().eq('contact_id', id)
+      if (delErr) throw new Error(delErr.message)
+      if (patch.sideFacts.length > 0) {
+        const { error: insErr } = await this.client
+          .from('side_facts')
+          .insert(patch.sideFacts.map((f) => ({ contact_id: id, label: f.label, category: f.category })))
+        if (insErr) throw new Error(insErr.message)
+      }
+    }
+
+    // Gallery is diffed by id so existing (potentially large) photo rows are
+    // never re-uploaded: rows missing from the patch are deleted, entries with
+    // unknown ids are inserted (the DB assigns their real ids).
+    if (patch.gallery !== undefined) {
+      const { data: existing, error: exErr } = await this.client
+        .from('contact_photos')
+        .select('id')
+        .eq('contact_id', id)
+      if (exErr) throw new Error(exErr.message)
+      const existingIds = new Set(((existing ?? []) as { id: string }[]).map((r) => r.id))
+      const keptIds = new Set(patch.gallery.map((p) => p.id))
+      const removed = [...existingIds].filter((x) => !keptIds.has(x))
+      if (removed.length > 0) {
+        const { error: delErr } = await this.client.from('contact_photos').delete().in('id', removed)
+        if (delErr) throw new Error(delErr.message)
+      }
+      const added = patch.gallery.filter((p) => !existingIds.has(p.id))
+      if (added.length > 0) {
+        const { error: insErr } = await this.client
+          .from('contact_photos')
+          .insert(added.map((p) => ({ contact_id: id, url: p.url, caption: p.caption ?? null })))
+        if (insErr) throw new Error(insErr.message)
+      }
+    }
+
+    const updated = await this.getContact(id)
+    if (!updated) throw new Error(`contact ${id} not found after update`)
+    return updated
   }
 
   async listActivities(contactId: string): Promise<Activity[]> {

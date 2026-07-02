@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Pencil, Sparkles } from 'lucide-react'
 import type { AppUser, Contact, Region } from '@/domain/types'
+import type { ContactPatch } from '@/data/repository'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canApprove, canViewSensitiveFields, redactContactForRole } from '@/domain/roles'
@@ -60,7 +61,7 @@ export function ContactProfile() {
     [view, regionName, managerName],
   )
 
-  const save = async (patch: Partial<Contact>) => {
+  const save = async (patch: ContactPatch) => {
     if (!raw) return
     const updated = await repository.updateContact(raw.id, patch)
     setRaw(updated)
@@ -95,6 +96,7 @@ export function ContactProfile() {
         canEdit={canEdit}
         regionName={regionName}
         managerName={managerName}
+        viewerId={user.id}
         viewerName={user.name}
         onSave={save}
       />

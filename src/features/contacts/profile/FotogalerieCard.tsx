@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Camera, X } from 'lucide-react'
 import type { Contact, GalleryPhoto } from '@/domain/types'
+import type { ContactPatch } from '@/data/repository'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { fileToResizedDataUrl } from '@/lib/image'
 
@@ -9,7 +10,7 @@ export function FotogalerieCard({
   onSave,
 }: {
   contact: Contact
-  onSave: (patch: Partial<Contact>) => Promise<void>
+  onSave: (patch: ContactPatch) => Promise<void>
 }) {
   const gallery = contact.gallery ?? []
   const inputRef = useRef<HTMLInputElement>(null)

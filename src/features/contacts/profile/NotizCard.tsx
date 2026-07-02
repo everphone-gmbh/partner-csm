@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Contact } from '@/domain/types'
+import type { ContactPatch } from '@/data/repository'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { LockedNote } from './shared'
@@ -13,7 +14,7 @@ export function NotizCard({
   contact: Contact
   canEdit: boolean
   canSensitive: boolean
-  onSave: (patch: Partial<Contact>) => Promise<void>
+  onSave: (patch: ContactPatch) => Promise<void>
 }) {
   const [text, setText] = useState(contact.freeText ?? '')
   return (

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import type { Contact, SideFact } from '@/domain/types'
+import type { ContactPatch } from '@/data/repository'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +17,7 @@ export function FactsCard({
   contact: Contact
   canEdit: boolean
   canSensitive: boolean
-  onSave: (patch: Partial<Contact>) => Promise<void>
+  onSave: (patch: ContactPatch) => Promise<void>
 }) {
   const [newFact, setNewFact] = useState('')
 

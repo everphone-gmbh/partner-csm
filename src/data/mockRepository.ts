@@ -8,6 +8,7 @@ import type {
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
 import type {
+  ContactPatch,
   NewActivity,
   NewContact,
   NewEvent,
@@ -92,7 +93,7 @@ class MockRepository implements Repository {
     return clone(contact)
   }
 
-  async updateContact(id: string, patch: Partial<Contact>) {
+  async updateContact(id: string, patch: ContactPatch) {
     const idx = this.contacts.findIndex((c) => c.id === id)
     if (idx < 0) throw new Error(`contact ${id} not found`)
     this.contacts[idx] = { ...this.contacts[idx], ...patch, updatedAt: nowIso() }
@@ -230,3 +231,8 @@ class MockRepository implements Repository {
 
 /** Singleton in-memory repo backing the first-draft UI. */
 export const mockRepository: Repository = new MockRepository()
+
+/** Fresh, isolated instance for tests (the contract suite needs a clean slate per test). */
+export function createMockRepository(): Repository {
+  return new MockRepository()
+}
