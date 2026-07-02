@@ -7,9 +7,11 @@ import { fileToResizedDataUrl } from '@/lib/image'
 
 export function FotogalerieCard({
   contact,
+  canEdit,
   onSave,
 }: {
   contact: Contact
+  canEdit: boolean
   onSave: (patch: ContactPatch) => Promise<void>
 }) {
   const gallery = contact.gallery ?? []
@@ -20,11 +22,9 @@ export function FotogalerieCard({
     setBusy(true)
     try {
       const added: GalleryPhoto[] = []
-      let i = 0
       for (const file of Array.from(files)) {
         const url = await fileToResizedDataUrl(file, 800)
-        added.push({ id: `ph-${gallery.length + i}-${file.name}`, url })
-        i++
+        added.push({ id: crypto.randomUUID(), url })
       }
       await onSave({ gallery: [...gallery, ...added] })
     } finally {
@@ -39,24 +39,28 @@ export function FotogalerieCard({
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="text-base">Fotogalerie</CardTitle>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={busy}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-60"
-        >
-          <Camera className="size-3.5" /> {busy ? 'Lädt…' : 'Hinzufügen'}
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length) void addFiles(e.target.files)
-          }}
-        />
+        {canEdit && (
+          <>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={busy}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-60"
+            >
+              <Camera className="size-3.5" /> {busy ? 'Lädt…' : 'Hinzufügen'}
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length) void addFiles(e.target.files)
+              }}
+            />
+          </>
+        )}
       </CardHeader>
       <CardContent>
         {gallery.length === 0 ? (
@@ -69,14 +73,16 @@ export function FotogalerieCard({
                 className="group relative aspect-square overflow-hidden rounded-md border border-border"
               >
                 <img src={p.url} alt={p.caption ?? ''} className="size-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => remove(p.id)}
-                  aria-label="Foto entfernen"
-                  className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5 text-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                >
-                  <X className="size-3" />
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => remove(p.id)}
+                    aria-label="Foto entfernen"
+                    className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5 text-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
               </div>
             ))}
           </div>

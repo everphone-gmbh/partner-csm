@@ -4,20 +4,31 @@ import { Avatar } from '@/components/ui/avatar'
 import { fileToResizedDataUrl } from '@/lib/image'
 import { cn } from '@/lib/utils'
 
-/** Avatar with a camera/upload affordance. On mobile, opens the rear camera. */
+/** Avatar with a camera/upload affordance. On mobile, opens the rear camera.
+ * Renders as a plain avatar (no upload) when `editable` is false. */
 export function EditableAvatar({
   src,
   name,
+  editable = true,
   onChange,
   className,
 }: {
   src?: string | null
   name: string
+  editable?: boolean
   onChange: (dataUrl: string) => void
   className?: string
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+
+  if (!editable) {
+    return (
+      <div className={cn('relative shrink-0', className)}>
+        <Avatar src={src} name={name} className="size-16 text-lg" />
+      </div>
+    )
+  }
 
   const handle = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

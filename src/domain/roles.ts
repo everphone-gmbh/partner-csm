@@ -28,6 +28,7 @@ export const SENSITIVE_CONTACT_FIELDS = [
   'freeText',
   'sideFacts',
   'activeDevices',
+  'gallery', // private photos of the data subject — highest-sensitivity tier
 ] as const
 
 export function canViewSensitiveFields(role: Role): boolean {
@@ -60,5 +61,6 @@ export function redactContactForRole(contact: Contact, role: Role): Contact {
     freeText: undefined,
     activeDevices: undefined,
     sideFacts: [],
+    gallery: [],
   }
 }

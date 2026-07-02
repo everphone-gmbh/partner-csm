@@ -84,17 +84,15 @@ export function EventNotes({ eventId }: { eventId: string }) {
 
   const addImages = async (files: FileList) => {
     const added: NoteAttachment[] = []
-    let i = 0
     for (const f of Array.from(files)) {
       const url = await fileToResizedDataUrl(f, 1024)
-      added.push({ id: `att-img-${pending.length + i}-${f.name}`, kind: 'image', url, name: f.name })
-      i++
+      added.push({ id: crypto.randomUUID(), kind: 'image', url, name: f.name })
     }
     setPending((p) => [...p, ...added])
     if (imgRef.current) imgRef.current.value = ''
   }
   const addAudio = (url: string) =>
-    setPending((p) => [...p, { id: `att-aud-${p.length}`, kind: 'audio', url, name: 'Sprachmemo' }])
+    setPending((p) => [...p, { id: crypto.randomUUID(), kind: 'audio', url, name: 'Sprachmemo' }])
   const removePending = (id: string) => setPending((p) => p.filter((a) => a.id !== id))
 
   const save = async () => {

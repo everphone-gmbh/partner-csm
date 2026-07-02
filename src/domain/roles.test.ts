@@ -26,6 +26,7 @@ const base: Contact = {
   freeText: 'Interne Notiz',
   sideFacts: [{ id: 'sf1', label: 'Segeln', category: 'sport' }],
   customers: [{ id: 'cu1', name: 'ACME', withUs: true }],
+  gallery: [{ id: 'ph1', url: 'data:image/jpeg;x', caption: 'Messe' }],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
@@ -41,6 +42,15 @@ describe('role-based field visibility', () => {
     expect(r.freeText).toBeUndefined()
     expect(r.activeDevices).toBeUndefined()
     expect(r.sideFacts).toHaveLength(0)
+  })
+
+  it('strips private photos (gallery) for the account-manager tier', () => {
+    const r = redactContactForRole(base, 'account_manager')
+    expect(r.gallery ?? []).toHaveLength(0)
+  })
+
+  it('keeps the gallery for privileged roles', () => {
+    expect(redactContactForRole(base, 'sub_admin').gallery).toHaveLength(1)
   })
 
   it('keeps professional fields for the account-manager tier', () => {

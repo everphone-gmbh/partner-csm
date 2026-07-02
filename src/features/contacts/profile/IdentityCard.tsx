@@ -47,6 +47,7 @@ export function IdentityCard({
             <EditableAvatar
               src={contact.photoUrl}
               name={contact.fullName}
+              editable={canEdit}
               onChange={(photoUrl) => onSave({ photoUrl })}
               className="rounded-full ring-4 ring-card"
             />

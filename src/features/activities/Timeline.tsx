@@ -265,8 +265,12 @@ function UpcomingReminders({
 function ActivityItem({ activity, canBody }: { activity: Activity; canBody: boolean }) {
   const [open, setOpen] = useState(false)
   const { label, icon: Icon } = ACTIVITY_META[activity.type]
-  const summary = activity.aiSummary || activity.body
-  const hasMore = activity.body && activity.aiSummary && activity.body !== activity.aiSummary
+  // Redacted tier must NEVER see the raw body — when no AI summary exists,
+  // show a placeholder rather than falling back to the confidential text.
+  const summary = canBody
+    ? activity.aiSummary || activity.body
+    : activity.aiSummary || 'Für Ihre Rolle nur als KI-Zusammenfassung sichtbar — noch keine vorhanden.'
+  const hasMore = Boolean(activity.body && activity.aiSummary && activity.body !== activity.aiSummary)
 
   return (
     <li className="relative pl-6">

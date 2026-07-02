@@ -26,7 +26,7 @@ export function FactsCard({
     if (!label) return
     const next: SideFact[] = [
       ...contact.sideFacts,
-      { id: `sf-local-${contact.sideFacts.length}-${label}`, label, category: 'other' },
+      { id: crypto.randomUUID(), label, category: 'other' },
     ]
     setNewFact('')
     void onSave({ sideFacts: next })

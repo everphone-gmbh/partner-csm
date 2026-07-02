@@ -127,7 +127,7 @@ export function ContactFormPage() {
     if (!label) return
     set('sideFacts', [
       ...form.sideFacts,
-      { id: `sf-local-${form.sideFacts.length}-${label}`, label, category: 'other' },
+      { id: crypto.randomUUID(), label, category: 'other' },
     ])
     setNewFact('')
   }
