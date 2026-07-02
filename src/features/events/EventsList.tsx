@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarDays, MapPin, Plus, Users } from 'lucide-react'
-import type { EventItem } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
+import { useRepoQuery } from '@/app/useRepoQuery'
+import { QueryError } from '@/components/QueryError'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,46 +13,48 @@ import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/format'
 
 export function EventsList() {
-  const [events, setEvents] = useState<EventItem[]>([])
-  const [counts, setCounts] = useState<Record<string, { total: number; accepted: number }>>({})
-  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
   const [location, setLocation] = useState('')
 
-  const load = () => {
-    void repository.listEvents().then(async (evs) => {
-      setEvents(evs)
-      const entries = await Promise.all(
-        evs.map(async (e) => {
-          const at = await repository.listEventAttendees(e.id)
-          return [
-            e.id,
-            { total: at.length, accepted: at.filter((a) => a.status === 'accepted').length },
-          ] as const
-        }),
-      )
-      setCounts(Object.fromEntries(entries))
-      setLoading(false)
-    })
-  }
-
-  useEffect(load, [])
+  const { data, loading, error, retry } = useRepoQuery(async () => {
+    const evs = await repository.listEvents()
+    const entries = await Promise.all(
+      evs.map(async (e) => {
+        const at = await repository.listEventAttendees(e.id)
+        return [
+          e.id,
+          { total: at.length, accepted: at.filter((a) => a.status === 'accepted').length },
+        ] as const
+      }),
+    )
+    return { events: evs, counts: Object.fromEntries(entries) }
+  }, [])
+  const events = data?.events ?? []
+  const counts = data?.counts ?? {}
 
   const create = async () => {
     if (!name.trim() || !date) return
-    await repository.createEvent({
-      name: name.trim(),
-      date,
-      location: location.trim() || undefined,
-    })
+    try {
+      await repository.createEvent({
+        name: name.trim(),
+        date,
+        location: location.trim() || undefined,
+      })
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
     setName('')
     setDate('')
     setLocation('')
     setCreating(false)
-    load()
+    retry()
   }
+
+  if (error) return <QueryError error={error} retry={retry} />
 
   return (
     <div className="space-y-4">

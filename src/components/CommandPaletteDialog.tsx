@@ -21,10 +21,17 @@ export function CommandPaletteDialog({ open, onClose }: { open: boolean; onClose
     if (!open) return
     setQuery('')
     setActiveIndex(0)
-    Promise.all([repository.listContacts(), repository.listEvents()]).then(([c, e]) => {
-      setContacts(c)
-      setEvents(e)
-    })
+    Promise.all([repository.listContacts(), repository.listEvents()]).then(
+      ([c, e]) => {
+        setContacts(c)
+        setEvents(e)
+      },
+      () => {
+        // Palette data failing to load is non-fatal — searching just yields nothing.
+        setContacts([])
+        setEvents([])
+      },
+    )
     // Focus after the dialog has mounted/rendered.
     const id = window.setTimeout(() => inputRef.current?.focus(), 0)
     return () => window.clearTimeout(id)

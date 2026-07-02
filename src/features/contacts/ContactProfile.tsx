@@ -5,6 +5,9 @@ import type { AppUser, Contact, Region } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
+import { useRepoQuery } from '@/app/useRepoQuery'
+import { QueryError } from '@/components/QueryError'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { canApprove, canViewSensitiveFields, redactContactForRole } from '@/domain/roles'
 import { localSummarizer } from '@/domain/ai'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,30 +24,23 @@ import { NotizCard } from './profile/NotizCard'
 export function ContactProfile() {
   const { id } = useParams()
   const { user } = useSession()
+  const { toast } = useToast()
   const [raw, setRaw] = useState<Contact | undefined>(undefined)
-  const [regions, setRegions] = useState<Region[]>([])
-  const [users, setUsers] = useState<AppUser[]>([])
-  const [loading, setLoading] = useState(true)
 
+  const { data, loading, error, retry } = useRepoQuery(
+    () =>
+      Promise.all([
+        repository.getContact(id ?? ''),
+        repository.listRegions(),
+        repository.listUsers(),
+      ]),
+    [id],
+  )
+  const regions: Region[] = data?.[1] ?? []
+  const users: AppUser[] = data?.[2] ?? []
   useEffect(() => {
-    if (!id) return
-    let active = true
-    setLoading(true)
-    Promise.all([
-      repository.getContact(id),
-      repository.listRegions(),
-      repository.listUsers(),
-    ]).then(([c, r, u]) => {
-      if (!active) return
-      setRaw(c)
-      setRegions(r)
-      setUsers(u)
-      setLoading(false)
-    })
-    return () => {
-      active = false
-    }
-  }, [id])
+    setRaw(data?.[0])
+  }, [data])
 
   const canEdit = canApprove(user.role)
   const canSensitive = canViewSensitiveFields(user.role)
@@ -63,10 +59,16 @@ export function ContactProfile() {
 
   const save = async (patch: ContactPatch) => {
     if (!raw) return
-    const updated = await repository.updateContact(raw.id, patch)
-    setRaw(updated)
+    try {
+      const updated = await repository.updateContact(raw.id, patch)
+      setRaw(updated)
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      throw err // keep the card in edit mode so nothing typed is lost
+    }
   }
 
+  if (error) return <QueryError error={error} retry={retry} />
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
   if (!view) {
     return (

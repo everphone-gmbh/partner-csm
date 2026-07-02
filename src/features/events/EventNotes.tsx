@@ -3,6 +3,7 @@ import { ImagePlus, Mic, Send, Square, X } from 'lucide-react'
 import type { EventNote, NoteAttachment } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -71,6 +72,7 @@ function AttachmentView({ attachment, size }: { attachment: NoteAttachment; size
 
 export function EventNotes({ eventId }: { eventId: string }) {
   const { user } = useSession()
+  const { toast } = useToast()
   const [notes, setNotes] = useState<EventNote[]>([])
   const [text, setText] = useState('')
   const [pending, setPending] = useState<NoteAttachment[]>([])
@@ -78,7 +80,10 @@ export function EventNotes({ eventId }: { eventId: string }) {
   const imgRef = useRef<HTMLInputElement>(null)
 
   const refresh = () => {
-    void repository.listEventNotes(eventId).then(setNotes)
+    void repository
+      .listEventNotes(eventId)
+      .then(setNotes)
+      .catch((err: unknown) => toast(saveErrorMessage(err)))
   }
   useEffect(refresh, [eventId])
 
@@ -108,6 +113,8 @@ export function EventNotes({ eventId }: { eventId: string }) {
       setText('')
       setPending([])
       refresh()
+    } catch (err) {
+      toast(saveErrorMessage(err)) // text + attachments stay in the form
     } finally {
       setSaving(false)
     }

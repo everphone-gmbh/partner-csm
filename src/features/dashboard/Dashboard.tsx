@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, type ComponentType } from 'react'
+import { useMemo, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 import { AlarmClock, Bell, Cake, TrendingUp, Users } from 'lucide-react'
 import type { Activity, Contact, Region, Reminder } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
+import { useRepoQuery } from '@/app/useRepoQuery'
+import { QueryError } from '@/components/QueryError'
 import { canViewSensitiveFields } from '@/domain/roles'
 import { useScopedContacts } from '@/app/useScopedContacts'
 import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
@@ -16,31 +18,21 @@ import { computeRegionCoverage, overallSummary, upcomingBirthdays } from './dash
 
 export function Dashboard() {
   const { user } = useSession()
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [regions, setRegions] = useState<Region[]>([])
-  const [reminders, setReminders] = useState<Reminder[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let active = true
-    Promise.all([
-      repository.listContacts(),
-      repository.listRegions(),
-      repository.listReminders(),
-      repository.listAllActivities(),
-    ]).then(([c, r, rem, a]) => {
-      if (!active) return
-      setContacts(c)
-      setRegions(r)
-      setReminders(rem)
-      setActivities(a)
-      setLoading(false)
-    })
-    return () => {
-      active = false
-    }
-  }, [])
+  const { data, loading, error, retry } = useRepoQuery(
+    () =>
+      Promise.all([
+        repository.listContacts(),
+        repository.listRegions(),
+        repository.listReminders(),
+        repository.listAllActivities(),
+      ]),
+    [],
+  )
+  const contacts: Contact[] = useMemo(() => data?.[0] ?? [], [data])
+  const regions: Region[] = data?.[1] ?? []
+  const reminders: Reminder[] = useMemo(() => data?.[2] ?? [], [data])
+  const activities: Activity[] = useMemo(() => data?.[3] ?? [], [data])
 
   const { scoped } = useScopedContacts(contacts)
   const needsAttention = useMemo(() => {
@@ -69,6 +61,7 @@ export function Dashboard() {
   )
   const contactName = (cid: string) => contacts.find((c) => c.id === cid)?.fullName ?? cid
 
+  if (error) return <QueryError error={error} retry={retry} />
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
 
   return (

@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { Activity, AppUser, Contact, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
+import { useRepoQuery } from '@/app/useRepoQuery'
+import { QueryError } from '@/components/QueryError'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { computeManagerRanking } from './managerStats'
@@ -11,35 +13,23 @@ const MEDALS = ['🥇', '🥈', '🥉']
 export function MonitoringPage() {
   const { user } = useSession()
   const isAdmin = user.role === 'overall_admin'
-  const [users, setUsers] = useState<AppUser[]>([])
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [regions, setRegions] = useState<Region[]>([])
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!isAdmin) {
-      setLoading(false)
-      return
-    }
-    let active = true
-    Promise.all([
-      repository.listUsers(),
-      repository.listContacts(),
-      repository.listAllActivities(),
-      repository.listRegions(),
-    ]).then(([u, c, a, r]) => {
-      if (!active) return
-      setUsers(u)
-      setContacts(c)
-      setActivities(a)
-      setRegions(r)
-      setLoading(false)
-    })
-    return () => {
-      active = false
-    }
-  }, [isAdmin])
+  const { data, loading, error, retry } = useRepoQuery(
+    () =>
+      isAdmin
+        ? Promise.all([
+            repository.listUsers(),
+            repository.listContacts(),
+            repository.listAllActivities(),
+            repository.listRegions(),
+          ])
+        : Promise.resolve(undefined),
+    [isAdmin],
+  )
+  const users: AppUser[] = useMemo(() => data?.[0] ?? [], [data])
+  const contacts: Contact[] = useMemo(() => data?.[1] ?? [], [data])
+  const activities: Activity[] = useMemo(() => data?.[2] ?? [], [data])
+  const regions: Region[] = data?.[3] ?? []
 
   const ranking = useMemo(
     () => computeManagerRanking(users, contacts, activities),
@@ -56,6 +46,7 @@ export function MonitoringPage() {
       </div>
     )
   }
+  if (error) return <QueryError error={error} retry={retry} />
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
 
   return (

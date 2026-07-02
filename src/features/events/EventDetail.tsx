@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CalendarDays, MapPin, Plus, Trash2 } from 'lucide-react'
-import type { AttendanceStatus, Contact, EventAttendee, EventItem } from '@/domain/types'
+import type { AttendanceStatus, Contact, EventAttendee } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
+import { useRepoQuery } from '@/app/useRepoQuery'
+import { QueryError } from '@/components/QueryError'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -17,34 +20,32 @@ const selectCls =
 
 export function EventDetail() {
   const { id } = useParams()
-  const [event, setEvent] = useState<EventItem | undefined>(undefined)
+  const { toast } = useToast()
   const [attendees, setAttendees] = useState<EventAttendee[]>([])
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [loading, setLoading] = useState(true)
   const [addId, setAddId] = useState('')
 
-  const loadAttendees = () => {
-    if (id) void repository.listEventAttendees(id).then(setAttendees)
-  }
-
+  const { data, loading, error, retry } = useRepoQuery(
+    () =>
+      Promise.all([
+        repository.getEvent(id ?? ''),
+        repository.listEventAttendees(id ?? ''),
+        repository.listContacts(),
+      ]),
+    [id],
+  )
+  const event = data?.[0]
+  const contacts: Contact[] = data?.[2] ?? []
   useEffect(() => {
-    if (!id) return
-    let active = true
-    Promise.all([
-      repository.getEvent(id),
-      repository.listEventAttendees(id),
-      repository.listContacts(),
-    ]).then(([e, a, c]) => {
-      if (!active) return
-      setEvent(e)
-      setAttendees(a)
-      setContacts(c)
-      setLoading(false)
-    })
-    return () => {
-      active = false
-    }
-  }, [id])
+    setAttendees(data?.[1] ?? [])
+  }, [data])
+
+  const loadAttendees = () => {
+    if (id)
+      void repository
+        .listEventAttendees(id)
+        .then(setAttendees)
+        .catch((err: unknown) => toast(saveErrorMessage(err)))
+  }
 
   const contactById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts])
   const counts = useMemo(() => {
@@ -70,26 +71,48 @@ export function EventDetail() {
   const notAttending = contacts.filter((c) => !attendees.some((a) => a.contactId === c.id))
 
   const setStatus = async (contactId: string, status: AttendanceStatus) => {
+    const before = attendees
     setAttendees((prev) => prev.map((a) => (a.contactId === contactId ? { ...a, status } : a)))
-    if (id) await repository.setAttendee(id, contactId, { status })
+    try {
+      if (id) await repository.setAttendee(id, contactId, { status })
+    } catch (err) {
+      setAttendees(before) // roll the optimistic update back
+      toast(saveErrorMessage(err))
+    }
   }
   const editPurpose = (contactId: string, purpose: string) =>
     setAttendees((prev) => prev.map((a) => (a.contactId === contactId ? { ...a, purpose } : a)))
   const savePurpose = async (contactId: string, purpose: string) => {
-    if (id) await repository.setAttendee(id, contactId, { purpose })
+    try {
+      if (id) await repository.setAttendee(id, contactId, { purpose })
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      loadAttendees() // resync with what the server actually has
+    }
   }
   const removeAttendee = async (contactId: string) => {
     if (!id) return
-    await repository.removeAttendee(id, contactId)
+    try {
+      await repository.removeAttendee(id, contactId)
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
     loadAttendees()
   }
   const addAttendee = async () => {
     if (!id || !addId) return
-    await repository.setAttendee(id, addId, { status: 'invited' })
+    try {
+      await repository.setAttendee(id, addId, { status: 'invited' })
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
     setAddId('')
     loadAttendees()
   }
 
+  if (error) return <QueryError error={error} retry={retry} />
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
   if (!event) {
     return (

@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Check, X, HelpCircle, Plus, Upload, Map as MapIcon, List as ListIcon } from 'lucide-react'
 import type { Activity, AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
+import { useRepoQuery } from '@/app/useRepoQuery'
+import { QueryError } from '@/components/QueryError'
 import { canApprove } from '@/domain/roles'
 import { useScopedContacts } from '@/app/useScopedContacts'
 import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
@@ -28,35 +30,25 @@ const LINKEDIN_MINI: Record<LinkedInStatus, { icon: typeof Check; cls: string; t
 export function ContactList() {
   const { user } = useSession()
   const navigate = useNavigate()
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [regions, setRegions] = useState<Region[]>([])
-  const [users, setUsers] = useState<AppUser[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
   const [q, setQ] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [sortMode, setSortMode] = useState<SortMode>('name')
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let active = true
-    Promise.all([
-      repository.listContacts(),
-      repository.listRegions(),
-      repository.listUsers(),
-      repository.listAllActivities(),
-    ]).then(([c, r, u, a]) => {
-      if (!active) return
-      setContacts(c)
-      setRegions(r)
-      setUsers(u)
-      setActivities(a)
-      setLoading(false)
-    })
-    return () => {
-      active = false
-    }
-  }, [])
+  const { data, loading, error, retry } = useRepoQuery(
+    () =>
+      Promise.all([
+        repository.listContacts(),
+        repository.listRegions(),
+        repository.listUsers(),
+        repository.listAllActivities(),
+      ]),
+    [],
+  )
+  const contacts: Contact[] = useMemo(() => data?.[0] ?? [], [data])
+  const regions: Region[] = data?.[1] ?? []
+  const users: AppUser[] = data?.[2] ?? []
+  const activities: Activity[] = useMemo(() => data?.[3] ?? [], [data])
 
   const today = useMemo(() => new Date(), [])
   const attentionByContact = useMemo(() => {
@@ -90,6 +82,8 @@ export function ContactList() {
         : a.fullName.localeCompare(b.fullName, 'de'),
     )
   }, [roleScoped, q, regionFilter, sortMode, attentionByContact])
+
+  if (error) return <QueryError error={error} retry={retry} />
 
   return (
     <div className="space-y-4">

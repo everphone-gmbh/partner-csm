@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronDown, Paperclip, Plus, Trash2 } from 'lucide-react'
 import type { Activity, ActivityType, Contact, Reminder, SentimentEntry } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
+import { useRepoQuery } from '@/app/useRepoQuery'
+import { QueryError } from '@/components/QueryError'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { canViewActivityBody } from '@/domain/roles'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -37,24 +40,22 @@ export function Timeline({ contact }: { contact: Contact }) {
   const { user } = useSession()
   const canBody = canViewActivityBody(user.role)
 
-  const [activities, setActivities] = useState<ReturnType<typeof buildHistory>>([])
-  const [reminders, setReminders] = useState<Reminder[]>([])
   const [filter, setFilter] = useState<TimelineFilter>('all')
 
-  const refreshActivities = () => {
-    void repository.listActivities(contact.id).then((items) => {
-      setActivities(buildHistory(items, contact.sentimentHistory))
-    })
-  }
-  const refreshReminders = () => {
-    void repository.listReminders(contact.id).then(setReminders)
-  }
-
-  useEffect(refreshActivities, [contact.id, contact.sentimentHistory])
-  useEffect(refreshReminders, [contact.id])
+  const activitiesQ = useRepoQuery(
+    () =>
+      repository
+        .listActivities(contact.id)
+        .then((items) => buildHistory(items, contact.sentimentHistory)),
+    [contact.id, contact.sentimentHistory],
+  )
+  const remindersQ = useRepoQuery(() => repository.listReminders(contact.id), [contact.id])
+  const activities = activitiesQ.data ?? []
+  const reminders = remindersQ.data ?? []
 
   const history = useMemo(() => filterHistory(activities, filter), [activities, filter])
   const openReminders = reminders.filter((r) => !r.done)
+  const queryError = activitiesQ.error ?? remindersQ.error
 
   return (
     <Card className="lg:sticky lg:top-[4.5rem]">
@@ -62,14 +63,23 @@ export function Timeline({ contact }: { contact: Contact }) {
         <CardTitle className="text-base">Aktivität</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <AddActivityForm contactId={contact.id} onAdded={refreshActivities} />
+        {queryError && (
+          <QueryError
+            error={queryError}
+            retry={() => {
+              activitiesQ.retry()
+              remindersQ.retry()
+            }}
+          />
+        )}
+        <AddActivityForm contactId={contact.id} onAdded={activitiesQ.retry} />
 
         <Separator />
 
         <UpcomingReminders
           contactId={contact.id}
           reminders={openReminders}
-          onChanged={refreshReminders}
+          onChanged={remindersQ.retry}
         />
 
         <Separator />
@@ -112,6 +122,7 @@ export function Timeline({ contact }: { contact: Contact }) {
 
 function AddActivityForm({ contactId, onAdded }: { contactId: string; onAdded: () => void }) {
   const { user } = useSession()
+  const { toast } = useToast()
   const [type, setType] = useState<ActivityType>('note')
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
@@ -131,6 +142,8 @@ function AddActivityForm({ contactId, onAdded }: { contactId: string; onAdded: (
       })
       setBody('')
       onAdded()
+    } catch (err) {
+      toast(saveErrorMessage(err)) // keep the typed text so nothing is lost
     } finally {
       setSaving(false)
     }
@@ -186,22 +199,38 @@ function UpcomingReminders({
   onChanged: () => void
 }) {
   const { user } = useSession()
+  const { toast } = useToast()
   const [text, setText] = useState('')
   const [due, setDue] = useState('')
 
   const add = async () => {
     if (!text.trim() || !due) return
-    await repository.addReminder({ contactId, dueDate: due, text: text.trim(), createdByName: user.name })
+    try {
+      await repository.addReminder({ contactId, dueDate: due, text: text.trim(), createdByName: user.name })
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
     setText('')
     setDue('')
     onChanged()
   }
   const toggle = async (r: Reminder) => {
-    await repository.toggleReminder(r.id, !r.done)
+    try {
+      await repository.toggleReminder(r.id, !r.done)
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
     onChanged()
   }
   const remove = async (id: string) => {
-    await repository.deleteReminder(id)
+    try {
+      await repository.deleteReminder(id)
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
     onChanged()
   }
 

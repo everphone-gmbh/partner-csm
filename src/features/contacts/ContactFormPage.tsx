@@ -6,6 +6,9 @@ import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canApprove, ROLE_LABEL } from '@/domain/roles'
 import { buildLinkedInInfo } from '@/domain/linkedin'
+import { useRepoQuery } from '@/app/useRepoQuery'
+import { QueryError } from '@/components/QueryError'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -84,40 +87,37 @@ export function ContactFormPage() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
   const { user } = useSession()
+  const { toast } = useToast()
   const allowed = canApprove(user.role)
 
   const [form, setForm] = useState<FormState>(EMPTY)
   // LinkedIn state as loaded — needed so an unrelated edit doesn't re-stamp
   // the verifier attribution (who checked the account, and when).
   const [loadedLinkedin, setLoadedLinkedin] = useState<LinkedInInfo | undefined>(undefined)
-  const [regions, setRegions] = useState<Region[]>([])
-  const [users, setUsers] = useState<AppUser[]>([])
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [newFact, setNewFact] = useState('')
 
+  const { data, loading, error, retry } = useRepoQuery(
+    () =>
+      Promise.all([
+        repository.listRegions(),
+        repository.listUsers(),
+        id ? repository.getContact(id) : Promise.resolve(undefined),
+      ]),
+    [id],
+  )
+  const regions: Region[] = data?.[0] ?? []
+  const users: AppUser[] = data?.[1] ?? []
   useEffect(() => {
-    let active = true
-    Promise.all([
-      repository.listRegions(),
-      repository.listUsers(),
-      id ? repository.getContact(id) : Promise.resolve(undefined),
-    ]).then(([r, u, c]) => {
-      if (!active) return
-      setRegions(r)
-      setUsers(u)
-      if (c) {
-        setForm(fromContact(c))
-        setLoadedLinkedin(c.linkedin)
-      } else {
-        setForm((f) => ({ ...f, regionId: r[0]?.id ?? '', relationshipManagerId: u[0]?.id ?? '' }))
-      }
-      setLoading(false)
-    })
-    return () => {
-      active = false
+    if (!data) return
+    const [r, u, c] = data
+    if (c) {
+      setForm(fromContact(c))
+      setLoadedLinkedin(c.linkedin)
+    } else {
+      setForm((f) => ({ ...f, regionId: r[0]?.id ?? '', relationshipManagerId: u[0]?.id ?? '' }))
     }
-  }, [id])
+  }, [data])
 
   const set = <K extends keyof FormState,>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -174,6 +174,8 @@ export function ContactFormPage() {
         const created = await repository.createContact(payload)
         navigate(`/contacts/${created.id}`)
       }
+    } catch (err) {
+      toast(saveErrorMessage(err)) // form state stays intact for a retry
     } finally {
       setSaving(false)
     }
@@ -192,6 +194,7 @@ export function ContactFormPage() {
     )
   }
 
+  if (error) return <QueryError error={error} retry={retry} />
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
 
   return (
