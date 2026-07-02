@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { useScopedContacts } from './useScopedContacts'
 import { SessionProvider, useSession } from './SessionContext'
@@ -29,13 +29,16 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('useScopedContacts', () => {
-  it('does not scope for privileged roles (default seeded user is overall_admin)', () => {
+  // SessionProvider loads users from the repository asynchronously, so the
+  // hook under test renders only after the session has booted.
+  it('does not scope for privileged roles (default seeded user is overall_admin)', async () => {
     const { result } = renderHook(() => useScopedContacts(contacts), { wrapper })
+    await waitFor(() => expect(result.current).not.toBeNull())
     expect(result.current.isAccountManager).toBe(false)
     expect(result.current.scoped).toHaveLength(3)
   })
 
-  it('scopes to the account manager region', () => {
+  it('scopes to the account manager region', async () => {
     const { result } = renderHook(
       () => {
         const session = useSession()
@@ -43,10 +46,11 @@ describe('useScopedContacts', () => {
       },
       { wrapper },
     )
+    await waitFor(() => expect(result.current).not.toBeNull())
     // Switch to Mehmet Yıldız, an account_manager in r-west (see data/seed.ts).
     act(() => result.current.session.setUserId('u-mehmet'))
 
-    expect(result.current.isAccountManager).toBe(true)
+    await waitFor(() => expect(result.current.isAccountManager).toBe(true))
     expect(result.current.scoped).toHaveLength(1)
     expect(result.current.scoped[0].id).toBe('c3')
   })
