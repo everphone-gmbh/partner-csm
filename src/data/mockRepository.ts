@@ -100,6 +100,14 @@ class MockRepository implements Repository {
     return clone(this.contacts[idx])
   }
 
+  async deleteContact(id: string) {
+    // Mirror the DB's ON DELETE CASCADE: dependent personal data goes too.
+    this.contacts = this.contacts.filter((c) => c.id !== id)
+    this.activities = this.activities.filter((a) => a.contactId !== id)
+    this.reminders = this.reminders.filter((r) => r.contactId !== id)
+    this.attendees = this.attendees.filter((a) => a.contactId !== id)
+  }
+
   async listActivities(contactId: string) {
     const items = this.activities
       .filter((a) => a.contactId === contactId)

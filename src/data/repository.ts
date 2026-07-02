@@ -108,6 +108,10 @@ export interface Repository {
   getContact(id: string): Promise<Contact | undefined>
   createContact(input: NewContact): Promise<Contact>
   updateContact(id: string, patch: ContactPatch): Promise<Contact>
+  /** GDPR right to erasure: removes the contact and (via cascade) all
+   * dependent personal data — activities, side facts, photos, reminders,
+   * event attendance. Admin-gated in the UI and by RLS (0008). */
+  deleteContact(id: string): Promise<void>
   listActivities(contactId: string): Promise<Activity[]>
   listAllActivities(): Promise<Activity[]>
   addActivity(input: NewActivity): Promise<Activity>

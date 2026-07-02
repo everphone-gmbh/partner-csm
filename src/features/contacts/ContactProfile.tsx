@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { Pencil, Sparkles } from 'lucide-react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { AppUser, Contact, Region } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { repository } from '@/data/repositoryProvider'
@@ -23,6 +23,7 @@ import { NotizCard } from './profile/NotizCard'
 
 export function ContactProfile() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { user } = useSession()
   const { toast } = useToast()
   const [raw, setRaw] = useState<Contact | undefined>(undefined)
@@ -68,6 +69,23 @@ export function ContactProfile() {
     }
   }
 
+  // GDPR erasure — deliberately Overall-Admin only (mirrors RLS in 0008).
+  const erase = async () => {
+    if (!raw) return
+    const sure = window.confirm(
+      `„${raw.fullName}“ und ALLE zugehörigen Daten (Aktivitäten, Fotos, Reminder) unwiderruflich löschen?`,
+    )
+    if (!sure) return
+    try {
+      await repository.deleteContact(raw.id)
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
+    toast('Kontakt gelöscht.', 'success')
+    navigate('/contacts')
+  }
+
   if (error) return <QueryError error={error} retry={retry} />
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
   if (!view) {
@@ -83,14 +101,27 @@ export function ContactProfile() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <BackLink />
-        {canEdit && (
-          <Link
-            to={`/contacts/${view.id}/edit`}
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-          >
-            <Pencil className="size-4" /> Bearbeiten
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {user.role === 'overall_admin' && (
+            <button
+              type="button"
+              onClick={erase}
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+              title="Kontakt und alle zugehörigen Daten löschen (DSGVO)"
+            >
+              <Trash2 className="size-4 text-destructive" />
+              <span className="text-destructive">Löschen</span>
+            </button>
+          )}
+          {canEdit && (
+            <Link
+              to={`/contacts/${view.id}/edit`}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              <Pencil className="size-4" /> Bearbeiten
+            </Link>
+          )}
+        </div>
       </div>
 
       <IdentityCard

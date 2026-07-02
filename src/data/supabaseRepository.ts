@@ -442,6 +442,13 @@ export class SupabaseRepository implements Repository {
     return updated
   }
 
+  async deleteContact(id: string): Promise<void> {
+    // Dependent rows (side_facts, activities, photos, reminders, attendance)
+    // are removed by the schema's ON DELETE CASCADE.
+    const { error } = await this.client.from('contacts').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+  }
+
   async listActivities(contactId: string): Promise<Activity[]> {
     const [{ data, error }, names] = await Promise.all([
       this.client

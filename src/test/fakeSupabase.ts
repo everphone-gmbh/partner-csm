@@ -176,7 +176,20 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       }
 
       if (this.op === 'delete') {
+        const removed = rows.filter((r) => this.matches(r))
         tables[this.table] = rows.filter((r) => !this.matches(r))
+        // Emulate the schema's ON DELETE CASCADE from contacts.
+        if (this.table === 'contacts') {
+          const ids = new Set(removed.map((r) => r.id))
+          for (const child of ['side_facts', 'contact_photos', 'contact_customers', 'reminders', 'event_attendees'] as const) {
+            tables[child] = tables[child].filter((r) => !ids.has(r.contact_id))
+          }
+          const removedActivityIds = new Set(
+            tables.activities.filter((a) => ids.has(a.contact_id)).map((a) => a.id),
+          )
+          tables.activities = tables.activities.filter((a) => !ids.has(a.contact_id))
+          tables.attachments = tables.attachments.filter((a) => !removedActivityIds.has(a.activity_id))
+        }
         return { data: null, error: null }
       }
 

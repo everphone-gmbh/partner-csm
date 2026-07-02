@@ -157,6 +157,25 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.fullName).toBe(BASE.fullName)
     })
 
+    it('deleteContact erases the contact (right to erasure)', async () => {
+      const c = await repo.createContact({
+        ...BASE,
+        sideFacts: [{ id: 'sf-a', label: 'Golf', category: 'sport' }],
+      })
+      await repo.addActivity({
+        contactId: c.id,
+        type: 'note',
+        occurredAt: '2026-07-01T10:00:00.000Z',
+        authorId: VERIFIER.id,
+        authorName: VERIFIER.full_name,
+        body: 'Vertrauliche Notiz',
+      })
+      await repo.deleteContact(c.id)
+      expect(await repo.getContact(c.id)).toBeUndefined()
+      // Cascade: the contact's activities must not survive as orphans.
+      expect(await repo.listActivities(c.id)).toEqual([])
+    })
+
     it('createContact persists LinkedIn and side facts', async () => {
       const created = await repo.createContact({
         ...BASE,
