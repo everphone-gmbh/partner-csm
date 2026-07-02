@@ -21,7 +21,7 @@ import { Label } from '@/components/ui/label'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 
 const selectCls =
-  'h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'h-10 w-full rounded-[10px] border border-transparent bg-secondary px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 type Step = 'paste' | 'map' | 'preview' | 'done'
 
@@ -133,7 +133,7 @@ export function ContactImportPage() {
       <Link to="/contacts" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Alle Kontakte
       </Link>
-      <h1 className="text-xl font-semibold">Kontakte importieren</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Kontakte importieren</h1>
 
       {step === 'paste' && (
         <Card>

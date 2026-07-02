@@ -10,26 +10,27 @@
 */
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.875rem;
 
-  /* Light neutral canvas, crisp white cards — professional SaaS feel. */
-  --background: #f6f7f9;
-  --foreground: #14151a;
+  /* Apple-style light canvas: soft platinum gray, near-black ink, hairlines. */
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
 
   --card: #ffffff;
-  --card-foreground: #14151a;
+  --card-foreground: #1d1d1f;
   --popover: #ffffff;
-  --popover-foreground: #14151a;
+  --popover-foreground: #1d1d1f;
 
   /* Telekom Magenta (brand accent, used sparingly) */
   --primary: #e20074;
   --primary-foreground: #ffffff;
 
-  --secondary: #eff1f4;
-  --secondary-foreground: #1f2430;
+  /* iOS grouped-list fill gray */
+  --secondary: #f2f2f7;
+  --secondary-foreground: #1d1d1f;
 
-  --muted: #eff1f4;
-  --muted-foreground: #667085;
+  --muted: #f2f2f7;
+  --muted-foreground: #86868b;
 
   /* Everphone teal accent */
   --accent: #e6f7f4;
@@ -38,9 +39,12 @@
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  --border: #e6e8ec;
-  --input: #e6e8ec;
+  --border: #e8e8ed;
+  --input: #e8e8ed;
   --ring: #e20074;
+
+  /* Soft, diffuse elevation for cards (Apple-style, barely-there) */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.05);
 
   /* Brand + semantic extras */
   --magenta: #e20074;
@@ -55,13 +59,15 @@
 }
 
 .dark {
-  --background: #131217;
-  --foreground: #f4f3f6;
+  --background: #161618;
+  --foreground: #f5f5f7;
 
-  --card: #1b1a21;
-  --card-foreground: #f4f3f6;
-  --popover: #1b1a21;
-  --popover-foreground: #f4f3f6;
+  --card: #1e1e20;
+  --card-foreground: #f5f5f7;
+  --popover: #1e1e20;
+  --popover-foreground: #f5f5f7;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
 
   --primary: #ff2f9e;
   --primary-foreground: #1a0010;
@@ -127,7 +133,9 @@
   --color-status-red: var(--status-red);
   --color-status-neutral: var(--status-neutral);
 
-  --font-sans: 'Titillium Web', system-ui, 'Segoe UI', Roboto, sans-serif;
+  /* System stack first: SF Pro on Apple devices, native elsewhere. */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue',
+    'Segoe UI', system-ui, Roboto, sans-serif;
 }
 
 @layer base {

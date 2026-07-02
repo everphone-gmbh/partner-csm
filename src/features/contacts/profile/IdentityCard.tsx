@@ -54,7 +54,7 @@ export function IdentityCard({
           </div>
           <div className="min-w-0 flex-1 space-y-2">
             <div>
-              <h1 className="text-xl font-semibold leading-tight">{contact.fullName}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight leading-tight">{contact.fullName}</h1>
               <p className="text-sm text-muted-foreground">{contact.position || '—'}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

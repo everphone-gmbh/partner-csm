@@ -4,7 +4,7 @@ import { ArrowLeft, Lock, Pencil } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 
 export const selectCls =
-  'h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'h-10 w-full rounded-[10px] border border-transparent bg-secondary px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 export function BackLink() {
   return (

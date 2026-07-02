@@ -89,7 +89,7 @@ export function ContactList() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-semibold">Kontakte</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Kontakte</h1>
           <p className="text-sm text-muted-foreground">
             {loading ? 'Lädt…' : `${visible.length} von ${contacts.length} Kontakten`}
             {isAccountManager && user.regionId ? ` · Region ${regionName(user.regionId)}` : ''}
@@ -144,7 +144,7 @@ export function ContactList() {
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as SortMode)}
-              className="h-7 rounded-md border border-input bg-background px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-7 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="name">Name</option>
               <option value="stale">Zuletzt aktiv</option>

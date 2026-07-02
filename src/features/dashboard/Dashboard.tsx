@@ -67,7 +67,7 @@ export function Dashboard() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <h1 className="text-xl font-semibold">Übersicht</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Übersicht</h1>
         <p className="text-sm text-muted-foreground">Beziehungsstatus auf einen Blick</p>
       </div>
 
@@ -90,12 +90,12 @@ export function Dashboard() {
             <CardTitle className="text-base">Braucht Aufmerksamkeit</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-1">
+            <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
               {needsAttention.map(({ contact, days }) => (
                 <li key={contact.id}>
                   <Link
                     to={`/contacts/${contact.id}`}
-                    className="flex items-center gap-3 rounded-md p-1.5 hover:bg-secondary/50"
+                    className="flex items-center gap-3 rounded-lg px-1.5 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
                   >
                     <Avatar src={contact.photoUrl} name={contact.fullName} className="size-9" />
                     <div className="min-w-0 flex-1">
@@ -122,7 +122,7 @@ export function Dashboard() {
             <CardTitle className="text-base">Offene Reminder</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-1">
+            <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
               {openReminders.map((r) => {
                 const d = daysUntil(r.dueDate)
                 const overdue = d !== null && d < 0
@@ -130,7 +130,7 @@ export function Dashboard() {
                   <li key={r.id}>
                     <Link
                       to={`/contacts/${r.contactId}`}
-                      className="flex items-center gap-3 rounded-md p-1.5 hover:bg-secondary/50"
+                      className="flex items-center gap-3 rounded-lg px-1.5 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
                     >
                       <Bell className="size-4 shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
@@ -191,12 +191,12 @@ export function Dashboard() {
             {birthdays.length === 0 ? (
               <p className="text-sm text-muted-foreground">Keine in den nächsten 30 Tagen.</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
                 {birthdays.map(({ contact, inDays }) => (
                   <li key={contact.id}>
                     <Link
                       to={`/contacts/${contact.id}`}
-                      className="flex items-center gap-3 rounded-md p-1.5 hover:bg-secondary/50"
+                      className="flex items-center gap-3 rounded-lg px-1.5 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
                     >
                       <Avatar src={contact.photoUrl} name={contact.fullName} className="size-9" />
                       <div className="min-w-0 flex-1">
@@ -231,12 +231,12 @@ function StatCard({
 }) {
   return (
     <Card>
-      <CardContent className="flex flex-col gap-1 p-3">
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <CardContent className="flex flex-col gap-1.5 p-4">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Icon className="size-3.5" />
           {label}
         </span>
-        <span className="text-xl font-semibold">{value}</span>
+        <span className="text-3xl font-semibold tracking-tight">{value}</span>
         {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
       </CardContent>
     </Card>

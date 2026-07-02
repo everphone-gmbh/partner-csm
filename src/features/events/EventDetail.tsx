@@ -16,7 +16,7 @@ import { ATTENDANCE_LABEL, ATTENDANCE_ORDER, ATTENDANCE_VARIANT } from './eventM
 import { EventNotes } from './EventNotes'
 
 const selectCls =
-  'h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'h-9 rounded-[10px] border border-transparent bg-secondary px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 export function EventDetail() {
   const { id } = useParams()
@@ -129,7 +129,7 @@ export function EventDetail() {
 
       <Card>
         <CardContent className="space-y-2 pt-5">
-          <h1 className="text-xl font-semibold">{event.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{event.name}</h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="size-4" />

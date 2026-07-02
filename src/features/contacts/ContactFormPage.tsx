@@ -80,7 +80,7 @@ function fromContact(c: Contact): FormState {
 }
 
 const selectCls =
-  'h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'h-10 w-full rounded-[10px] border border-transparent bg-secondary px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 export function ContactFormPage() {
   const { id } = useParams()
@@ -206,7 +206,7 @@ export function ContactFormPage() {
         <ArrowLeft className="size-4" /> Abbrechen
       </Link>
 
-      <h1 className="text-xl font-semibold">{isEdit ? 'Kontakt bearbeiten' : 'Neuer Kontakt'}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{isEdit ? 'Kontakt bearbeiten' : 'Neuer Kontakt'}</h1>
 
       <Card>
         <CardHeader>

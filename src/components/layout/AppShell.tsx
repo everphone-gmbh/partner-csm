@@ -22,7 +22,7 @@ function useNavItems() {
 function Logo() {
   return (
     <Link to="/dashboard" className="flex items-center gap-2.5">
-      <span className="inline-flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+      <span className="inline-flex size-8 items-center justify-center rounded-[9px] bg-primary text-sm font-bold text-primary-foreground">
         P
       </span>
       <span className="leading-tight">
@@ -40,7 +40,7 @@ function RoleSwitcher({ compact }: { compact?: boolean }) {
       value={user.id}
       onChange={(e) => setUserId(e.target.value)}
       className={cn(
-        'h-9 truncate rounded-md border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'h-9 truncate rounded-[10px] border border-transparent bg-secondary px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         compact ? 'w-[11.5rem]' : 'w-full',
       )}
     >
@@ -69,7 +69,8 @@ function SearchTrigger({ className }: { className?: string }) {
       type="button"
       onClick={open}
       className={cn(
-        'flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground',
+        // Spotlight-style capsule search field
+        'flex items-center gap-2 rounded-full bg-secondary px-3.5 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground',
         className,
       )}
     >
@@ -82,17 +83,17 @@ function SearchTrigger({ className }: { className?: string }) {
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return cn(
-    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
     isActive
       ? 'bg-primary/10 text-primary'
-      : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+      : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]',
   )
 }
 
 function Sidebar() {
   const items = useNavItems()
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-card lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-black/[0.05] bg-card/80 backdrop-blur-xl lg:flex dark:border-white/[0.08]">
       <div className="space-y-3 px-5 py-5">
         <Logo />
         <SearchTrigger className="w-full" />
@@ -115,14 +116,14 @@ function Sidebar() {
 function MobileHeader() {
   const { open } = useCommandPalette()
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-border bg-card/85 px-4 py-2.5 backdrop-blur lg:hidden">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-black/[0.05] bg-background/80 px-4 py-2.5 backdrop-blur-xl lg:hidden dark:border-white/[0.08]">
       <Logo />
       <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={open}
           aria-label="Suchen"
-          className="flex size-9 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground"
         >
           <Search className="size-4" />
         </button>
@@ -135,7 +136,7 @@ function MobileHeader() {
 function BottomNav() {
   const items = useNavItems()
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 backdrop-blur lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-black/[0.05] bg-card/80 backdrop-blur-xl lg:hidden dark:border-white/[0.08]">
       <div className="flex">
         {items.map(({ to, label, icon: Icon }) => (
           <NavLink

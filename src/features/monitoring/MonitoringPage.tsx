@@ -52,7 +52,7 @@ export function MonitoringPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <h1 className="text-xl font-semibold">Monitoring</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Monitoring</h1>
         <p className="text-sm text-muted-foreground">Performance der Relationship Manager</p>
       </div>
 
