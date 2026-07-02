@@ -139,11 +139,11 @@ export function Dashboard() {
                           {contactName(r.contactId)} · {formatDate(r.dueDate)}
                         </div>
                       </div>
-                      <Badge
-                        variant={overdue ? 'destructive' : d !== null && d <= 3 ? 'warning' : 'secondary'}
-                      >
-                        {overdue ? 'überfällig' : d === 0 ? 'heute' : `in ${d} T.`}
-                      </Badge>
+                      {d !== null && (
+                        <Badge variant={overdue ? 'destructive' : d <= 3 ? 'warning' : 'secondary'}>
+                          {overdue ? 'überfällig' : d === 0 ? 'heute' : `in ${d} T.`}
+                        </Badge>
+                      )}
                     </Link>
                   </li>
                 )

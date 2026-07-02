@@ -32,6 +32,29 @@ describe('buildHistory', () => {
     const activities = [activity('a1', '2026-01-01T00:00:00.000Z')]
     expect(buildHistory(activities)).toHaveLength(1)
   })
+
+  it('keeps insertion order for equal timestamps (valid, stable comparator)', () => {
+    const t = '2026-05-01T10:00:00.000Z'
+    const history = buildHistory([activity('a1', t), activity('a2', t), activity('a3', t)])
+    expect(history.map((e) => (e.kind === 'activity' ? e.activity.id : ''))).toEqual([
+      'a1',
+      'a2',
+      'a3',
+    ])
+  })
+
+  it('sorts mixed timestamp precisions correctly', () => {
+    // Postgres returns +00:00-style offsets, the client writes Z-suffixed ISO —
+    // ordering must not depend on string quirks for the same instant ± a second.
+    const history = buildHistory([
+      activity('older', '2026-05-01T10:00:00.000Z'),
+      activity('newer', '2026-05-01T10:00:01.000Z'),
+    ])
+    expect(history.map((e) => (e.kind === 'activity' ? e.activity.id : ''))).toEqual([
+      'newer',
+      'older',
+    ])
+  })
 })
 
 describe('filterHistory', () => {

@@ -106,11 +106,11 @@ export function Timeline({ contact }: { contact: Contact }) {
           <p className="text-sm text-muted-foreground">Keine Einträge.</p>
         ) : (
           <ul className="space-y-4">
-            {history.map((entry) =>
+            {history.map((entry, i) =>
               entry.kind === 'activity' ? (
                 <ActivityItem key={entry.activity.id} activity={entry.activity} canBody={canBody} />
               ) : (
-                <SentimentItem key={entry.at + (entry.entry.byName ?? '')} entry={entry.entry} />
+                <SentimentItem key={`s-${entry.at}-${i}`} entry={entry.entry} />
               ),
             )}
           </ul>

@@ -47,6 +47,17 @@ describe('lastTouchDate', () => {
     ]
     expect(lastTouchDate(c, activities)).toBe('2026-03-01T00:00:00.000Z')
   })
+
+  it('compares instants, not strings (Postgres +00:00 vs client Z suffix)', () => {
+    const c = contact('2026-01-01T00:00:00+00:00')
+    // Same instant family, different serializations: the LATER instant must win
+    // even though "2026-03-01T09:00:00+00:00" < "2026-03-01T08:00:00Z" as a string.
+    const activities = [
+      activity('c1', '2026-03-01T08:00:00Z'),
+      activity('c1', '2026-03-01T09:00:00+00:00'),
+    ]
+    expect(lastTouchDate(c, activities)).toBe('2026-03-01T09:00:00+00:00')
+  })
 })
 
 describe('daysSinceTouch', () => {
@@ -54,6 +65,16 @@ describe('daysSinceTouch', () => {
     const c = contact('2026-01-01T00:00:00.000Z')
     const today = new Date('2026-01-11T00:00:00.000Z')
     expect(daysSinceTouch(c, [], today)).toBe(10)
+  })
+
+  it('counts calendar days, independent of the time of day of the touch', () => {
+    // Touch late in the evening, check early next morning: that's 1 calendar
+    // day, not 0 — the 60/90-day thresholds must not flip with time of day.
+    // (Local-time timestamps so the test is timezone-independent.)
+    const evening = new Date(2026, 0, 1, 23, 30)
+    const nextMorning = new Date(2026, 0, 2, 6, 0)
+    const c = contact(evening.toISOString())
+    expect(daysSinceTouch(c, [], nextMorning)).toBe(1)
   })
 })
 

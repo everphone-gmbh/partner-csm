@@ -20,7 +20,9 @@ export function buildHistory(
     ...activities.map((activity) => ({ kind: 'activity' as const, at: activity.occurredAt, activity })),
     ...sentimentHistory.map((entry) => ({ kind: 'sentiment' as const, at: entry.at, entry })),
   ]
-  return entries.sort((a, b) => (a.at < b.at ? 1 : -1))
+  // Compare instants (Postgres may serialize +00:00, the client writes Z);
+  // equal timestamps return 0 so the stable sort keeps insertion order.
+  return entries.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
 }
 
 export function filterHistory(entries: TimelineEntry[], filter: TimelineFilter): TimelineEntry[] {

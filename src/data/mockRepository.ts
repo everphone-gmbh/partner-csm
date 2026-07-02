@@ -111,7 +111,7 @@ class MockRepository implements Repository {
   async listActivities(contactId: string) {
     const items = this.activities
       .filter((a) => a.contactId === contactId)
-      .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1))
+      .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
     return clone(items)
   }
 
@@ -188,7 +188,7 @@ class MockRepository implements Repository {
     const items = contactId
       ? this.reminders.filter((r) => r.contactId === contactId)
       : this.reminders
-    return clone([...items].sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1)))
+    return clone([...items].sort((a, b) => a.dueDate.localeCompare(b.dueDate)))
   }
 
   async addReminder(input: NewReminder) {
@@ -219,7 +219,7 @@ class MockRepository implements Repository {
     return clone(
       this.eventNotes
         .filter((n) => n.eventId === eventId)
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
     )
   }
 
