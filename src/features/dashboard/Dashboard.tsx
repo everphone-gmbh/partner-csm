@@ -15,6 +15,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { TrafficLightDot } from '@/components/TrafficLight'
 import { formatDate, daysUntil } from '@/lib/format'
 import { computeRegionCoverage, overallSummary, upcomingBirthdays } from './dashboardStats'
+import { BirthdayCalendar } from './BirthdayCalendar'
 
 export function Dashboard() {
   const { user } = useSession()
@@ -35,14 +36,19 @@ export function Dashboard() {
   const activities: Activity[] = useMemo(() => data?.[3] ?? [], [data])
 
   const { scoped } = useScopedContacts(contacts)
-  const needsAttention = useMemo(() => {
+  const stale = useMemo(() => {
     const today = new Date()
     return scoped
       .map((c) => ({ contact: c, days: daysSinceTouch(c, activities, today) }))
       .filter(({ days }) => computeAttentionLevel(days) !== 'ok')
       .sort((a, b) => b.days - a.days)
-      .slice(0, 8)
   }, [scoped, activities])
+  const needsAttention = stale.slice(0, 8)
+  const staleTone = stale.some(({ days }) => computeAttentionLevel(days) === 'attention')
+    ? ('bad' as const)
+    : stale.length > 0
+      ? ('ok' as const)
+      : ('good' as const)
   const regionName = (id: string) => regions.find((r) => r.id === id)?.name ?? id
   const coverage = useMemo(() => computeRegionCoverage(scoped), [scoped])
   const summary = useMemo(() => overallSummary(scoped), [scoped])
@@ -71,8 +77,10 @@ export function Dashboard() {
         <p className="text-sm text-muted-foreground">Beziehungsstatus auf einen Blick</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
-        <StatCard icon={Users} label="Kontakte" value={String(summary.total)} chip="brand" />
+      <div
+        className={`grid grid-cols-2 gap-2 sm:gap-3 ${canSensitive ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}
+      >
+        <StatCard icon={Users} label="Kontakte" value={String(summary.total)} chip="brand" to="/contacts" />
         <StatCard
           icon={TrendingUp}
           label="Aktiv betreut"
@@ -80,6 +88,15 @@ export function Dashboard() {
           hint={`${summary.engaged} von ${summary.total}`}
           tone={summary.engagedPct >= 75 ? 'good' : summary.engagedPct >= 50 ? 'ok' : 'bad'}
           progress={summary.engagedPct}
+          to="/contacts?filter=unmanaged"
+        />
+        <StatCard
+          icon={AlarmClock}
+          label="Aufmerksamkeit"
+          hint={stale.length > 0 ? 'länger kein Kontakt' : 'alles im grünen Bereich'}
+          value={String(stale.length)}
+          tone={staleTone}
+          to="/contacts?filter=stale"
         />
         {canSensitive && (
           <StatCard
@@ -88,6 +105,9 @@ export function Dashboard() {
             hint="nächste 30 Tage"
             value={String(birthdays.length)}
             chip="warm"
+            onActivate={() =>
+              document.getElementById('geburtstage')?.scrollIntoView({ behavior: 'smooth' })
+            }
           />
         )}
       </div>
@@ -191,34 +211,39 @@ export function Dashboard() {
       </Card>
 
       {canSensitive && (
-        <Card>
+        <Card id="geburtstage" className="scroll-mt-20">
           <CardHeader>
             <CardTitle className="text-base">Anstehende Geburtstage</CardTitle>
           </CardHeader>
-          <CardContent>
-            {birthdays.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Keine in den nächsten 30 Tagen.</p>
-            ) : (
-              <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
-                {birthdays.map(({ contact, inDays }) => (
-                  <li key={contact.id}>
-                    <Link
-                      to={`/contacts/${contact.id}`}
-                      className="flex items-center gap-3 rounded-lg px-1.5 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
-                    >
-                      <Avatar src={contact.photoUrl} name={contact.fullName} className="size-9" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{contact.fullName}</div>
-                        <div className="text-xs text-muted-foreground">{formatDate(contact.birthday)}</div>
-                      </div>
-                      <Badge variant={inDays === 0 ? 'warning' : 'secondary'}>
-                        {inDays === 0 ? 'heute' : `in ${inDays} T.`}
-                      </Badge>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <CardContent className="flex flex-col gap-5 sm:flex-row">
+            <div className="min-w-0 flex-1">
+              {birthdays.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Keine in den nächsten 30 Tagen.</p>
+              ) : (
+                <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+                  {birthdays.map(({ contact, inDays }) => (
+                    <li key={contact.id}>
+                      <Link
+                        to={`/contacts/${contact.id}`}
+                        className="flex items-center gap-3 rounded-lg px-1.5 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+                      >
+                        <Avatar src={contact.photoUrl} name={contact.fullName} className="size-9" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{contact.fullName}</div>
+                          <div className="text-xs text-muted-foreground">{formatDate(contact.birthday)}</div>
+                        </div>
+                        <Badge variant={inDays === 0 ? 'warning' : 'secondary'}>
+                          {inDays === 0 ? 'heute' : `in ${inDays} T.`}
+                        </Badge>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="shrink-0 border-black/[0.05] pt-1 sm:border-l sm:pl-5 dark:border-white/[0.08]">
+              <BirthdayCalendar contacts={scoped} />
+            </div>
           </CardContent>
         </Card>
       )}
@@ -259,6 +284,8 @@ function StatCard({
   tone = 'neutral',
   chip,
   progress,
+  to,
+  onActivate,
 }: {
   icon: ComponentType<{ className?: string }>
   label: string
@@ -269,9 +296,19 @@ function StatCard({
   chip?: 'brand' | 'warm'
   /** 0-100: renders a slim progress bar in the tone color. */
   progress?: number
+  /** Makes the tile a link (e.g. into a pre-filtered contact list). */
+  to?: string
+  /** Makes the tile a button (e.g. scroll to a section). */
+  onActivate?: () => void
 }) {
-  return (
-    <Card>
+  const body = (
+    <Card
+      className={
+        to || onActivate
+          ? 'h-full transition-all hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(0,0,0,0.05),0_12px_32px_rgba(0,0,0,0.08)]'
+          : 'h-full'
+      }
+    >
       <CardContent className="flex h-full min-h-32 flex-col p-4 sm:p-5">
         <span className="inline-flex items-center gap-2 text-[13px] font-medium text-foreground/80">
           <span
@@ -298,6 +335,14 @@ function StatCard({
       </CardContent>
     </Card>
   )
+  if (to) return <Link to={to}>{body}</Link>
+  if (onActivate)
+    return (
+      <button type="button" onClick={onActivate} className="text-left">
+        {body}
+      </button>
+    )
+  return body
 }
 
 function Seg({ n, total, cls }: { n: number; total: number; cls: string }) {

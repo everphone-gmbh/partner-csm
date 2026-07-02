@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Check, X, HelpCircle, Plus, Upload, Map as MapIcon, List as ListIcon } from 'lucide-react'
 import type { Activity, AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
@@ -27,13 +27,21 @@ const LINKEDIN_MINI: Record<LinkedInStatus, { icon: typeof Check; cls: string; t
   unknown: { icon: HelpCircle, cls: 'text-muted-foreground', title: 'LinkedIn nicht geprüft' },
 }
 
+/** Deep-link filters used by the dashboard stat tiles. */
+const SPECIAL_FILTER_LABEL: Record<string, string> = {
+  unmanaged: 'Nicht aktiv betreut',
+  stale: 'Braucht Aufmerksamkeit',
+}
+
 export function ContactList() {
   const { user } = useSession()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const specialFilter = searchParams.get('filter')
   const [q, setQ] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
-  const [sortMode, setSortMode] = useState<SortMode>('name')
+  const [sortMode, setSortMode] = useState<SortMode>(specialFilter === 'stale' ? 'stale' : 'name')
 
   const { data, loading, error, retry } = useRepoQuery(
     () =>
@@ -67,6 +75,9 @@ export function ContactList() {
 
   const visible = useMemo(() => {
     let list = roleScoped
+    if (specialFilter === 'unmanaged') list = list.filter((c) => c.sentiment === 'neutral')
+    if (specialFilter === 'stale')
+      list = list.filter((c) => attentionByContact.get(c.id)?.level !== 'ok')
     if (regionFilter) list = list.filter((c) => c.regionId === regionFilter)
     const term = q.trim().toLowerCase()
     if (term) {
@@ -81,7 +92,7 @@ export function ContactList() {
         ? (attentionByContact.get(b.id)?.days ?? 0) - (attentionByContact.get(a.id)?.days ?? 0)
         : a.fullName.localeCompare(b.fullName, 'de'),
     )
-  }, [roleScoped, q, regionFilter, sortMode, attentionByContact])
+  }, [roleScoped, q, regionFilter, sortMode, attentionByContact, specialFilter])
 
   if (error) return <QueryError error={error} retry={retry} />
 
@@ -116,6 +127,17 @@ export function ContactList() {
           className="pl-9"
         />
       </div>
+
+      {specialFilter && SPECIAL_FILTER_LABEL[specialFilter] && (
+        <button
+          type="button"
+          onClick={() => setSearchParams({})}
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+        >
+          {SPECIAL_FILTER_LABEL[specialFilter]}
+          <X className="size-3" />
+        </button>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1">

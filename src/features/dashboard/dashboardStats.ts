@@ -55,6 +55,37 @@ export function upcomingBirthdays(
   return out.sort((a, b) => a.inDays - b.inDays)
 }
 
+function isLeapYear(y: number): boolean {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+}
+
+/**
+ * Contacts grouped by day-of-month for one displayed calendar month
+ * (0-based month index, matching Date). Parses the YYYY-MM-DD birthday
+ * string directly — no Date construction, no timezone drift. Feb-29
+ * birthdays land on Feb 28 in non-leap years (same convention as
+ * daysUntilBirthday).
+ */
+export function birthdaysInMonth(
+  contacts: Contact[],
+  year: number,
+  monthIndex: number,
+): Map<number, Contact[]> {
+  const map = new Map<number, Contact[]>()
+  for (const c of contacts) {
+    const m = c.birthday?.match(/^\d{4}-(\d{2})-(\d{2})$/)
+    if (!m) continue
+    const bMonth = Number(m[1]) - 1
+    let bDay = Number(m[2])
+    if (bMonth !== monthIndex) continue
+    if (bMonth === 1 && bDay === 29 && !isLeapYear(year)) bDay = 28
+    const list = map.get(bDay) ?? []
+    list.push(c)
+    map.set(bDay, list)
+  }
+  return map
+}
+
 export interface OverallSummary {
   total: number
   engaged: number

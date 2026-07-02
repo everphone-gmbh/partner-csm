@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { computeRegionCoverage, overallSummary, upcomingBirthdays } from './dashboardStats'
+import {
+  birthdaysInMonth,
+  computeRegionCoverage,
+  overallSummary,
+  upcomingBirthdays,
+} from './dashboardStats'
 import type { Contact } from '@/domain/types'
 
 function contact(partial: Partial<Contact> & Pick<Contact, 'id' | 'regionId' | 'sentiment'>): Contact {
@@ -42,6 +47,32 @@ describe('overallSummary', () => {
       contact({ id: '2', regionId: 'r', sentiment: 'neutral' }),
     ])
     expect(s).toEqual({ total: 2, engaged: 1, engagedPct: 50 })
+  })
+})
+
+describe('birthdaysInMonth', () => {
+  const contacts = [
+    contact({ id: 'a', regionId: 'r', sentiment: 'green', birthday: '1979-07-03' }),
+    contact({ id: 'b', regionId: 'r', sentiment: 'green', birthday: '1981-07-08' }),
+    contact({ id: 'b2', regionId: 'r', sentiment: 'green', birthday: '1990-07-08' }),
+    contact({ id: 'other-month', regionId: 'r', sentiment: 'green', birthday: '1985-12-24' }),
+    contact({ id: 'none', regionId: 'r', sentiment: 'green' }),
+  ]
+
+  it('groups contacts by day-of-month for the displayed month', () => {
+    const map = birthdaysInMonth(contacts, 2026, 6) // July (0-based month index)
+    expect([...map.keys()].sort((a, b) => a - b)).toEqual([3, 8])
+    expect(map.get(8)?.map((c) => c.id)).toEqual(['b', 'b2'])
+  })
+
+  it('is empty for a month without birthdays', () => {
+    expect(birthdaysInMonth(contacts, 2026, 3).size).toBe(0)
+  })
+
+  it('shows Feb-29 birthdays on Feb 28 in non-leap years and Feb 29 in leap years', () => {
+    const leapKid = [contact({ id: 'leap', regionId: 'r', sentiment: 'green', birthday: '1992-02-29' })]
+    expect([...birthdaysInMonth(leapKid, 2026, 1).keys()]).toEqual([28])
+    expect([...birthdaysInMonth(leapKid, 2028, 1).keys()]).toEqual([29])
   })
 })
 
