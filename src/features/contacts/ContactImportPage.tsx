@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 
 const selectCls =
   'h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -38,6 +39,8 @@ export function ContactImportPage() {
   const [skipped, setSkipped] = useState<Set<number>>(new Set())
   const [importing, setImporting] = useState(false)
   const [importedCount, setImportedCount] = useState(0)
+  const [importFailures, setImportFailures] = useState<{ name: string; reason: string }[]>([])
+  const { toast } = useToast()
 
   const parsed = useMemo(() => parseCsv(csvText), [csvText])
 
@@ -56,19 +59,25 @@ export function ContactImportPage() {
 
   const startMapping = async () => {
     if (parsed.headers.length === 0 || parsed.rows.length === 0) return
-    await loadRefData()
+    try {
+      await loadRefData()
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
     setMapping(guessMapping(parsed.headers))
+    setSkipped(new Set()) // row indices from a previous CSV/mapping are meaningless now
     setStep('map')
   }
 
-  const { results, errors } = useMemo(
+  const { results, errors, warnings } = useMemo(
     () =>
       step === 'preview'
         ? buildContactsFromRows(parsed.headers, parsed.rows, mapping, {
             regionId,
             relationshipManagerId,
           })
-        : { results: [], errors: [] },
+        : { results: [], errors: [], warnings: [] },
     [step, parsed, mapping, regionId, relationshipManagerId],
   )
   const duplicates = useMemo(() => findDuplicateRowIndices(results, existing), [results, existing])
@@ -81,18 +90,29 @@ export function ContactImportPage() {
       return next
     })
 
+  // Per-row fault tolerance: one bad row must not abort the batch mid-way
+  // (previously a mid-loop failure left a partial import with no feedback,
+  // and retrying duplicated the already-imported rows).
   const runImport = async () => {
     setImporting(true)
-    try {
-      const toImport = results.filter((r) => !skipped.has(r.rowIndex))
-      for (const { contact } of toImport) {
+    const toImport = results.filter((r) => !skipped.has(r.rowIndex))
+    const failures: { name: string; reason: string }[] = []
+    let ok = 0
+    for (const { contact } of toImport) {
+      try {
         await repository.createContact(contact)
+        ok++
+      } catch (err) {
+        failures.push({
+          name: contact.fullName,
+          reason: err instanceof Error ? err.message : String(err),
+        })
       }
-      setImportedCount(toImport.length)
-      setStep('done')
-    } finally {
-      setImporting(false)
     }
+    setImportedCount(ok)
+    setImportFailures(failures)
+    setImporting(false)
+    setStep('done')
   }
 
   if (!canApprove(user.role)) {
@@ -214,7 +234,13 @@ export function ContactImportPage() {
               <Button variant="ghost" onClick={() => setStep('paste')}>
                 Zurück
               </Button>
-              <Button onClick={() => setStep('preview')} disabled={!mapping.fullName}>
+              <Button
+                onClick={() => {
+                  setSkipped(new Set()) // mapping may have changed → old skips are stale
+                  setStep('preview')
+                }}
+                disabled={!mapping.fullName}
+              >
                 Vorschau
               </Button>
             </div>
@@ -231,8 +257,17 @@ export function ContactImportPage() {
             <p className="text-sm text-muted-foreground">
               {results.length} importierbar
               {errors.length > 0 && `, ${errors.length} übersprungen (Fehler)`}
+              {warnings.length > 0 && ` · ${warnings.length} Hinweise`}
               {duplicates.size > 0 && ` · ${duplicates.size} mögliche Duplikate`}
             </p>
+            {warnings.map((w) => (
+              <div
+                key={`warn-${w.rowIndex}`}
+                className="rounded-md border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+              >
+                Zeile {w.rowIndex + 1}: {w.reason}
+              </div>
+            ))}
             <div className="max-h-96 space-y-1.5 overflow-y-auto">
               {results.map(({ rowIndex, contact }) => {
                 const isDup = duplicates.has(rowIndex)
@@ -292,6 +327,22 @@ export function ContactImportPage() {
             <p className="text-sm text-foreground">
               {importedCount} Kontakt{importedCount === 1 ? '' : 'e'} erfolgreich importiert.
             </p>
+            {importFailures.length > 0 && (
+              <div className="space-y-1.5 text-left">
+                <p className="text-sm font-medium text-destructive">
+                  {importFailures.length} Zeile{importFailures.length === 1 ? '' : 'n'} fehlgeschlagen
+                  — bitte prüfen und ggf. nur diese erneut importieren:
+                </p>
+                {importFailures.map((f, i) => (
+                  <div
+                    key={i}
+                    className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                  >
+                    {f.name}: {f.reason}
+                  </div>
+                ))}
+              </div>
+            )}
             <Button onClick={() => navigate('/contacts')}>Zu den Kontakten</Button>
           </CardContent>
         </Card>

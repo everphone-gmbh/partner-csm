@@ -29,6 +29,29 @@ describe('parseCsv', () => {
     expect(headers).toEqual(['Name', 'Email'])
     expect(rows).toEqual([['Anke', 'anke@example.com']])
   })
+
+  it('sniffs the semicolon delimiter of German Excel exports', () => {
+    const { headers, rows } = parseCsv('Name;E-Mail;Funktion\nAnke Richter;anke@example.com;Einkauf')
+    expect(headers).toEqual(['Name', 'E-Mail', 'Funktion'])
+    expect(rows).toEqual([['Anke Richter', 'anke@example.com', 'Einkauf']])
+  })
+
+  it('sniffs tab-separated files', () => {
+    const { headers, rows } = parseCsv('Name\tE-Mail\nAnke\tanke@example.com')
+    expect(headers).toEqual(['Name', 'E-Mail'])
+    expect(rows).toEqual([['Anke', 'anke@example.com']])
+  })
+
+  it('keeps commas as the delimiter when semicolons only appear inside quoted fields', () => {
+    const { headers, rows } = parseCsv('Name,Notiz\nAnke,"mag Segeln; Golf"')
+    expect(headers).toEqual(['Name', 'Notiz'])
+    expect(rows[0][1]).toBe('mag Segeln; Golf')
+  })
+
+  it('strips a UTF-8 BOM before the first header', () => {
+    const { headers } = parseCsv('﻿Name;E-Mail\nAnke;a@example.com')
+    expect(headers[0]).toBe('Name')
+  })
 })
 
 describe('guessMapping', () => {
@@ -51,6 +74,18 @@ describe('normalizeDate', () => {
   it('returns undefined for unparseable input', () => {
     expect(normalizeDate('not a date')).toBeUndefined()
     expect(normalizeDate('')).toBeUndefined()
+  })
+  it('rejects out-of-range dates instead of passing them through', () => {
+    expect(normalizeDate('31.02.1990')).toBeUndefined()
+    expect(normalizeDate('1990-13-05')).toBeUndefined()
+    expect(normalizeDate('32.01.1990')).toBeUndefined()
+    expect(normalizeDate('1990-04-31')).toBeUndefined()
+  })
+  it('is leap-year aware for Feb 29', () => {
+    expect(normalizeDate('29.02.1992')).toBe('1992-02-29')
+    expect(normalizeDate('29.02.1993')).toBeUndefined()
+    expect(normalizeDate('29.02.2000')).toBe('2000-02-29') // divisible by 400
+    expect(normalizeDate('29.02.1900')).toBeUndefined() // divisible by 100, not 400
   })
 })
 
@@ -77,6 +112,20 @@ describe('buildContactsFromRows', () => {
   it('reports an error for rows missing a required field', () => {
     const { errors } = buildContactsFromRows(headers, rows, mapping, common)
     expect(errors).toEqual([{ rowIndex: 1, reason: 'Name fehlt' }])
+  })
+
+  it('imports a row with an invalid birthday but reports a warning', () => {
+    const { results, warnings } = buildContactsFromRows(
+      ['Name', 'Geburtstag'],
+      [['Anke Richter', '31.02.1990']],
+      { fullName: 'Name', birthday: 'Geburtstag' },
+      common,
+    )
+    expect(results).toHaveLength(1)
+    expect(results[0].contact.birthday).toBeUndefined()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].rowIndex).toBe(0)
+    expect(warnings[0].reason).toContain('31.02.1990')
   })
 })
 
@@ -119,5 +168,18 @@ describe('findDuplicateRowIndices', () => {
       { regionId: 'r', relationshipManagerId: 'u' },
     )
     expect(findDuplicateRowIndices(results, existing).has(0)).toBe(true)
+  })
+
+  it('flags duplicates WITHIN the batch (same person twice in one CSV)', () => {
+    const { results } = buildContactsFromRows(
+      ['Name'],
+      [['Neue Person'], ['neue  person'], ['Ganz Andere']],
+      { fullName: 'Name' },
+      { regionId: 'r', relationshipManagerId: 'u' },
+    )
+    const dupes = findDuplicateRowIndices(results, existing)
+    expect(dupes.has(0)).toBe(false) // first occurrence is fine
+    expect(dupes.has(1)).toBe(true) // second occurrence is the duplicate
+    expect(dupes.has(2)).toBe(false)
   })
 })
