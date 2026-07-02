@@ -71,16 +71,24 @@ export function Dashboard() {
         <p className="text-sm text-muted-foreground">Beziehungsstatus auf einen Blick</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <StatCard icon={Users} label="Kontakte" value={String(summary.total)} />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        <StatCard icon={Users} label="Kontakte" value={String(summary.total)} chip="brand" />
         <StatCard
           icon={TrendingUp}
           label="Aktiv betreut"
           value={`${summary.engagedPct}%`}
           hint={`${summary.engaged} von ${summary.total}`}
+          tone={summary.engagedPct >= 75 ? 'good' : summary.engagedPct >= 50 ? 'ok' : 'bad'}
+          progress={summary.engagedPct}
         />
         {canSensitive && (
-          <StatCard icon={Cake} label="Geburtstage (30 T.)" value={String(birthdays.length)} />
+          <StatCard
+            icon={Cake}
+            label="Geburtstage"
+            hint="nächste 30 Tage"
+            value={String(birthdays.length)}
+            chip="warm"
+          />
         )}
       </div>
 
@@ -218,26 +226,75 @@ export function Dashboard() {
   )
 }
 
+/** Performance tone: colors the value (and progress bar) by how well it performs. */
+type StatTone = 'neutral' | 'good' | 'ok' | 'bad'
+
+const TONE_VALUE: Record<StatTone, string> = {
+  neutral: 'text-foreground',
+  good: 'text-status-green',
+  ok: 'text-status-amber',
+  bad: 'text-status-red',
+}
+const TONE_BAR: Record<StatTone, string> = {
+  neutral: 'bg-primary',
+  good: 'bg-status-green',
+  ok: 'bg-status-amber',
+  bad: 'bg-status-red',
+}
+/** Icon chip tint: performance tones color it too; otherwise brand/warm/neutral. */
+const CHIP_CLS: Record<StatTone | 'brand' | 'warm', string> = {
+  neutral: 'bg-secondary text-muted-foreground',
+  good: 'bg-status-green/12 text-status-green',
+  ok: 'bg-status-amber/15 text-status-amber',
+  bad: 'bg-status-red/12 text-status-red',
+  brand: 'bg-primary/10 text-primary',
+  warm: 'bg-status-amber/15 text-status-amber',
+}
+
 function StatCard({
   icon: Icon,
   label,
   value,
   hint,
+  tone = 'neutral',
+  chip,
+  progress,
 }: {
   icon: ComponentType<{ className?: string }>
   label: string
   value: string
   hint?: string
+  tone?: StatTone
+  /** Chip tint override for non-performance tiles (brand magenta, warm amber). */
+  chip?: 'brand' | 'warm'
+  /** 0-100: renders a slim progress bar in the tone color. */
+  progress?: number
 }) {
   return (
     <Card>
-      <CardContent className="flex flex-col gap-1.5 p-4">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Icon className="size-3.5" />
+      <CardContent className="flex h-full min-h-32 flex-col p-4 sm:p-5">
+        <span className="inline-flex items-center gap-2 text-[13px] font-medium text-foreground/80">
+          <span
+            className={`flex size-7 shrink-0 items-center justify-center rounded-[8px] ${CHIP_CLS[chip ?? tone]}`}
+          >
+            <Icon className="size-4" />
+          </span>
           {label}
         </span>
-        <span className="text-3xl font-semibold tracking-tight">{value}</span>
-        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+        <div className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2">
+          <span className={`text-4xl font-semibold tracking-tight ${TONE_VALUE[tone]}`}>
+            {value}
+          </span>
+          {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+        </div>
+        {progress !== undefined && (
+          <div className="h-1 overflow-hidden rounded-full bg-secondary">
+            <div
+              className={`h-full rounded-full ${TONE_BAR[tone]}`}
+              style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   )
