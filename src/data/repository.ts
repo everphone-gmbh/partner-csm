@@ -3,6 +3,8 @@ import type {
   AppUser,
   AttendanceStatus,
   Contact,
+  ContactLink,
+  ContactLinkKind,
   EventAttendee,
   EventItem,
   EventNote,
@@ -69,11 +71,19 @@ export interface ContactPatch {
   linkedin?: LinkedInInfo
   sentiment?: TrafficLight
   sentimentHistory?: SentimentEntry[]
+  cadenceDays?: number
   activeDevices?: string
   wonCustomersCount?: number
   freeText?: string
   sideFacts?: SideFact[]
   gallery?: GalleryPhoto[]
+}
+
+export interface NewContactLink {
+  fromContactId: string
+  toContactId: string
+  kind: ContactLinkKind
+  note?: string
 }
 
 export interface NewEvent {
@@ -112,6 +122,10 @@ export interface Repository {
    * dependent personal data — activities, side facts, photos, reminders,
    * event attendance. Admin-gated in the UI and by RLS (0008). */
   deleteContact(id: string): Promise<void>
+  /** Links where the contact is either endpoint (the Beziehungsnetz). */
+  listContactLinks(contactId: string): Promise<ContactLink[]>
+  addContactLink(input: NewContactLink): Promise<ContactLink>
+  deleteContactLink(id: string): Promise<void>
   listActivities(contactId: string): Promise<Activity[]>
   listAllActivities(): Promise<Activity[]>
   addActivity(input: NewActivity): Promise<Activity>

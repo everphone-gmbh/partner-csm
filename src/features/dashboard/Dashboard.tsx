@@ -40,11 +40,11 @@ export function Dashboard() {
     const today = new Date()
     return scoped
       .map((c) => ({ contact: c, days: daysSinceTouch(c, activities, today) }))
-      .filter(({ days }) => computeAttentionLevel(days) !== 'ok')
+      .filter(({ contact, days }) => computeAttentionLevel(days, contact.cadenceDays) !== 'ok')
       .sort((a, b) => b.days - a.days)
   }, [scoped, activities])
   const needsAttention = stale.slice(0, 8)
-  const staleTone = stale.some(({ days }) => computeAttentionLevel(days) === 'attention')
+  const staleTone = stale.some(({ contact, days }) => computeAttentionLevel(days, contact.cadenceDays) === 'attention')
     ? ('bad' as const)
     : stale.length > 0
       ? ('ok' as const)

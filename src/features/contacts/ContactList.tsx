@@ -63,7 +63,7 @@ export function ContactList() {
     const map = new Map<string, { days: number; level: ReturnType<typeof computeAttentionLevel> }>()
     for (const c of contacts) {
       const days = daysSinceTouch(c, activities, today)
-      map.set(c.id, { days, level: computeAttentionLevel(days) })
+      map.set(c.id, { days, level: computeAttentionLevel(days, c.cadenceDays) })
     }
     return map
   }, [contacts, activities, today])

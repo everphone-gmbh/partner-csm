@@ -8,9 +8,12 @@ export const ATTENTION_LABEL: Record<AttentionLevel, string> = {
   attention: 'Braucht Aufmerksamkeit',
 }
 
-/** Thresholds in days since the last logged touch. */
+/** Global default thresholds in days since the last logged touch. */
 const WATCH_AFTER_DAYS = 60
 const ATTENTION_AFTER_DAYS = 90
+
+/** How far past an individual cadence target counts as "attention". */
+const CADENCE_ATTENTION_FACTOR = 1.5
 
 /**
  * The most recent point of contact for this person: the latest logged
@@ -46,8 +49,17 @@ export function daysSinceTouch(
   return Math.max(0, Math.round((todayDay.getTime() - lastDay.getTime()) / 86_400_000))
 }
 
-export function computeAttentionLevel(days: number): AttentionLevel {
-  if (days >= ATTENTION_AFTER_DAYS) return 'attention'
-  if (days >= WATCH_AFTER_DAYS) return 'watch'
+/**
+ * Staleness level, measured against the contact's individual cadence target
+ * when one is set (watch at the target, attention at 1.5x), otherwise
+ * against the global 60/90-day defaults.
+ */
+export function computeAttentionLevel(days: number, cadenceDays?: number): AttentionLevel {
+  const watchAfter = cadenceDays ?? WATCH_AFTER_DAYS
+  const attentionAfter = cadenceDays
+    ? Math.round(cadenceDays * CADENCE_ATTENTION_FACTOR)
+    : ATTENTION_AFTER_DAYS
+  if (days >= attentionAfter) return 'attention'
+  if (days >= watchAfter) return 'watch'
   return 'ok'
 }

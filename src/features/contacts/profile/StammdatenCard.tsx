@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Briefcase, Cake, Mail, MapPin, Heart, Users, PawPrint, Smartphone, Trophy } from 'lucide-react'
+import { Briefcase, Cake, Mail, MapPin, Heart, Users, PawPrint, Repeat, Smartphone, Trophy } from 'lucide-react'
 import type { AppUser, Contact, Region } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
@@ -24,7 +24,17 @@ interface StammDraft {
   pets: string
   activeDevices: string
   wonCustomersCount: string
+  cadenceDays: string
 }
+
+/** Cadence options; '' = global 60/90 default. */
+const CADENCE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Standard (60/90 Tage)' },
+  { value: '30', label: 'Alle 30 Tage (A-Kontakt)' },
+  { value: '60', label: 'Alle 60 Tage' },
+  { value: '90', label: 'Alle 90 Tage' },
+  { value: '180', label: 'Alle 180 Tage' },
+]
 
 function toStammDraft(c: Contact): StammDraft {
   return {
@@ -41,6 +51,7 @@ function toStammDraft(c: Contact): StammDraft {
     pets: c.pets ?? '',
     activeDevices: c.activeDevices ?? '',
     wonCustomersCount: String(c.wonCustomersCount ?? 0),
+    cadenceDays: c.cadenceDays ? String(c.cadenceDays) : '',
   }
 }
 
@@ -88,6 +99,7 @@ export function StammdatenCard({
         pets: draft.pets.trim() || undefined,
         activeDevices: draft.activeDevices.trim() || undefined,
         wonCustomersCount: Number(draft.wonCustomersCount) || 0,
+        cadenceDays: draft.cadenceDays ? Number(draft.cadenceDays) : undefined,
       })
       setEditing(false)
     } finally {
@@ -165,6 +177,19 @@ export function StammdatenCard({
                   onChange={(e) => set('wonCustomersCount', e.target.value)}
                 />
               </EditField>
+              <EditField label="Kontakt-Rhythmus">
+                <select
+                  className={selectCls}
+                  value={draft.cadenceDays}
+                  onChange={(e) => set('cadenceDays', e.target.value)}
+                >
+                  {CADENCE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </EditField>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
@@ -214,6 +239,9 @@ export function StammdatenCard({
             </FieldRow>
             <FieldRow icon={Trophy} label="Gewonnene Kunden">
               {contact.wonCustomersCount}
+            </FieldRow>
+            <FieldRow icon={Repeat} label="Kontakt-Rhythmus">
+              {contact.cadenceDays ? `alle ${contact.cadenceDays} Tage` : 'Standard'}
             </FieldRow>
           </>
         )}

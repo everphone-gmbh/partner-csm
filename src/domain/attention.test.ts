@@ -91,4 +91,14 @@ describe('computeAttentionLevel', () => {
     expect(computeAttentionLevel(90)).toBe('attention')
     expect(computeAttentionLevel(200)).toBe('attention')
   })
+
+  it('measures against an individual cadence when set', () => {
+    // 30-day cadence: watch at 30, attention at 45 (1.5x).
+    expect(computeAttentionLevel(29, 30)).toBe('ok')
+    expect(computeAttentionLevel(30, 30)).toBe('watch')
+    expect(computeAttentionLevel(44, 30)).toBe('watch')
+    expect(computeAttentionLevel(45, 30)).toBe('attention')
+    // A relaxed 180-day cadence keeps a 100-day gap ok.
+    expect(computeAttentionLevel(100, 180)).toBe('ok')
+  })
 })

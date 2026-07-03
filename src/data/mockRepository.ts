@@ -2,6 +2,7 @@ import type {
   Activity,
   AttendanceStatus,
   Contact,
+  ContactLink,
   EventItem,
   EventNote,
   Reminder,
@@ -11,6 +12,7 @@ import type {
   ContactPatch,
   NewActivity,
   NewContact,
+  NewContactLink,
   NewEvent,
   NewEventNote,
   NewReminder,
@@ -18,6 +20,7 @@ import type {
 } from './repository'
 import {
   seedActivities,
+  seedContactLinks,
   seedContacts,
   seedEventAttendees,
   seedEventNotes,
@@ -44,6 +47,7 @@ class MockRepository implements Repository {
   private attendees = clone(seedEventAttendees)
   private eventNotes = clone(seedEventNotes)
   private reminders = clone(seedReminders)
+  private links = clone(seedContactLinks)
   private seq = 1
 
   async listRegions() {
@@ -106,6 +110,29 @@ class MockRepository implements Repository {
     this.activities = this.activities.filter((a) => a.contactId !== id)
     this.reminders = this.reminders.filter((r) => r.contactId !== id)
     this.attendees = this.attendees.filter((a) => a.contactId !== id)
+    this.links = this.links.filter((l) => l.fromContactId !== id && l.toContactId !== id)
+  }
+
+  async listContactLinks(contactId: string) {
+    return clone(
+      this.links.filter((l) => l.fromContactId === contactId || l.toContactId === contactId),
+    )
+  }
+
+  async addContactLink(input: NewContactLink) {
+    const link: ContactLink = {
+      id: `link-local-${this.seq++}`,
+      fromContactId: input.fromContactId,
+      toContactId: input.toContactId,
+      kind: input.kind,
+      note: input.note,
+    }
+    this.links.push(link)
+    return clone(link)
+  }
+
+  async deleteContactLink(id: string) {
+    this.links = this.links.filter((l) => l.id !== id)
   }
 
   async listActivities(contactId: string) {

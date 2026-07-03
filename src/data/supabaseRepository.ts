@@ -5,6 +5,8 @@ import type {
   AppUser,
   AttendanceStatus,
   Contact,
+  ContactLink,
+  ContactLinkKind,
   EventAttendee,
   EventItem,
   EventNote,
@@ -22,6 +24,7 @@ import type {
   ContactPatch,
   NewActivity,
   NewContact,
+  NewContactLink,
   NewEvent,
   NewEventNote,
   NewReminder,
@@ -37,7 +40,7 @@ type NameResolver = (id?: string | null) => string | undefined
 const CONTACT_SELECT =
   'id, full_name, position, photo_url, region_id, relationship_manager_id, team, email, ' +
   'birthday, location, family_status, children, pets, linkedin_status, linkedin_url, ' +
-  'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, active_devices, ' +
+  'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, cadence_days, active_devices, ' +
   'won_customers_count, free_text, created_at, updated_at, ' +
   'side_facts(id,label,category), ' +
   'contact_photos(id,url,caption), ' +
@@ -63,6 +66,7 @@ export interface ContactRow {
   linkedin_verified_at: string | null
   sentiment: TrafficLight
   sentiment_history: SentimentEntry[] | null
+  cadence_days: number | null
   active_devices: string | null
   won_customers_count: number
   free_text: string | null
@@ -110,6 +114,7 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     },
     sentiment: row.sentiment,
     sentimentHistory: row.sentiment_history ?? undefined,
+    cadenceDays: row.cadence_days ?? undefined,
     activeDevices: row.active_devices ?? undefined,
     wonCustomersCount: row.won_customers_count ?? 0,
     freeText: row.free_text ?? undefined,
@@ -213,6 +218,9 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
         break
       case 'sentimentHistory':
         row.sentiment_history = patch.sentimentHistory ?? null
+        break
+      case 'cadenceDays':
+        row.cadence_days = patch.cadenceDays ?? null
         break
       case 'linkedin': {
         const li = patch.linkedin
@@ -446,6 +454,62 @@ export class SupabaseRepository implements Repository {
     // Dependent rows (side_facts, activities, photos, reminders, attendance)
     // are removed by the schema's ON DELETE CASCADE.
     const { error } = await this.client.from('contacts').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+  }
+
+  async listContactLinks(contactId: string): Promise<ContactLink[]> {
+    const { data, error } = await this.client
+      .from('contact_links')
+      .select('id, from_contact_id, to_contact_id, kind, note')
+      .or(`from_contact_id.eq.${contactId},to_contact_id.eq.${contactId}`)
+    if (error) throw new Error(error.message)
+    return (
+      (data ?? []) as unknown as {
+        id: string
+        from_contact_id: string
+        to_contact_id: string
+        kind: ContactLinkKind
+        note: string | null
+      }[]
+    ).map((r) => ({
+      id: r.id,
+      fromContactId: r.from_contact_id,
+      toContactId: r.to_contact_id,
+      kind: r.kind,
+      note: r.note ?? undefined,
+    }))
+  }
+
+  async addContactLink(input: NewContactLink): Promise<ContactLink> {
+    const { data, error } = await this.client
+      .from('contact_links')
+      .insert({
+        from_contact_id: input.fromContactId,
+        to_contact_id: input.toContactId,
+        kind: input.kind,
+        note: input.note ?? null,
+      })
+      .select('id, from_contact_id, to_contact_id, kind, note')
+      .single()
+    if (error) throw new Error(error.message)
+    const r = data as unknown as {
+      id: string
+      from_contact_id: string
+      to_contact_id: string
+      kind: ContactLinkKind
+      note: string | null
+    }
+    return {
+      id: r.id,
+      fromContactId: r.from_contact_id,
+      toContactId: r.to_contact_id,
+      kind: r.kind,
+      note: r.note ?? undefined,
+    }
+  }
+
+  async deleteContactLink(id: string): Promise<void> {
+    const { error } = await this.client.from('contact_links').delete().eq('id', id)
     if (error) throw new Error(error.message)
   }
 

@@ -176,6 +176,43 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(await repo.listActivities(c.id)).toEqual([])
     })
 
+    it('persists, lists (from both endpoints) and deletes contact links', async () => {
+      const a = await repo.createContact(BASE)
+      const b = await repo.createContact({ ...BASE, fullName: 'Zweite Person' })
+      const created = await repo.addContactLink({
+        fromContactId: a.id,
+        toContactId: b.id,
+        kind: 'reports_to',
+        note: 'seit 2024',
+      })
+      expect(created.kind).toBe('reports_to')
+
+      const fromA = await repo.listContactLinks(a.id)
+      const fromB = await repo.listContactLinks(b.id)
+      expect(fromA.map((l) => l.toContactId)).toEqual([b.id])
+      expect(fromB.map((l) => l.fromContactId)).toEqual([a.id])
+      expect(fromA[0].note).toBe('seit 2024')
+
+      await repo.deleteContactLink(created.id)
+      expect(await repo.listContactLinks(a.id)).toEqual([])
+    })
+
+    it('erasing a contact removes its links (cascade)', async () => {
+      const a = await repo.createContact(BASE)
+      const b = await repo.createContact({ ...BASE, fullName: 'Zweite Person' })
+      await repo.addContactLink({ fromContactId: a.id, toContactId: b.id, kind: 'knows' })
+      await repo.deleteContact(b.id)
+      expect(await repo.listContactLinks(a.id)).toEqual([])
+    })
+
+    it('round-trips the cadence target through updateContact', async () => {
+      const c = await repo.createContact(BASE)
+      await repo.updateContact(c.id, { cadenceDays: 30 })
+      expect((await repo.getContact(c.id))?.cadenceDays).toBe(30)
+      await repo.updateContact(c.id, { cadenceDays: undefined })
+      expect((await repo.getContact(c.id))?.cadenceDays).toBeUndefined()
+    })
+
     it('createContact persists LinkedIn and side facts', async () => {
       const created = await repo.createContact({
         ...BASE,

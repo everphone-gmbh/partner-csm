@@ -48,7 +48,7 @@ export function MonitoringPage() {
   const staleCount = useMemo(() => {
     const today = new Date()
     return contacts.filter(
-      (c) => computeAttentionLevel(daysSinceTouch(c, activities, today)) !== 'ok',
+      (c) => computeAttentionLevel(daysSinceTouch(c, activities, today), c.cadenceDays) !== 'ok',
     ).length
   }, [contacts, activities])
   const recentActivities = weekly.reduce((s, w) => s + w.count, 0)

@@ -17,6 +17,7 @@ import { BackLink } from './profile/shared'
 import { IdentityCard } from './profile/IdentityCard'
 import { StammdatenCard } from './profile/StammdatenCard'
 import { FactsCard } from './profile/FactsCard'
+import { NetworkCard } from './profile/NetworkCard'
 import { KundenCard } from './profile/KundenCard'
 import { FotogalerieCard } from './profile/FotogalerieCard'
 import { NotizCard } from './profile/NotizCard'
@@ -158,6 +159,7 @@ export function ContactProfile() {
             onSave={save}
           />
           <FactsCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
+          <NetworkCard contact={view} canEdit={canEdit} />
           <KundenCard customers={view.customers} />
           {/* Private photos are sensitive-tier data — hidden from Account Managers. */}
           {canSensitive && <FotogalerieCard contact={view} canEdit={canEdit} onSave={save} />}

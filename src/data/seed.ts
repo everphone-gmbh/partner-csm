@@ -2,6 +2,7 @@ import type {
   Activity,
   AppUser,
   Contact,
+  ContactLink,
   EventAttendee,
   EventItem,
   EventNote,
@@ -345,4 +346,11 @@ export const seedEventNotes: EventNote[] = [
     createdAt: '2026-06-30T08:00:00.000Z',
     attachments: [],
   },
+]
+
+// Beziehungsnetz: who reports to / knows / influences whom (fictional).
+export const seedContactLinks: ContactLink[] = [
+  { id: 'link-1', fromContactId: 'c-stefan', toContactId: 'c-anke', kind: 'reports_to' },
+  { id: 'link-2', fromContactId: 'c-anke', toContactId: 'c-julia', kind: 'knows', note: 'kennen sich von der Digital X 2025' },
+  { id: 'link-3', fromContactId: 'c-julia', toContactId: 'c-michael', kind: 'influences', note: 'Budgetfreigaben' },
 ]

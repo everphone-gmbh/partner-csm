@@ -18,6 +18,7 @@ const TABLES = [
   'customers',
   'contact_customers',
   'contact_photos',
+  'contact_links',
   'activities',
   'attachments',
   'events',
@@ -72,6 +73,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       linkedin_verified_at: null,
       sentiment: 'neutral',
       sentiment_history: null,
+      cadence_days: null,
       active_devices: null,
       won_customers_count: 0,
       free_text: null,
@@ -87,6 +89,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     private payload: Row | Row[] | null = null
     private eqFilters: [string, unknown][] = []
     private inFilters: [string, unknown[]][] = []
+    private orFilters: [string, string][][] = []
     private orderBy?: { col: string; ascending: boolean }
     private mode: 'many' | 'single' | 'maybeSingle' = 'many'
     private returning = false
@@ -128,6 +131,16 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       this.inFilters.push([col, values])
       return this
     }
+    /** Supports the PostgREST `or` syntax subset: "col.eq.value,col2.eq.value2". */
+    or(expr: string) {
+      const clauses = expr.split(',').map((part) => {
+        const [col, op, ...rest] = part.split('.')
+        if (op !== 'eq') throw new Error(`fakeSupabase: unsupported or-operator in "${part}"`)
+        return [col, rest.join('.')] as [string, string]
+      })
+      this.orFilters.push(clauses)
+      return this
+    }
     order(col: string, opts?: { ascending?: boolean }) {
       this.orderBy = { col, ascending: opts?.ascending !== false }
       return this
@@ -144,7 +157,8 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     private matches(row: Row): boolean {
       return (
         this.eqFilters.every(([col, v]) => row[col] === v) &&
-        this.inFilters.every(([col, vs]) => vs.includes(row[col]))
+        this.inFilters.every(([col, vs]) => vs.includes(row[col])) &&
+        this.orFilters.every((clauses) => clauses.some(([col, v]) => row[col] === v))
       )
     }
 
@@ -184,6 +198,9 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           for (const child of ['side_facts', 'contact_photos', 'contact_customers', 'reminders', 'event_attendees'] as const) {
             tables[child] = tables[child].filter((r) => !ids.has(r.contact_id))
           }
+          tables.contact_links = tables.contact_links.filter(
+            (l) => !ids.has(l.from_contact_id) && !ids.has(l.to_contact_id),
+          )
           const removedActivityIds = new Set(
             tables.activities.filter((a) => ids.has(a.contact_id)).map((a) => a.id),
           )

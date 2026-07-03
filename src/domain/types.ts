@@ -104,6 +104,8 @@ export interface Contact {
   linkedin: LinkedInInfo
   sentiment: TrafficLight
   sentimentHistory?: SentimentEntry[]
+  /** Individual touch-frequency target in days (Kadenz); unset = global 60/90 default. */
+  cadenceDays?: number
   activeDevices?: string
   wonCustomersCount: number
   freeText?: string
@@ -112,6 +114,18 @@ export interface Contact {
   gallery?: GalleryPhoto[]
   createdAt: string
   updatedAt: string
+}
+
+// --- Contact-to-contact relationships (the "Beziehungsnetz") ---
+
+export type ContactLinkKind = 'reports_to' | 'knows' | 'influences'
+
+export interface ContactLink {
+  id: string
+  fromContactId: string
+  toContactId: string
+  kind: ContactLinkKind
+  note?: string
 }
 
 // --- Events ---

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { EditableAvatar } from '@/components/EditableAvatar'
 import { TrafficLightBadge, TrafficLightDot, TrafficLightPicker } from '@/components/TrafficLight'
+import { SentimentSparkline } from '@/components/SentimentSparkline'
 import { LinkedInField, LinkedInPicker } from '@/components/LinkedInField'
 import { formatDate } from '@/lib/format'
 
@@ -78,8 +79,14 @@ export function IdentityCard({
             ) : (
               <TrafficLightBadge value={contact.sentiment} />
             )}
-            {(contact.sentimentHistory?.length ?? 0) > 0 && (
-              <SentimentHistory entries={contact.sentimentHistory ?? []} />
+            {(contact.sentimentHistory?.length ?? 0) > 1 ? (
+              <div className="mt-1">
+                <SentimentSparkline entries={contact.sentimentHistory ?? []} />
+              </div>
+            ) : (
+              (contact.sentimentHistory?.length ?? 0) > 0 && (
+                <SentimentHistory entries={contact.sentimentHistory ?? []} />
+              )
             )}
           </div>
         </div>
