@@ -9,6 +9,8 @@ import { QueryError } from '@/components/QueryError'
 import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
+import { completenessScore, findDuplicateContacts } from '@/domain/dataQuality'
+import { Badge } from '@/components/ui/badge'
 import { computeManagerRanking } from './managerStats'
 import { activitiesPerWeek, portfolioSentiment } from './monitoringStats'
 import { CoverageBar, SentimentDonut, WeeklyActivityBars } from './charts'
@@ -52,6 +54,16 @@ export function MonitoringPage() {
     ).length
   }, [contacts, activities])
   const recentActivities = weekly.reduce((s, w) => s + w.count, 0)
+  const duplicates = useMemo(() => findDuplicateContacts(contacts), [contacts])
+  const incomplete = useMemo(
+    () =>
+      contacts
+        .map((c) => ({ contact: c, score: completenessScore(c) }))
+        .filter(({ score }) => score.pct < 100)
+        .sort((a, b) => a.score.pct - b.score.pct)
+        .slice(0, 5),
+    [contacts],
+  )
 
   const regionName = (id?: string) => regions.find((r) => r.id === id)?.name ?? '—'
 
@@ -144,6 +156,73 @@ export function MonitoringPage() {
           {ranking.length === 0 && (
             <p className="text-sm text-muted-foreground">Keine Relationship Manager vorhanden.</p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Data quality */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Datenqualität</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Mögliche Duplikate und unvollständige Profile
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h3 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Mögliche Duplikate ({duplicates.length})
+            </h3>
+            {duplicates.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Keine Duplikate erkannt. ✨</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {duplicates.map(({ a, b, reason }) => (
+                  <li
+                    key={`${a.id}-${b.id}`}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-status-amber/40 bg-status-amber/5 px-3 py-2 text-sm"
+                  >
+                    <Link to={`/contacts/${a.id}`} className="font-medium hover:underline">
+                      {a.fullName}
+                    </Link>
+                    <span className="text-muted-foreground">↔</span>
+                    <Link to={`/contacts/${b.id}`} className="font-medium hover:underline">
+                      {b.fullName}
+                    </Link>
+                    <Badge variant="warning" className="ml-auto">
+                      {reason}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <h3 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Unvollständigste Profile
+            </h3>
+            {incomplete.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Alle Profile vollständig. 💯</p>
+            ) : (
+              <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+                {incomplete.map(({ contact, score }) => (
+                  <li key={contact.id} className="flex items-center gap-3 py-1.5">
+                    <Link
+                      to={`/contacts/${contact.id}`}
+                      className="w-40 shrink-0 truncate text-sm font-medium hover:underline"
+                    >
+                      {contact.fullName}
+                    </Link>
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                      fehlt: {score.missing.join(', ')}
+                    </span>
+                    <span className="w-10 shrink-0 text-right text-sm font-medium tabular-nums">
+                      {score.pct}%
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </CardContent>
       </Card>
 
