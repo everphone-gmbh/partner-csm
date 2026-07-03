@@ -6,6 +6,7 @@ import type {
   EventAttendee,
   EventItem,
   EventNote,
+  IntroRequest,
   Region,
   Reminder,
 } from '@/domain/types'
@@ -353,4 +354,26 @@ export const seedContactLinks: ContactLink[] = [
   { id: 'link-1', fromContactId: 'c-stefan', toContactId: 'c-anke', kind: 'reports_to' },
   { id: 'link-2', fromContactId: 'c-anke', toContactId: 'c-julia', kind: 'knows', note: 'kennen sich von der Digital X 2025' },
   { id: 'link-3', fromContactId: 'c-julia', toContactId: 'c-michael', kind: 'influences', note: 'Budgetfreigaben' },
+]
+
+// "Wer kann helfen?" board — open intro requests (fictional).
+export const seedIntroRequests: IntroRequest[] = [
+  {
+    id: 'intro-1',
+    text: 'Suche einen Draht zum Cloud-Einkauf in Region Ost — wer kennt dort jemanden neben Michael Krause?',
+    createdById: 'u-mehmet',
+    createdByName: 'Mehmet Yıldız',
+    createdAt: '2026-06-28T09:00:00.000Z',
+    status: 'open',
+  },
+  {
+    id: 'intro-2',
+    text: 'Wer kann mich bei Julia Hoffmann für das Nachhaltigkeits-Panel vorstellen?',
+    createdById: 'u-olaf',
+    createdByName: 'Olaf Gründel',
+    createdAt: '2026-06-25T10:00:00.000Z',
+    status: 'resolved',
+    helperName: 'Alexandra v. Königsmarck',
+    resolvedAt: '2026-06-26T08:30:00.000Z',
+  },
 ]

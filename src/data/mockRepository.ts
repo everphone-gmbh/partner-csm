@@ -5,6 +5,7 @@ import type {
   ContactLink,
   EventItem,
   EventNote,
+  IntroRequest,
   Reminder,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
@@ -15,12 +16,14 @@ import type {
   NewContactLink,
   NewEvent,
   NewEventNote,
+  NewIntroRequest,
   NewReminder,
   Repository,
 } from './repository'
 import {
   seedActivities,
   seedContactLinks,
+  seedIntroRequests,
   seedContacts,
   seedEventAttendees,
   seedEventNotes,
@@ -48,6 +51,7 @@ class MockRepository implements Repository {
   private eventNotes = clone(seedEventNotes)
   private reminders = clone(seedReminders)
   private links = clone(seedContactLinks)
+  private introRequests = clone(seedIntroRequests)
   private seq = 1
 
   async listRegions() {
@@ -160,6 +164,41 @@ class MockRepository implements Repository {
 
   async listAllActivities() {
     return clone(this.activities)
+  }
+
+  async listIntroRequests() {
+    return clone(
+      [...this.introRequests].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+    )
+  }
+
+  async addIntroRequest(input: NewIntroRequest) {
+    const req: IntroRequest = {
+      id: `intro-local-${this.seq++}`,
+      text: input.text,
+      createdById: input.createdById,
+      createdByName: input.createdByName,
+      createdAt: nowIso(),
+      status: 'open',
+    }
+    this.introRequests.push(req)
+    return clone(req)
+  }
+
+  async resolveIntroRequest(id: string, helperName: string) {
+    const idx = this.introRequests.findIndex((r) => r.id === id)
+    if (idx < 0) throw new Error(`intro request ${id} not found`)
+    this.introRequests[idx] = {
+      ...this.introRequests[idx],
+      status: 'resolved',
+      helperName,
+      resolvedAt: nowIso(),
+    }
+    return clone(this.introRequests[idx])
+  }
+
+  async deleteIntroRequest(id: string) {
+    this.introRequests = this.introRequests.filter((r) => r.id !== id)
   }
 
   async listEvents() {

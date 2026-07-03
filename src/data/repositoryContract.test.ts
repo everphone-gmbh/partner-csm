@@ -213,6 +213,25 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect((await repo.getContact(c.id))?.cadenceDays).toBeUndefined()
     })
 
+    it('creates, resolves and deletes intro requests (Hilfe-Board)', async () => {
+      const req = await repo.addIntroRequest({
+        text: 'Brauche einen Draht zum Einkauf Region Süd',
+        createdById: VERIFIER.id,
+        createdByName: VERIFIER.full_name,
+      })
+      expect(req.status).toBe('open')
+
+      const open = await repo.listIntroRequests()
+      expect(open.map((r) => r.id)).toContain(req.id)
+
+      const resolved = await repo.resolveIntroRequest(req.id, 'Olaf Gründel')
+      expect(resolved.status).toBe('resolved')
+      expect(resolved.helperName).toBe('Olaf Gründel')
+
+      await repo.deleteIntroRequest(req.id)
+      expect((await repo.listIntroRequests()).map((r) => r.id)).not.toContain(req.id)
+    })
+
     it('createContact persists LinkedIn and side facts', async () => {
       const created = await repo.createContact({
         ...BASE,

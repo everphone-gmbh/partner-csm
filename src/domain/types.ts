@@ -128,6 +128,23 @@ export interface ContactLink {
   note?: string
 }
 
+// --- "Wer kann helfen?" board (intro requests) ---
+
+export type IntroRequestStatus = 'open' | 'resolved'
+
+export interface IntroRequest {
+  id: string
+  /** What is needed, e.g. "Draht zum Einkauf Region Süd". */
+  text: string
+  createdById: string
+  createdByName: string
+  createdAt: string
+  status: IntroRequestStatus
+  /** Who offered to help (set when resolved). */
+  helperName?: string
+  resolvedAt?: string
+}
+
 // --- Events ---
 
 export type AttendanceStatus = 'invited' | 'accepted' | 'declined' | 'attended' | 'no_show'

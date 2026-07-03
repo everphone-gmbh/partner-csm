@@ -25,6 +25,7 @@ const TABLES = [
   'event_attendees',
   'event_notes',
   'reminders',
+  'intro_requests',
 ] as const
 
 export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, FileText, LayoutGrid, Search, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, Search, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
 import { canApprove, ROLE_LABEL } from '@/domain/roles'
@@ -10,6 +10,7 @@ const NAV = [
   { to: '/dashboard', label: 'Übersicht', icon: LayoutGrid },
   { to: '/contacts', label: 'Kontakte', icon: Users },
   { to: '/events', label: 'Events', icon: CalendarDays },
+  { to: '/board', label: 'Board', icon: HandHelping },
 ]
 
 function useNavItems() {

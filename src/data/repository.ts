@@ -9,6 +9,7 @@ import type {
   EventItem,
   EventNote,
   GalleryPhoto,
+  IntroRequest,
   LinkedInInfo,
   NoteAttachment,
   Region,
@@ -86,6 +87,12 @@ export interface NewContactLink {
   note?: string
 }
 
+export interface NewIntroRequest {
+  text: string
+  createdById: string
+  createdByName: string
+}
+
 export interface NewEvent {
   name: string
   date: string
@@ -129,6 +136,11 @@ export interface Repository {
   listActivities(contactId: string): Promise<Activity[]>
   listAllActivities(): Promise<Activity[]>
   addActivity(input: NewActivity): Promise<Activity>
+  /** Team-wide "Wer kann helfen?" board. */
+  listIntroRequests(): Promise<IntroRequest[]>
+  addIntroRequest(input: NewIntroRequest): Promise<IntroRequest>
+  resolveIntroRequest(id: string, helperName: string): Promise<IntroRequest>
+  deleteIntroRequest(id: string): Promise<void>
   listEvents(): Promise<EventItem[]>
   getEvent(id: string): Promise<EventItem | undefined>
   createEvent(input: NewEvent): Promise<EventItem>

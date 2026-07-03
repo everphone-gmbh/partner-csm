@@ -10,6 +10,8 @@ import type {
   EventAttendee,
   EventItem,
   EventNote,
+  IntroRequest,
+  IntroRequestStatus,
   LinkedInStatus,
   NoteAttachment,
   Region,
@@ -27,6 +29,7 @@ import type {
   NewContactLink,
   NewEvent,
   NewEventNote,
+  NewIntroRequest,
   NewReminder,
   Repository,
 } from './repository'
@@ -243,6 +246,32 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
     }
   }
   return row
+}
+
+const INTRO_SELECT = 'id, text, created_by, created_by_name, created_at, status, helper_name, resolved_at'
+
+export interface IntroRequestRow {
+  id: string
+  text: string
+  created_by: string
+  created_by_name: string
+  created_at: string
+  status: IntroRequestStatus
+  helper_name: string | null
+  resolved_at: string | null
+}
+
+export function mapRowToIntroRequest(row: IntroRequestRow): IntroRequest {
+  return {
+    id: row.id,
+    text: row.text,
+    createdById: row.created_by,
+    createdByName: row.created_by_name,
+    createdAt: row.created_at,
+    status: row.status,
+    helperName: row.helper_name ?? undefined,
+    resolvedAt: row.resolved_at ?? undefined,
+  }
 }
 
 export interface EventRow {
@@ -556,6 +585,46 @@ export class SupabaseRepository implements Repository {
     if (error) throw new Error(error.message)
     const resolve = this.resolver(names)
     return ((data ?? []) as unknown as ActivityRow[]).map((row) => mapRowToActivity(row, resolve))
+  }
+
+  async listIntroRequests(): Promise<IntroRequest[]> {
+    const { data, error } = await this.client
+      .from('intro_requests')
+      .select(INTRO_SELECT)
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as IntroRequestRow[]).map(mapRowToIntroRequest)
+  }
+
+  async addIntroRequest(input: NewIntroRequest): Promise<IntroRequest> {
+    const { data, error } = await this.client
+      .from('intro_requests')
+      .insert({
+        text: input.text,
+        created_by: input.createdById,
+        created_by_name: input.createdByName,
+        status: 'open',
+      })
+      .select(INTRO_SELECT)
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToIntroRequest(data as unknown as IntroRequestRow)
+  }
+
+  async resolveIntroRequest(id: string, helperName: string): Promise<IntroRequest> {
+    const { data, error } = await this.client
+      .from('intro_requests')
+      .update({ status: 'resolved', helper_name: helperName, resolved_at: new Date().toISOString() })
+      .eq('id', id)
+      .select(INTRO_SELECT)
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToIntroRequest(data as unknown as IntroRequestRow)
+  }
+
+  async deleteIntroRequest(id: string): Promise<void> {
+    const { error } = await this.client.from('intro_requests').delete().eq('id', id)
+    if (error) throw new Error(error.message)
   }
 
   async listEvents(): Promise<EventItem[]> {
