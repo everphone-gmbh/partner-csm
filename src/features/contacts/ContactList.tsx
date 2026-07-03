@@ -194,7 +194,7 @@ export function ContactList() {
 
       {viewMode === 'map' ? (
         <Card>
-          <CardContent className="pt-5">
+          <CardContent className="pt-5 sm:pt-5">
             <GermanyMap
               regions={regions}
               contacts={roleScoped}

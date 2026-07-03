@@ -323,7 +323,7 @@ export function ContactImportPage() {
 
       {step === 'done' && (
         <Card>
-          <CardContent className="space-y-3 pt-5 text-center">
+          <CardContent className="space-y-3 pt-5 sm:pt-5 text-center">
             <p className="text-sm text-foreground">
               {importedCount} Kontakt{importedCount === 1 ? '' : 'e'} erfolgreich importiert.
             </p>

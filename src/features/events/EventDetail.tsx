@@ -128,7 +128,7 @@ export function EventDetail() {
       <BackLink />
 
       <Card>
-        <CardContent className="space-y-2 pt-5">
+        <CardContent className="space-y-2 pt-5 sm:pt-5">
           <h1 className="text-2xl font-semibold tracking-tight">{event.name}</h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">

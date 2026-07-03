@@ -136,7 +136,7 @@ export function ContactProfile() {
 
       {/* AI summary — pinned prominently at the top */}
       <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="flex gap-3 pt-5">
+        <CardContent className="flex gap-3 pt-5 sm:pt-5">
           <Sparkles className="size-5 shrink-0 text-primary" />
           <div className="space-y-1">
             <div className="text-xs font-medium uppercase tracking-wide text-primary">
