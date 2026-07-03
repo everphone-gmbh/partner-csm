@@ -1,9 +1,9 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, LayoutGrid, Search, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, LayoutGrid, Search, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
-import { ROLE_LABEL } from '@/domain/roles'
+import { canApprove, ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -14,9 +14,11 @@ const NAV = [
 
 function useNavItems() {
   const { user } = useSession()
-  return user.role === 'overall_admin'
-    ? [...NAV, { to: '/monitoring', label: 'Monitoring', icon: BarChart3 }]
-    : NAV
+  const items = [...NAV]
+  if (canApprove(user.role)) items.push({ to: '/report', label: 'Bericht', icon: FileText })
+  if (user.role === 'overall_admin')
+    items.push({ to: '/monitoring', label: 'Monitoring', icon: BarChart3 })
+  return items
 }
 
 function Logo() {
@@ -93,7 +95,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 function Sidebar() {
   const items = useNavItems()
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-black/[0.05] bg-card/80 backdrop-blur-xl lg:flex dark:border-white/[0.08]">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-black/[0.05] bg-card/80 backdrop-blur-xl lg:flex dark:border-white/[0.08] print:hidden">
       <div className="space-y-3 px-5 py-5">
         <Logo />
         <SearchTrigger className="w-full" />
@@ -116,7 +118,7 @@ function Sidebar() {
 function MobileHeader() {
   const { open } = useCommandPalette()
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-black/[0.05] bg-background/80 px-4 py-2.5 backdrop-blur-xl lg:hidden dark:border-white/[0.08]">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-black/[0.05] bg-background/80 px-4 py-2.5 backdrop-blur-xl lg:hidden dark:border-white/[0.08] print:hidden">
       <Logo />
       <div className="flex items-center gap-1.5">
         <button
@@ -136,7 +138,7 @@ function MobileHeader() {
 function BottomNav() {
   const items = useNavItems()
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-black/[0.05] bg-card/80 backdrop-blur-xl lg:hidden dark:border-white/[0.08]">
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-black/[0.05] bg-card/80 backdrop-blur-xl lg:hidden dark:border-white/[0.08] print:hidden">
       <div className="flex">
         {items.map(({ to, label, icon: Icon }) => (
           <NavLink
@@ -163,7 +165,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-svh bg-background">
       <Sidebar />
       <MobileHeader />
-      <div className="lg:pl-64">
+      <div className="lg:pl-64 print:pl-0">
         <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-5 lg:px-8 lg:pb-12 lg:pt-8">
           {children}
         </main>

@@ -25,6 +25,9 @@ const EventDetail = lazy(() =>
 const MonitoringPage = lazy(() =>
   import('@/features/monitoring/MonitoringPage').then((m) => ({ default: m.MonitoringPage })),
 )
+const ReportPage = lazy(() =>
+  import('@/features/report/ReportPage').then((m) => ({ default: m.ReportPage })),
+)
 
 function RoutedContent() {
   const location = useLocation()
@@ -45,6 +48,7 @@ function RoutedContent() {
           <Route path="/events" element={<EventsList />} />
           <Route path="/events/:id" element={<EventDetail />} />
           <Route path="/monitoring" element={<MonitoringPage />} />
+          <Route path="/report" element={<ReportPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Suspense>
