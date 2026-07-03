@@ -30,6 +30,9 @@ export async function fileToResizedDataUrl(
   canvas.height = h
   const ctx = canvas.getContext('2d')
   if (!ctx) return dataUrl
+  // JPEG has no alpha channel — without this, transparent PNG areas turn black.
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, w, h)
   ctx.drawImage(img, 0, 0, w, h)
   return canvas.toDataURL('image/jpeg', quality)
 }

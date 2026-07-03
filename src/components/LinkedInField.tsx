@@ -1,5 +1,6 @@
 import { Check, X, HelpCircle, ExternalLink } from 'lucide-react'
 import type { LinkedInInfo, LinkedInStatus } from '@/domain/types'
+import { safeLinkedInUrl } from '@/domain/urls'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { formatDate } from '@/lib/format'
@@ -15,15 +16,17 @@ export const LINKEDIN_LABEL: Record<LinkedInStatus, string> = {
  * "has an account" ✓ from "verified to have none" ✗ from "not yet checked".
  */
 export function LinkedInField({ info }: { info: LinkedInInfo }) {
+  // Render-side guard against stored javascript:/lookalike URLs (audit F-13).
+  const url = safeLinkedInUrl(info.url)
   if (info.status === 'has_account') {
     return (
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Badge variant="success">
           <Check className="size-3" /> {LINKEDIN_LABEL.has_account}
         </Badge>
-        {info.url && (
+        {url && (
           <a
-            href={info.url}
+            href={url}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

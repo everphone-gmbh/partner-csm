@@ -50,6 +50,12 @@ describe('buildLinkedInInfo', () => {
     expect(info).toEqual({ status: 'unknown' })
   })
 
+  it('drops unsafe or non-LinkedIn URLs on save (stored-XSS hardening)', () => {
+    expect(buildLinkedInInfo('has_account', 'javascript:alert(1)', undefined, ALICE, TODAY).url).toBeUndefined()
+    expect(buildLinkedInInfo('has_account', 'https://evil.com/in/x', undefined, ALICE, TODAY).url).toBeUndefined()
+    expect(buildLinkedInInfo('has_account', 'http://linkedin.com/in/x', undefined, ALICE, TODAY).url).toBeUndefined()
+  })
+
   it('trims and drops the URL unless the status is has_account', () => {
     const info = buildLinkedInInfo('no_account', 'https://ignored.example', undefined, ALICE, TODAY)
     expect(info.url).toBeUndefined()

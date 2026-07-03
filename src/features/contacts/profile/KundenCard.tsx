@@ -1,5 +1,6 @@
 import { Building2, ExternalLink } from 'lucide-react'
 import type { Contact } from '@/domain/types'
+import { safeHttpsUrl } from '@/domain/urls'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 
@@ -35,7 +36,9 @@ function CustomerGroup({
     <div className="space-y-1.5">
       <Label>{title}</Label>
       <div className="space-y-1.5">
-        {customers.map((c) => (
+        {customers.map((c) => {
+          const sfUrl = safeHttpsUrl(c.salesforceUrl)
+          return (
           <div
             key={c.id}
             className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
@@ -44,9 +47,9 @@ function CustomerGroup({
               <Building2 className="size-4 shrink-0 text-muted-foreground" />
               <span className="truncate">{c.name}</span>
             </span>
-            {c.salesforceUrl && (
+            {sfUrl && (
               <a
-                href={c.salesforceUrl}
+                href={sfUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline"
@@ -55,7 +58,8 @@ function CustomerGroup({
               </a>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

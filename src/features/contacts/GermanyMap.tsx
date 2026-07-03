@@ -9,12 +9,26 @@ const SILHOUETTE =
   'C121 383 95 360 86 334 C61 320 54 284 66 254 C46 234 51 199 66 184 ' +
   'C51 159 56 120 76 110 C71 80 91 54 116 50 C126 30 136 22 150 18 Z'
 
-const POS: Record<string, { x: number; y: number }> = {
-  Nord: { x: 150, y: 84 },
-  Ost: { x: 224, y: 196 },
-  West: { x: 78, y: 188 },
-  Mitte: { x: 150, y: 210 },
-  Süd: { x: 150, y: 312 },
+// Keyed by the seed/DB region ids so a renamed region keeps its marker;
+// display-name fallback covers ad-hoc regions that match a known name.
+const POS_BY_ID: Record<string, { x: number; y: number }> = {
+  'r-nord': { x: 150, y: 84 },
+  'r-ost': { x: 224, y: 196 },
+  'r-west': { x: 78, y: 188 },
+  'r-mitte': { x: 150, y: 210 },
+  'r-sued': { x: 150, y: 312 },
+}
+
+const POS_BY_NAME: Record<string, { x: number; y: number }> = {
+  Nord: POS_BY_ID['r-nord'],
+  Ost: POS_BY_ID['r-ost'],
+  West: POS_BY_ID['r-west'],
+  Mitte: POS_BY_ID['r-mitte'],
+  Süd: POS_BY_ID['r-sued'],
+}
+
+function regionPos(r: Region): { x: number; y: number } | undefined {
+  return POS_BY_ID[r.id] ?? POS_BY_NAME[r.name]
 }
 
 const FILL: Record<TrafficLight, string> = {
@@ -41,7 +55,7 @@ export function GermanyMap({
     <svg viewBox="0 0 300 400" className="mx-auto w-full max-w-sm" role="img" aria-label="Regionen-Karte">
       <path d={SILHOUETTE} className="fill-secondary stroke-border" strokeWidth={1.5} />
       {regions.map((r) => {
-        const pos = POS[r.name]
+        const pos = regionPos(r)
         if (!pos) return null
         const list = contacts.filter((c) => c.regionId === r.id)
         const active = activeRegion === r.id

@@ -1,4 +1,5 @@
 import type { LinkedInInfo, LinkedInStatus } from './types'
+import { safeLinkedInUrl } from './urls'
 
 export interface Verifier {
   id: string
@@ -21,7 +22,11 @@ export function buildLinkedInInfo(
   today: string,
 ): LinkedInInfo {
   const info: LinkedInInfo = { status }
-  if (status === 'has_account' && url.trim()) info.url = url.trim()
+  if (status === 'has_account') {
+    // Only a valid https linkedin.com URL is stored (audit F-13).
+    const safe = safeLinkedInUrl(url)
+    if (safe) info.url = safe
+  }
   if (status === 'unknown') return info
 
   const unchanged =
