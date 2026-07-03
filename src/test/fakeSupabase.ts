@@ -75,6 +75,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       sentiment: 'neutral',
       sentiment_history: null,
       cadence_days: null,
+      buying_role: null,
       active_devices: null,
       won_customers_count: 0,
       free_text: null,

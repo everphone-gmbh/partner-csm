@@ -3,6 +3,7 @@ import {
   birthdaysInMonth,
   computeRegionCoverage,
   overallSummary,
+  upcomingAnniversaries,
   upcomingBirthdays,
 } from './dashboardStats'
 import type { Contact } from '@/domain/types'
@@ -47,6 +48,29 @@ describe('overallSummary', () => {
       contact({ id: '2', regionId: 'r', sentiment: 'neutral' }),
     ])
     expect(s).toEqual({ total: 2, engaged: 1, engagedPct: 50 })
+  })
+})
+
+describe('upcomingAnniversaries', () => {
+  const today = new Date(2026, 6, 1, 12, 0) // 2026-07-01 local
+
+  it('finds partnership anniversaries (createdAt) within the window, >= 1 year', () => {
+    const contacts = [
+      contact({ id: 'five', regionId: 'r', sentiment: 'green', createdAt: '2021-07-10T09:00:00.000Z' }),
+      contact({ id: 'new', regionId: 'r', sentiment: 'green', createdAt: '2026-04-01T09:00:00.000Z' }), // < 1 Jahr
+      contact({ id: 'far', regionId: 'r', sentiment: 'green', createdAt: '2020-12-24T09:00:00.000Z' }),
+    ]
+    const up = upcomingAnniversaries(contacts, 30, today)
+    expect(up.map((u) => u.contact.id)).toEqual(['five'])
+    expect(up[0].years).toBe(5)
+    expect(up[0].inDays).toBe(9)
+  })
+
+  it('counts the completed years at the upcoming anniversary', () => {
+    const c = [contact({ id: 'one', regionId: 'r', sentiment: 'green', createdAt: '2025-07-01T09:00:00.000Z' })]
+    const up = upcomingAnniversaries(c, 30, today)
+    expect(up[0].years).toBe(1)
+    expect(up[0].inDays).toBe(0)
   })
 })
 

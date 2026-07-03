@@ -4,6 +4,7 @@ import type {
   ActivityType,
   AppUser,
   AttendanceStatus,
+  BuyingRole,
   Contact,
   ContactLink,
   ContactLinkKind,
@@ -43,7 +44,7 @@ type NameResolver = (id?: string | null) => string | undefined
 const CONTACT_SELECT =
   'id, full_name, position, photo_url, region_id, relationship_manager_id, team, email, ' +
   'birthday, location, family_status, children, pets, linkedin_status, linkedin_url, ' +
-  'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, cadence_days, active_devices, ' +
+  'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, cadence_days, buying_role, active_devices, ' +
   'won_customers_count, free_text, created_at, updated_at, ' +
   'side_facts(id,label,category), ' +
   'contact_photos(id,url,caption), ' +
@@ -70,6 +71,7 @@ export interface ContactRow {
   sentiment: TrafficLight
   sentiment_history: SentimentEntry[] | null
   cadence_days: number | null
+  buying_role: BuyingRole | null
   active_devices: string | null
   won_customers_count: number
   free_text: string | null
@@ -118,6 +120,7 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     sentiment: row.sentiment,
     sentimentHistory: row.sentiment_history ?? undefined,
     cadenceDays: row.cadence_days ?? undefined,
+    buyingRole: row.buying_role ?? undefined,
     activeDevices: row.active_devices ?? undefined,
     wonCustomersCount: row.won_customers_count ?? 0,
     freeText: row.free_text ?? undefined,
@@ -224,6 +227,9 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
         break
       case 'cadenceDays':
         row.cadence_days = patch.cadenceDays ?? null
+        break
+      case 'buyingRole':
+        row.buying_role = patch.buyingRole ?? null
         break
       case 'linkedin': {
         const li = patch.linkedin

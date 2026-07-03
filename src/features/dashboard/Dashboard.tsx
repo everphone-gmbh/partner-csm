@@ -14,7 +14,12 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { TrafficLightDot } from '@/components/TrafficLight'
 import { formatDate, daysUntil } from '@/lib/format'
-import { computeRegionCoverage, overallSummary, upcomingBirthdays } from './dashboardStats'
+import {
+  computeRegionCoverage,
+  overallSummary,
+  upcomingAnniversaries,
+  upcomingBirthdays,
+} from './dashboardStats'
 import { BirthdayCalendar } from './BirthdayCalendar'
 
 export function Dashboard() {
@@ -57,6 +62,7 @@ export function Dashboard() {
     () => (canSensitive ? upcomingBirthdays(scoped, 30, new Date()) : []),
     [scoped, canSensitive],
   )
+  const anniversaries = useMemo(() => upcomingAnniversaries(scoped, 30, new Date()), [scoped])
   const scopedIds = useMemo(() => new Set(scoped.map((c) => c.id)), [scoped])
   const openReminders = useMemo(
     () =>
@@ -245,6 +251,32 @@ export function Dashboard() {
               <BirthdayCalendar contacts={scoped} />
             </div>
           </CardContent>
+          {anniversaries.length > 0 && (
+            <CardContent className="border-t border-black/[0.04] dark:border-white/[0.06]">
+              <h3 className="mb-1.5 pt-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Partnerschafts-Jubiläen
+              </h3>
+              <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+                {anniversaries.map(({ contact, years, inDays }) => (
+                  <li key={contact.id}>
+                    <Link
+                      to={`/contacts/${contact.id}`}
+                      className="flex items-center gap-3 rounded-lg px-1.5 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+                    >
+                      <span className="text-base">🎉</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{contact.fullName}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {years} Jahr{years === 1 ? '' : 'e'} Kontakt
+                        </div>
+                      </div>
+                      <Badge variant="secondary">{inDays === 0 ? 'heute' : `in ${inDays} T.`}</Badge>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          )}
         </Card>
       )}
     </div>

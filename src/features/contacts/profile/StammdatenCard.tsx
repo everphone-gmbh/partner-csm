@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Briefcase, Cake, Mail, MapPin, Heart, Users, PawPrint, Repeat, Smartphone, Trophy } from 'lucide-react'
-import type { AppUser, Contact, Region } from '@/domain/types'
+import type { AppUser, BuyingRole, Contact, Region } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
+import { BUYING_ROLE_OPTIONS } from '@/domain/buyingCenter'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +26,7 @@ interface StammDraft {
   activeDevices: string
   wonCustomersCount: string
   cadenceDays: string
+  buyingRole: string
 }
 
 /** Cadence options; '' = global 60/90 default. */
@@ -52,6 +54,7 @@ function toStammDraft(c: Contact): StammDraft {
     activeDevices: c.activeDevices ?? '',
     wonCustomersCount: String(c.wonCustomersCount ?? 0),
     cadenceDays: c.cadenceDays ? String(c.cadenceDays) : '',
+    buyingRole: c.buyingRole ?? '',
   }
 }
 
@@ -100,6 +103,7 @@ export function StammdatenCard({
         activeDevices: draft.activeDevices.trim() || undefined,
         wonCustomersCount: Number(draft.wonCustomersCount) || 0,
         cadenceDays: draft.cadenceDays ? Number(draft.cadenceDays) : undefined,
+        buyingRole: (draft.buyingRole || undefined) as BuyingRole | undefined,
       })
       setEditing(false)
     } finally {
@@ -176,6 +180,19 @@ export function StammdatenCard({
                   value={draft.wonCustomersCount}
                   onChange={(e) => set('wonCustomersCount', e.target.value)}
                 />
+              </EditField>
+              <EditField label="Rolle im Buying Center">
+                <select
+                  className={selectCls}
+                  value={draft.buyingRole}
+                  onChange={(e) => set('buyingRole', e.target.value)}
+                >
+                  {BUYING_ROLE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
               </EditField>
               <EditField label="Kontakt-Rhythmus">
                 <select

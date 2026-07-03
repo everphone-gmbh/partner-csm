@@ -213,6 +213,14 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect((await repo.getContact(c.id))?.cadenceDays).toBeUndefined()
     })
 
+    it('round-trips the buying-center role through updateContact', async () => {
+      const c = await repo.createContact(BASE)
+      await repo.updateContact(c.id, { buyingRole: 'champion' })
+      expect((await repo.getContact(c.id))?.buyingRole).toBe('champion')
+      await repo.updateContact(c.id, { buyingRole: undefined })
+      expect((await repo.getContact(c.id))?.buyingRole).toBeUndefined()
+    })
+
     it('creates, resolves and deletes intro requests (Hilfe-Board)', async () => {
       const req = await repo.addIntroRequest({
         text: 'Brauche einen Draht zum Einkauf Region Süd',

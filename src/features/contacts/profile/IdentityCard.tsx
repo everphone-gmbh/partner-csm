@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { EditableAvatar } from '@/components/EditableAvatar'
 import { TrafficLightBadge, TrafficLightDot, TrafficLightPicker } from '@/components/TrafficLight'
 import { SentimentSparkline } from '@/components/SentimentSparkline'
+import { BUYING_ROLE_LABEL, BUYING_ROLE_VARIANT } from '@/domain/buyingCenter'
 import { LinkedInField, LinkedInPicker } from '@/components/LinkedInField'
 import { formatDate } from '@/lib/format'
 
@@ -60,6 +61,11 @@ export function IdentityCard({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="secondary">{regionName ?? '—'}</Badge>
+              {contact.buyingRole && (
+                <Badge variant={BUYING_ROLE_VARIANT[contact.buyingRole]}>
+                  {BUYING_ROLE_LABEL[contact.buyingRole]}
+                </Badge>
+              )}
               <span>RM: {managerName ?? '—'}</span>
             </div>
             <LinkedInInline

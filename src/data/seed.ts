@@ -217,7 +217,8 @@ export const seedContacts: Contact[] = [
       { id: 'cu-8', name: 'Schwaben Tech', withUs: true },
       { id: 'cu-9', name: 'Bodensee Industrie', withUs: true },
     ],
-    createdAt: '2026-01-20T09:00:00.000Z',
+    // Langjährige Beziehung: Jahrestag Mitte Juli → demonstriert die Jubiläen.
+    createdAt: '2024-07-20T09:00:00.000Z',
     updatedAt: '2026-06-28T13:20:00.000Z',
   },
   {

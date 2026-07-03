@@ -2,6 +2,7 @@ import type {
   Activity,
   AppUser,
   AttendanceStatus,
+  BuyingRole,
   Contact,
   ContactLink,
   ContactLinkKind,
@@ -73,6 +74,7 @@ export interface ContactPatch {
   sentiment?: TrafficLight
   sentimentHistory?: SentimentEntry[]
   cadenceDays?: number
+  buyingRole?: BuyingRole
   activeDevices?: string
   wonCustomersCount?: number
   freeText?: string

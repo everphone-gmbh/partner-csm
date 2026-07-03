@@ -61,6 +61,9 @@ export interface CustomerLink {
   salesforceUrl?: string
 }
 
+/** Role in the buying center (Salesforce-account-map style). */
+export type BuyingRole = 'champion' | 'supporter' | 'neutral' | 'blocker' | 'gatekeeper'
+
 export type SideFactCategory = 'hobby' | 'sport' | 'family' | 'interest' | 'other'
 
 export interface SideFact {
@@ -106,6 +109,8 @@ export interface Contact {
   sentimentHistory?: SentimentEntry[]
   /** Individual touch-frequency target in days (Kadenz); unset = global 60/90 default. */
   cadenceDays?: number
+  /** Role in the buying center; unset = not yet assessed. */
+  buyingRole?: BuyingRole
   activeDevices?: string
   wonCustomersCount: number
   freeText?: string

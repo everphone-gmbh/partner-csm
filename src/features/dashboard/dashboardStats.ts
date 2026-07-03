@@ -1,6 +1,39 @@
 import type { Contact, TrafficLight } from '@/domain/types'
 import { daysUntilBirthday } from '@/lib/format'
 
+export interface UpcomingAnniversary {
+  contact: Contact
+  /** Completed partnership years at the upcoming anniversary. */
+  years: number
+  inDays: number
+}
+
+/**
+ * Partnership anniversaries: contacts whose createdAt date has its yearly
+ * anniversary within `withinDays` and who have been in the book >= 1 year.
+ * Reuses the leap-aware next-occurrence logic from daysUntilBirthday.
+ */
+export function upcomingAnniversaries(
+  contacts: Contact[],
+  withinDays: number,
+  today: Date,
+): UpcomingAnniversary[] {
+  const out: UpcomingAnniversary[] = []
+  for (const c of contacts) {
+    const created = new Date(c.createdAt)
+    if (Number.isNaN(created.getTime())) continue
+    const createdYmd = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}-${String(created.getDate()).padStart(2, '0')}`
+    const inDays = daysUntilBirthday(createdYmd, today)
+    if (inDays === null || inDays > withinDays) continue
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const anniversary = new Date(startOfToday.getTime() + inDays * 86_400_000)
+    const years = anniversary.getFullYear() - created.getFullYear()
+    if (years < 1) continue
+    out.push({ contact: c, years, inDays })
+  }
+  return out.sort((a, b) => a.inDays - b.inDays)
+}
+
 export interface RegionCoverage {
   regionId: string
   total: number
