@@ -115,6 +115,7 @@ class MockRepository implements Repository {
     this.reminders = this.reminders.filter((r) => r.contactId !== id)
     this.attendees = this.attendees.filter((a) => a.contactId !== id)
     this.links = this.links.filter((l) => l.fromContactId !== id && l.toContactId !== id)
+    this.eventNotes = this.eventNotes.filter((n) => n.contactId !== id)
   }
 
   async listContactLinks(contactId: string) {
@@ -297,6 +298,7 @@ class MockRepository implements Repository {
       authorName: input.authorName,
       createdAt: nowIso(),
       attachments: input.attachments,
+      contactId: input.contactId,
     }
     this.eventNotes.push(note)
     return clone(note)

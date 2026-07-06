@@ -221,6 +221,38 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect((await repo.getContact(c.id))?.buyingRole).toBeUndefined()
     })
 
+    it('round-trips the contact assignment on event notes and cascades on erasure', async () => {
+      const c = await repo.createContact(BASE)
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Gutes Gespräch am Stand',
+        authorName: VERIFIER.full_name,
+        attachments: [],
+        contactId: c.id,
+      })
+      const notes = await repo.listEventNotes(ev.id)
+      expect(notes).toHaveLength(1)
+      expect(notes[0].contactId).toBe(c.id)
+
+      // GDPR: erasing the contact removes notes about them.
+      await repo.deleteContact(c.id)
+      expect(await repo.listEventNotes(ev.id)).toEqual([])
+    })
+
+    it('keeps unassigned event notes when a contact is erased', async () => {
+      const c = await repo.createContact(BASE)
+      const ev = await repo.createEvent({ name: 'CIO Move', date: '2026-11-01' })
+      await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Allgemeine Standnotiz',
+        authorName: VERIFIER.full_name,
+        attachments: [],
+      })
+      await repo.deleteContact(c.id)
+      expect((await repo.listEventNotes(ev.id)).map((n) => n.text)).toEqual(['Allgemeine Standnotiz'])
+    })
+
     it('creates, resolves and deletes intro requests (Hilfe-Board)', async () => {
       const req = await repo.addIntroRequest({
         text: 'Brauche einen Draht zum Einkauf Region Süd',

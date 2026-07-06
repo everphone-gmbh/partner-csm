@@ -114,6 +114,7 @@ export interface NewEventNote {
   text: string
   authorName: string
   attachments: NoteAttachment[]
+  contactId?: string
 }
 
 /**

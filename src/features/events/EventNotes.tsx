@@ -70,9 +70,20 @@ function AttachmentView({ attachment, size }: { attachment: NoteAttachment; size
   return <audio src={attachment.url} controls className="h-8" />
 }
 
-export function EventNotes({ eventId }: { eventId: string }) {
+export function EventNotes({
+  eventId,
+  eventName,
+  attendeeContacts = [],
+}: {
+  eventId: string
+  eventName?: string
+  /** Attendees offered for the optional note→person assignment. */
+  attendeeContacts?: { id: string; fullName: string }[]
+}) {
   const { user } = useSession()
   const { toast } = useToast()
+  const [noteContactId, setNoteContactId] = useState('')
+  const [toTimeline, setToTimeline] = useState(false)
   const [notes, setNotes] = useState<EventNote[]>([])
   const [text, setText] = useState('')
   const [pending, setPending] = useState<NoteAttachment[]>([])
@@ -109,9 +120,24 @@ export function EventNotes({ eventId }: { eventId: string }) {
         text: text.trim(),
         authorName: user.name,
         attachments: pending,
+        contactId: noteContactId || undefined,
       })
+      // Optional: the note also lands in the contact's activity timeline,
+      // so the event feeds the relationship history directly.
+      if (noteContactId && toTimeline && text.trim()) {
+        await repository.addActivity({
+          contactId: noteContactId,
+          type: 'meeting',
+          occurredAt: new Date().toISOString(),
+          authorId: user.id,
+          authorName: user.name,
+          body: eventName ? `[${eventName}] ${text.trim()}` : text.trim(),
+        })
+      }
       setText('')
       setPending([])
+      setNoteContactId('')
+      setToTimeline(false)
       refresh()
     } catch (err) {
       toast(saveErrorMessage(err)) // text + attachments stay in the form
@@ -119,6 +145,9 @@ export function EventNotes({ eventId }: { eventId: string }) {
       setSaving(false)
     }
   }
+
+  const contactName = (cid: string) =>
+    attendeeContacts.find((c) => c.id === cid)?.fullName ?? 'Kontakt'
 
   return (
     <Card>
@@ -132,6 +161,36 @@ export function EventNotes({ eventId }: { eventId: string }) {
           rows={2}
           placeholder="Was passiert gerade? Schnell festhalten…"
         />
+        {attendeeContacts.length > 0 && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              className="h-9 rounded-[10px] border border-transparent bg-secondary px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-56"
+              value={noteContactId}
+              onChange={(e) => {
+                setNoteContactId(e.target.value)
+                if (!e.target.value) setToTimeline(false)
+              }}
+            >
+              <option value="">Ohne Personenbezug</option>
+              {attendeeContacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.fullName}
+                </option>
+              ))}
+            </select>
+            {noteContactId && (
+              <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={toTimeline}
+                  onChange={(e) => setToTimeline(e.target.checked)}
+                  className="size-4 accent-primary"
+                />
+                auch in die Timeline von {contactName(noteContactId).split(' ')[0]} übernehmen
+              </label>
+            )}
+          </div>
+        )}
         {pending.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             {pending.map((a) => (
@@ -181,8 +240,13 @@ export function EventNotes({ eventId }: { eventId: string }) {
           <ul className="space-y-3 border-t border-border pt-3">
             {notes.map((n) => (
               <li key={n.id} className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                   {formatDateTime(n.createdAt)} · {n.authorName}
+                  {n.contactId && (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                      {contactName(n.contactId)}
+                    </span>
+                  )}
                 </div>
                 {n.text && <p className="whitespace-pre-wrap text-sm text-foreground">{n.text}</p>}
                 {n.attachments.length > 0 && (

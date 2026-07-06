@@ -203,6 +203,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           tables.contact_links = tables.contact_links.filter(
             (l) => !ids.has(l.from_contact_id) && !ids.has(l.to_contact_id),
           )
+          tables.event_notes = tables.event_notes.filter((n) => !ids.has(n.contact_id))
           const removedActivityIds = new Set(
             tables.activities.filter((a) => ids.has(a.contact_id)).map((a) => a.id),
           )

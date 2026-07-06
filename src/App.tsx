@@ -22,6 +22,9 @@ const EventsList = lazy(() =>
 const EventDetail = lazy(() =>
   import('@/features/events/EventDetail').then((m) => ({ default: m.EventDetail })),
 )
+const BriefingPage = lazy(() =>
+  import('@/features/events/BriefingPage').then((m) => ({ default: m.BriefingPage })),
+)
 const MonitoringPage = lazy(() =>
   import('@/features/monitoring/MonitoringPage').then((m) => ({ default: m.MonitoringPage })),
 )
@@ -50,6 +53,7 @@ function RoutedContent() {
           <Route path="/contacts/:id/edit" element={<ContactFormPage />} />
           <Route path="/events" element={<EventsList />} />
           <Route path="/events/:id" element={<EventDetail />} />
+          <Route path="/events/:id/briefing" element={<BriefingPage />} />
           <Route path="/monitoring" element={<MonitoringPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/board" element={<BoardPage />} />

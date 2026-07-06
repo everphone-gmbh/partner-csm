@@ -199,4 +199,6 @@ export interface EventNote {
   authorName: string
   createdAt: string
   attachments: NoteAttachment[]
+  /** Optional: the attendee this note is about (feeds their timeline). */
+  contactId?: string
 }

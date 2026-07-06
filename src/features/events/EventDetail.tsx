@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, CalendarDays, MapPin, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, BellPlus, CalendarDays, ClipboardList, MapPin, Plus, Trash2 } from 'lucide-react'
 import type { AttendanceStatus, Contact, EventAttendee } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
+import { useSession } from '@/app/SessionContext'
+import { canApprove } from '@/domain/roles'
+import { buttonVariants } from '@/components/ui/button'
+import { buildFollowUpReminders } from './followUps'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
@@ -20,9 +24,11 @@ const selectCls =
 
 export function EventDetail() {
   const { id } = useParams()
+  const { user } = useSession()
   const { toast } = useToast()
   const [attendees, setAttendees] = useState<EventAttendee[]>([])
   const [addId, setAddId] = useState('')
+  const [generatingFollowUps, setGeneratingFollowUps] = useState(false)
 
   const { data, loading, error, retry } = useRepoQuery(
     () =>
@@ -112,6 +118,30 @@ export function EventDetail() {
     loadAttendees()
   }
 
+  // Ein Klick nach dem Event: Follow-up-Reminder für alle Getroffenen.
+  // Dedupe über buildFollowUpReminders — der Button ist gefahrlos mehrfach klickbar.
+  const generateFollowUps = async () => {
+    if (!event) return
+    setGeneratingFollowUps(true)
+    try {
+      const existing = await repository.listReminders()
+      const toCreate = buildFollowUpReminders(event, attendees, existing, user.name)
+      for (const reminder of toCreate) {
+        await repository.addReminder(reminder)
+      }
+      toast(
+        toCreate.length > 0
+          ? `${toCreate.length} Follow-up${toCreate.length === 1 ? '' : 's'} erzeugt.`
+          : 'Keine neuen Follow-ups nötig — alles schon abgedeckt.',
+        'success',
+      )
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    } finally {
+      setGeneratingFollowUps(false)
+    }
+  }
+
   if (error) return <QueryError error={error} retry={retry} />
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>
   if (!event) {
@@ -123,9 +153,29 @@ export function EventDetail() {
     )
   }
 
+  const hasAttended = attendees.some((a) => a.status === 'attended')
+
   return (
     <div className="space-y-4">
-      <BackLink />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <BackLink />
+        <div className="flex items-center gap-2">
+          {canApprove(user.role) && hasAttended && (
+            <button
+              type="button"
+              onClick={generateFollowUps}
+              disabled={generatingFollowUps}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              <BellPlus className="size-4" />
+              {generatingFollowUps ? 'Erzeuge…' : 'Follow-ups erzeugen'}
+            </button>
+          )}
+          <Link to={`/events/${event.id}/briefing`} className={buttonVariants({ size: 'sm' })}>
+            <ClipboardList className="size-4" /> Briefing
+          </Link>
+        </div>
+      </div>
 
       <Card>
         <CardContent className="space-y-2 pt-5 sm:pt-5">
@@ -146,7 +196,14 @@ export function EventDetail() {
         </CardContent>
       </Card>
 
-      <EventNotes eventId={event.id} />
+      <EventNotes
+        eventId={event.id}
+        eventName={event.name}
+        attendeeContacts={attendees
+          .map((a) => contactById.get(a.contactId))
+          .filter((c): c is Contact => Boolean(c))
+          .map((c) => ({ id: c.id, fullName: c.fullName }))}
+      />
 
       <Card>
         <CardHeader>

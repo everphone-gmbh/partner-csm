@@ -325,6 +325,7 @@ export interface EventNoteRow {
   author_name: string
   attachments: NoteAttachment[] | null
   created_at: string
+  contact_id: string | null
 }
 
 export function mapRowToEventNote(row: EventNoteRow): EventNote {
@@ -335,6 +336,7 @@ export function mapRowToEventNote(row: EventNoteRow): EventNote {
     authorName: row.author_name,
     createdAt: row.created_at,
     attachments: row.attachments ?? [],
+    contactId: row.contact_id ?? undefined,
   }
 }
 
@@ -750,7 +752,7 @@ export class SupabaseRepository implements Repository {
   async listEventNotes(eventId: string): Promise<EventNote[]> {
     const { data, error } = await this.client
       .from('event_notes')
-      .select('id, event_id, text, author_name, attachments, created_at')
+      .select('id, event_id, text, author_name, attachments, created_at, contact_id')
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -765,8 +767,9 @@ export class SupabaseRepository implements Repository {
         text: input.text,
         author_name: input.authorName,
         attachments: input.attachments,
+        contact_id: input.contactId ?? null,
       })
-      .select('id, event_id, text, author_name, attachments, created_at')
+      .select('id, event_id, text, author_name, attachments, created_at, contact_id')
       .single()
     if (error) throw new Error(error.message)
     return mapRowToEventNote(data as unknown as EventNoteRow)
