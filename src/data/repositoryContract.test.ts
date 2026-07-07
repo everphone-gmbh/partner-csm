@@ -213,6 +213,50 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect((await repo.getContact(c.id))?.cadenceDays).toBeUndefined()
     })
 
+    it('round-trips the company through updateContact', async () => {
+      const c = await repo.createContact({ ...BASE, company: 'Lenovo' })
+      expect((await repo.getContact(c.id))?.company).toBe('Lenovo')
+      await repo.updateContact(c.id, { company: 'Samsung' })
+      expect((await repo.getContact(c.id))?.company).toBe('Samsung')
+      await repo.updateContact(c.id, { company: undefined })
+      expect((await repo.getContact(c.id))?.company).toBeUndefined()
+    })
+
+    it('adds and removes customers through updateContact', async () => {
+      const c = await repo.createContact(BASE)
+      await repo.updateContact(c.id, {
+        customers: [
+          { id: 'tmp-1', name: 'Nordmetall AG', withUs: true, salesforceUrl: 'https://example.salesforce.com/acc/1' },
+          { id: 'tmp-2', name: 'Hanse Logistik', withUs: false },
+        ],
+      })
+      const afterAdd = await repo.getContact(c.id)
+      expect(afterAdd?.customers.map((x) => [x.name, x.withUs]).sort()).toEqual([
+        ['Hanse Logistik', false],
+        ['Nordmetall AG', true],
+      ])
+      expect(afterAdd?.customers.find((x) => x.name === 'Nordmetall AG')?.salesforceUrl).toBe(
+        'https://example.salesforce.com/acc/1',
+      )
+
+      const keep = afterAdd!.customers.filter((x) => x.name === 'Hanse Logistik')
+      await repo.updateContact(c.id, { customers: keep })
+      const afterRemove = await repo.getContact(c.id)
+      expect(afterRemove?.customers.map((x) => x.name)).toEqual(['Hanse Logistik'])
+    })
+
+    it('reassigns all contacts of one manager to another', async () => {
+      const a = await repo.createContact({ ...BASE, relationshipManagerId: 'rm-old' })
+      const b = await repo.createContact({ ...BASE, fullName: 'Zweite Person', relationshipManagerId: 'rm-old' })
+      const other = await repo.createContact({ ...BASE, fullName: 'Dritte Person', relationshipManagerId: 'rm-other' })
+
+      const moved = await repo.reassignContacts('rm-old', 'rm-new')
+      expect(moved).toBe(2)
+      expect((await repo.getContact(a.id))?.relationshipManagerId).toBe('rm-new')
+      expect((await repo.getContact(b.id))?.relationshipManagerId).toBe('rm-new')
+      expect((await repo.getContact(other.id))?.relationshipManagerId).toBe('rm-other')
+    })
+
     it('round-trips the buying-center role through updateContact', async () => {
       const c = await repo.createContact(BASE)
       await repo.updateContact(c.id, { buyingRole: 'champion' })

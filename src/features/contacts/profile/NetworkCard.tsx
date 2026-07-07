@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
+import { cn } from '@/lib/utils'
+import { NetworkGraph } from './NetworkGraph'
 import { selectCls } from './shared'
 
 /**
@@ -18,6 +20,7 @@ import { selectCls } from './shared'
  */
 export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: boolean }) {
   const { toast } = useToast()
+  const [mode, setMode] = useState<'graph' | 'list'>('graph')
   const [adding, setAdding] = useState(false)
   const [kind, setKind] = useState<ContactLinkKind>('knows')
   const [otherId, setOtherId] = useState('')
@@ -78,15 +81,32 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
         <CardTitle className="flex items-center gap-2 text-base">
           <Waypoints className="size-4 text-muted-foreground" /> Netzwerk
         </CardTitle>
-        {canEdit && !adding && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Plus className="size-3.5" /> Verknüpfen
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-0.5 rounded-full bg-secondary p-0.5">
+            {(['graph', 'list'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={cn(
+                  'rounded-full px-2.5 py-0.5 text-xs transition-colors',
+                  mode === m ? 'bg-card font-medium shadow-sm' : 'text-muted-foreground',
+                )}
+              >
+                {m === 'graph' ? 'Graph' : 'Liste'}
+              </button>
+            ))}
+          </div>
+          {canEdit && !adding && (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="size-3.5" /> Verknüpfen
+            </button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {error && (
@@ -97,12 +117,15 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
             </button>
           </p>
         )}
-        {!error && !loading && rows.length === 0 && !adding && (
+        {!error && !loading && rows.length === 0 && contact.customers.length === 0 && !adding && (
           <p className="text-sm text-muted-foreground">
             Noch keine Verknüpfungen — wer kennt {contact.fullName.split(' ')[0]}?
           </p>
         )}
-        {rows.length > 0 && (
+        {mode === 'graph' && !loading && (rows.length > 0 || contact.customers.length > 0) && (
+          <NetworkGraph contact={contact} links={links} contactsById={byId} />
+        )}
+        {mode === 'list' && rows.length > 0 && (
           <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
             {rows.map(({ link, view }) => {
               const other = byId.get(view.otherContactId)

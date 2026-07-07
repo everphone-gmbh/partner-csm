@@ -97,6 +97,8 @@ export interface Contact {
   photoUrl?: string | null
   regionId: string
   relationshipManagerId: string
+  /** Employer/organization — the tool maps partners across companies (Telekom, Apple, …). */
+  company?: string
   team?: string
   email?: string
   birthday?: string // YYYY-MM-DD
@@ -190,6 +192,8 @@ export interface NoteAttachment {
   kind: NoteAttachmentKind
   url: string // data URL in the mock; Storage object URL in production
   name?: string
+  /** Voice-memo transcript (manual for now; auto via EU AI endpoint later). */
+  transcript?: string
 }
 
 export interface EventNote {

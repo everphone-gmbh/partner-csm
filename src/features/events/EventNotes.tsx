@@ -7,6 +7,7 @@ import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { fileToResizedDataUrl } from '@/lib/image'
 import { formatDateTime } from '@/lib/format'
 
@@ -192,20 +193,40 @@ export function EventNotes({
           </div>
         )}
         {pending.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            {pending.map((a) => (
-              <div key={a.id} className="relative">
-                <AttachmentView attachment={a} size="size-16" />
-                <button
-                  type="button"
-                  onClick={() => removePending(a.id)}
-                  aria-label="Anhang entfernen"
-                  className="absolute -right-1 -top-1 rounded-full bg-background p-0.5 shadow"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
-            ))}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {pending.map((a) => (
+                <div key={a.id} className="relative">
+                  <AttachmentView attachment={a} size="size-16" />
+                  <button
+                    type="button"
+                    onClick={() => removePending(a.id)}
+                    aria-label="Anhang entfernen"
+                    className="absolute -right-1 -top-1 rounded-full bg-background p-0.5 shadow"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {/* Voice memos: quick manual transcript so the content is
+                searchable/briefable. Auto-transcription follows with the EU
+                AI endpoint. */}
+            {pending
+              .filter((a) => a.kind === 'audio')
+              .map((a) => (
+                <Input
+                  key={`tr-${a.id}`}
+                  value={a.transcript ?? ''}
+                  onChange={(e) =>
+                    setPending((p) =>
+                      p.map((x) => (x.id === a.id ? { ...x, transcript: e.target.value } : x)),
+                    )
+                  }
+                  placeholder="Transkript zum Sprachmemo (optional) …"
+                  className="text-sm"
+                />
+              ))}
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
@@ -256,6 +277,13 @@ export function EventNotes({
                     ))}
                   </div>
                 )}
+                {n.attachments
+                  .filter((a) => a.transcript)
+                  .map((a) => (
+                    <p key={`tr-${a.id}`} className="text-sm italic text-muted-foreground">
+                      🎙 „{a.transcript}“
+                    </p>
+                  ))}
               </li>
             ))}
           </ul>

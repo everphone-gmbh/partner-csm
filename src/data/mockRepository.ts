@@ -80,6 +80,7 @@ class MockRepository implements Repository {
       photoUrl: null,
       regionId: input.regionId,
       relationshipManagerId: input.relationshipManagerId,
+      company: input.company,
       team: input.team,
       email: input.email,
       birthday: input.birthday,
@@ -116,6 +117,16 @@ class MockRepository implements Repository {
     this.attendees = this.attendees.filter((a) => a.contactId !== id)
     this.links = this.links.filter((l) => l.fromContactId !== id && l.toContactId !== id)
     this.eventNotes = this.eventNotes.filter((n) => n.contactId !== id)
+  }
+
+  async reassignContacts(fromUserId: string, toUserId: string) {
+    let moved = 0
+    this.contacts = this.contacts.map((c) => {
+      if (c.relationshipManagerId !== fromUserId) return c
+      moved++
+      return { ...c, relationshipManagerId: toUserId, updatedAt: nowIso() }
+    })
+    return moved
   }
 
   async listContactLinks(contactId: string) {

@@ -160,7 +160,7 @@ export function ContactProfile() {
           />
           <FactsCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
           <NetworkCard contact={view} canEdit={canEdit} />
-          <KundenCard customers={view.customers} />
+          <KundenCard contact={view} canEdit={canEdit} onSave={save} />
           {/* Private photos are sensitive-tier data — hidden from Account Managers. */}
           {canSensitive && <FotogalerieCard contact={view} canEdit={canEdit} onSave={save} />}
           <NotizCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />

@@ -82,6 +82,7 @@ export function parseCsv(text: string, delimiter?: ',' | ';' | '\t'): ParsedCsv 
 const IMPORTABLE_FIELD_KEYS = [
   'fullName',
   'position',
+  'company',
   'email',
   'birthday',
   'location',
@@ -106,6 +107,7 @@ export interface ImportableFieldDef {
 export const IMPORTABLE_FIELDS: ImportableFieldDef[] = [
   { key: 'fullName', label: 'Name', required: true },
   { key: 'position', label: 'Funktion' },
+  { key: 'company', label: 'Firma' },
   { key: 'email', label: 'E-Mail' },
   { key: 'birthday', label: 'Geburtstag' },
   { key: 'location', label: 'Wohnort' },
@@ -120,6 +122,7 @@ export const IMPORTABLE_FIELDS: ImportableFieldDef[] = [
 const HEADER_ALIASES: Record<ImportableField, string[]> = {
   fullName: ['name', 'vollständiger name', 'fullname', 'kontakt'],
   position: ['position', 'funktion', 'rolle', 'title'],
+  company: ['firma', 'company', 'unternehmen', 'arbeitgeber', 'organisation'],
   email: ['email', 'e-mail', 'mail'],
   birthday: ['geburtstag', 'birthday', 'geburtsdatum'],
   location: ['wohnort', 'location', 'stadt', 'ort'],
@@ -231,6 +234,7 @@ export function buildContactsFromRows(
       contact: {
         fullName,
         position: get('position'),
+        company: get('company') || undefined,
         regionId: common.regionId,
         relationshipManagerId: common.relationshipManagerId,
         team: get('team') || undefined,

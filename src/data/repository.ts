@@ -6,6 +6,7 @@ import type {
   Contact,
   ContactLink,
   ContactLinkKind,
+  CustomerLink,
   EventAttendee,
   EventItem,
   EventNote,
@@ -34,6 +35,7 @@ export interface NewContact {
   position: string
   regionId: string
   relationshipManagerId: string
+  company?: string
   team?: string
   email?: string
   birthday?: string
@@ -63,6 +65,7 @@ export interface ContactPatch {
   photoUrl?: string | null
   regionId?: string
   relationshipManagerId?: string
+  company?: string
   team?: string
   email?: string
   birthday?: string
@@ -80,6 +83,8 @@ export interface ContactPatch {
   freeText?: string
   sideFacts?: SideFact[]
   gallery?: GalleryPhoto[]
+  /** Replace-style like sideFacts; the adapter diffs the customer links. */
+  customers?: CustomerLink[]
 }
 
 export interface NewContactLink {
@@ -132,6 +137,8 @@ export interface Repository {
    * dependent personal data — activities, side facts, photos, reminders,
    * event attendance. Admin-gated in the UI and by RLS (0008). */
   deleteContact(id: string): Promise<void>
+  /** Handover when a manager leaves: moves all their contacts, returns the count. */
+  reassignContacts(fromUserId: string, toUserId: string): Promise<number>
   /** Links where the contact is either endpoint (the Beziehungsnetz). */
   listContactLinks(contactId: string): Promise<ContactLink[]>
   addContactLink(input: NewContactLink): Promise<ContactLink>

@@ -61,6 +61,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     return {
       photo_url: null,
       relationship_manager_id: null,
+      company: null,
       team: null,
       email: null,
       birthday: null,

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Activity as ActivityIcon, AlarmClock, TrendingUp, Users } from 'lucide-react'
 import type { Activity, AppUser, Contact, Region } from '@/domain/types'
@@ -6,6 +6,7 @@ import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
@@ -20,7 +21,9 @@ const WEEKS = 8
 
 export function MonitoringPage() {
   const { user } = useSession()
+  const { toast } = useToast()
   const isAdmin = user.role === 'overall_admin'
+  const [reassigning, setReassigning] = useState(false)
 
   const { data, loading, error, retry } = useRepoQuery(
     () =>
@@ -66,6 +69,26 @@ export function MonitoringPage() {
   )
 
   const regionName = (id?: string) => regions.find((r) => r.id === id)?.name ?? '—'
+
+  // Handover ("Accounter fällt raus"): move an entire book to a colleague.
+  const reassign = async (fromUser: AppUser, toUserId: string) => {
+    const toUser = users.find((u) => u.id === toUserId)
+    if (!toUser) return
+    const sure = window.confirm(
+      `Alle Kontakte von ${fromUser.name} an ${toUser.name} übergeben?`,
+    )
+    if (!sure) return
+    setReassigning(true)
+    try {
+      const moved = await repository.reassignContacts(fromUser.id, toUserId)
+      toast(`${moved} Kontakt${moved === 1 ? '' : 'e'} an ${toUser.name} übergeben.`, 'success')
+      retry()
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    } finally {
+      setReassigning(false)
+    }
+  }
 
   if (!isAdmin) {
     return (
@@ -239,12 +262,25 @@ export function MonitoringPage() {
                   <div className="truncate font-medium">{s.user.name}</div>
                   <div className="text-xs text-muted-foreground">Region {regionName(s.user.regionId)}</div>
                 </div>
-                <Link
-                  to={`/contacts?filter=unmanaged`}
-                  className="hidden text-xs text-primary hover:underline sm:block"
+                <select
+                  className="h-8 rounded-[10px] border border-transparent bg-secondary px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value=""
+                  disabled={reassigning || s.contactsManaged === 0}
+                  onChange={(e) => {
+                    if (e.target.value) void reassign(s.user, e.target.value)
+                    e.target.value = ''
+                  }}
+                  title="Alle Kontakte dieses Managers an ein anderes Teammitglied übergeben"
                 >
-                  Offene Kontakte →
-                </Link>
+                  <option value="">Übergeben an…</option>
+                  {users
+                    .filter((u) => u.id !== s.user.id && u.role !== 'account_manager')
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                </select>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex gap-5">

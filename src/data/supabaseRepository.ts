@@ -42,7 +42,7 @@ import type {
 type NameResolver = (id?: string | null) => string | undefined
 
 const CONTACT_SELECT =
-  'id, full_name, position, photo_url, region_id, relationship_manager_id, team, email, ' +
+  'id, full_name, position, photo_url, region_id, relationship_manager_id, company, team, email, ' +
   'birthday, location, family_status, children, pets, linkedin_status, linkedin_url, ' +
   'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, cadence_days, buying_role, active_devices, ' +
   'won_customers_count, free_text, created_at, updated_at, ' +
@@ -57,6 +57,7 @@ export interface ContactRow {
   photo_url: string | null
   region_id: string
   relationship_manager_id: string | null
+  company: string | null
   team: string | null
   email: string | null
   birthday: string | null
@@ -103,6 +104,7 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     photoUrl: row.photo_url,
     regionId: row.region_id,
     relationshipManagerId: row.relationship_manager_id ?? '',
+    company: row.company ?? undefined,
     team: row.team ?? undefined,
     email: row.email ?? undefined,
     birthday: row.birthday ?? undefined,
@@ -192,6 +194,9 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
       case 'wonCustomersCount':
         if (patch.wonCustomersCount !== undefined) row.won_customers_count = patch.wonCustomersCount
         break
+      case 'company':
+        row.company = patch.company ?? null
+        break
       case 'team':
         row.team = patch.team ?? null
         break
@@ -243,6 +248,7 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
       }
       case 'sideFacts':
       case 'gallery':
+      case 'customers':
         // Relation rows, not columns — persisted separately in updateContact.
         break
       default: {
@@ -408,6 +414,7 @@ export class SupabaseRepository implements Repository {
         position: input.position,
         region_id: input.regionId,
         relationship_manager_id: input.relationshipManagerId,
+        company: input.company ?? null,
         team: input.team ?? null,
         email: input.email ?? null,
         birthday: input.birthday ?? null,
@@ -482,9 +489,56 @@ export class SupabaseRepository implements Repository {
       }
     }
 
+    // Customers are shared entities + link rows: create missing customers,
+    // then diff the contact_customers links (same pattern as the gallery).
+    if (patch.customers !== undefined) {
+      const { data: existing, error: exErr } = await this.client
+        .from('contact_customers')
+        .select('customer_id')
+        .eq('contact_id', id)
+      if (exErr) throw new Error(exErr.message)
+      const existingIds = new Set(
+        ((existing ?? []) as { customer_id: string }[]).map((r) => r.customer_id),
+      )
+      const keptIds = new Set(patch.customers.map((c) => c.id))
+      const removed = [...existingIds].filter((x) => !keptIds.has(x))
+      if (removed.length > 0) {
+        const { error: delErr } = await this.client
+          .from('contact_customers')
+          .delete()
+          .eq('contact_id', id)
+          .in('customer_id', removed)
+        if (delErr) throw new Error(delErr.message)
+      }
+      for (const cust of patch.customers.filter((c) => !existingIds.has(c.id))) {
+        const { data: created, error: custErr } = await this.client
+          .from('customers')
+          .insert({ name: cust.name, salesforce_url: cust.salesforceUrl ?? null })
+          .select('id')
+          .single()
+        if (custErr) throw new Error(custErr.message)
+        const { error: linkErr } = await this.client.from('contact_customers').insert({
+          contact_id: id,
+          customer_id: (created as { id: string }).id,
+          with_us: cust.withUs,
+        })
+        if (linkErr) throw new Error(linkErr.message)
+      }
+    }
+
     const updated = await this.getContact(id)
     if (!updated) throw new Error(`contact ${id} not found after update`)
     return updated
+  }
+
+  async reassignContacts(fromUserId: string, toUserId: string): Promise<number> {
+    const { data, error } = await this.client
+      .from('contacts')
+      .update({ relationship_manager_id: toUserId })
+      .eq('relationship_manager_id', fromUserId)
+      .select('id')
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as { id: string }[]).length
   }
 
   async deleteContact(id: string): Promise<void> {

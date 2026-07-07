@@ -40,6 +40,7 @@ export function ContactList() {
   const specialFilter = searchParams.get('filter')
   const [q, setQ] = useState('')
   const [regionFilter, setRegionFilter] = useState<string | null>(null)
+  const [companyFilter, setCompanyFilter] = useState<string>('')
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [sortMode, setSortMode] = useState<SortMode>(specialFilter === 'stale' ? 'stale' : 'name')
 
@@ -73,18 +74,29 @@ export function ContactList() {
 
   const { scoped: roleScoped, isAccountManager } = useScopedContacts(contacts)
 
+  /** Unique companies across the visible scope — drives the Firma filter. */
+  const companies = useMemo(
+    () =>
+      [...new Set(roleScoped.map((c) => c.company).filter((x): x is string => Boolean(x)))].sort(
+        (a, b) => a.localeCompare(b, 'de'),
+      ),
+    [roleScoped],
+  )
+
   const visible = useMemo(() => {
     let list = roleScoped
     if (specialFilter === 'unmanaged') list = list.filter((c) => c.sentiment === 'neutral')
     if (specialFilter === 'stale')
       list = list.filter((c) => attentionByContact.get(c.id)?.level !== 'ok')
     if (regionFilter) list = list.filter((c) => c.regionId === regionFilter)
+    if (companyFilter) list = list.filter((c) => c.company === companyFilter)
     const term = q.trim().toLowerCase()
     if (term) {
       list = list.filter(
         (c) =>
           c.fullName.toLowerCase().includes(term) ||
-          c.position.toLowerCase().includes(term),
+          c.position.toLowerCase().includes(term) ||
+          (c.company ?? '').toLowerCase().includes(term),
       )
     }
     return [...list].sort((a, b) =>
@@ -92,7 +104,7 @@ export function ContactList() {
         ? (attentionByContact.get(b.id)?.days ?? 0) - (attentionByContact.get(a.id)?.days ?? 0)
         : a.fullName.localeCompare(b.fullName, 'de'),
     )
-  }, [roleScoped, q, regionFilter, sortMode, attentionByContact, specialFilter])
+  }, [roleScoped, q, regionFilter, companyFilter, sortMode, attentionByContact, specialFilter])
 
   if (error) return <QueryError error={error} retry={retry} />
 
@@ -161,17 +173,36 @@ export function ContactList() {
           ))}
         </div>
         {viewMode === 'list' && (
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            Sortierung
-            <select
-              value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as SortMode)}
-              className="h-7 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="name">Name</option>
-              <option value="stale">Zuletzt aktiv</option>
-            </select>
-          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            {companies.length > 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                Firma
+                <select
+                  value={companyFilter}
+                  onChange={(e) => setCompanyFilter(e.target.value)}
+                  className="h-7 max-w-40 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Alle</option>
+                  {companies.map((co) => (
+                    <option key={co} value={co}>
+                      {co}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              Sortierung
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                className="h-7 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="name">Name</option>
+                <option value="stale">Zuletzt aktiv</option>
+              </select>
+            </label>
+          </div>
         )}
       </div>
 
@@ -226,7 +257,10 @@ export function ContactList() {
                     <span className="truncate font-medium">{c.fullName}</span>
                     <MiniIcon className={cn('size-3.5 shrink-0', mini.cls)} aria-label={mini.title} />
                   </div>
-                  <div className="truncate text-sm text-muted-foreground">{c.position}</div>
+                  <div className="truncate text-sm text-muted-foreground">
+                    {c.position}
+                    {c.company ? ` · ${c.company}` : ''}
+                  </div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <TrafficLightDot value={c.sentiment} />
                     <span>{TRAFFIC_LABEL[c.sentiment]}</span>

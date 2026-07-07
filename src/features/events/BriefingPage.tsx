@@ -45,6 +45,7 @@ export function BriefingPage() {
         repository.listRegions(),
         repository.listUsers(),
         repository.listAllActivities(),
+        repository.listEventNotes(id ?? ''),
       ]),
     [id],
   )
@@ -53,6 +54,7 @@ export function BriefingPage() {
   const regions = data?.[3] ?? []
   const users = data?.[4] ?? []
   const activities = useMemo(() => data?.[5] ?? [], [data])
+  const eventNotes = useMemo(() => data?.[6] ?? [], [data])
   useEffect(() => {
     setAttendees(data?.[1] ?? [])
   }, [data])
@@ -142,6 +144,14 @@ export function BriefingPage() {
         const managerName = users.find((u) => u.id === view.relationshipManagerId)?.name
         const intro = localSummarizer.contactIntro(view, { regionName, managerName })
         const lastTouch = formatDate(lastTouchDate(contact, activities))
+        // Notes captured about this person at THIS event (incl. memo transcripts).
+        const personNotes = eventNotes
+          .filter((n) => n.contactId === contact.id)
+          .flatMap((n) => [
+            ...(n.text ? [n.text] : []),
+            ...n.attachments.filter((a) => a.transcript).map((a) => `🎙 ${a.transcript}`),
+          ])
+          .slice(0, 3)
         return (
           <Card key={contact.id} className="overflow-hidden">
             <CardContent className="space-y-3 pt-5 sm:pt-5">
@@ -154,7 +164,10 @@ export function BriefingPage() {
                   >
                     {view.fullName}
                   </Link>
-                  <p className="truncate text-sm text-muted-foreground">{view.position || '—'}</p>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {view.position || '—'}
+                    {view.company ? ` · ${view.company}` : ''}
+                  </p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Badge variant="secondary">{regionName ?? '—'}</Badge>
                     {view.buyingRole && (
@@ -196,6 +209,19 @@ export function BriefingPage() {
                     <Badge key={f.id} variant="outline">
                       {f.label}
                     </Badge>
+                  ))}
+                </div>
+              )}
+
+              {personNotes.length > 0 && (
+                <div className="space-y-1 rounded-lg border border-black/[0.04] bg-card px-3 py-2 dark:border-white/[0.06]">
+                  <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Notizen vom Event
+                  </div>
+                  {personNotes.map((t, i) => (
+                    <p key={i} className="text-sm text-foreground/90">
+                      {t}
+                    </p>
                   ))}
                 </div>
               )}

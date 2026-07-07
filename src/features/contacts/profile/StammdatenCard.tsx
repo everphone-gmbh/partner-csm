@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Briefcase, Cake, Mail, MapPin, Heart, Users, PawPrint, Repeat, Smartphone, Trophy } from 'lucide-react'
+import { Briefcase, Building2, Cake, Mail, MapPin, Heart, Users, PawPrint, Repeat, Smartphone, Trophy } from 'lucide-react'
 import type { AppUser, BuyingRole, Contact, Region } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
@@ -16,6 +16,7 @@ interface StammDraft {
   position: string
   regionId: string
   relationshipManagerId: string
+  company: string
   team: string
   email: string
   birthday: string
@@ -44,6 +45,7 @@ function toStammDraft(c: Contact): StammDraft {
     position: c.position,
     regionId: c.regionId,
     relationshipManagerId: c.relationshipManagerId,
+    company: c.company ?? '',
     team: c.team ?? '',
     email: c.email ?? '',
     birthday: c.birthday ?? '',
@@ -93,6 +95,7 @@ export function StammdatenCard({
         position: draft.position.trim(),
         regionId: draft.regionId,
         relationshipManagerId: draft.relationshipManagerId,
+        company: draft.company.trim() || undefined,
         team: draft.team.trim() || undefined,
         email: draft.email.trim() || undefined,
         birthday: draft.birthday || undefined,
@@ -148,6 +151,9 @@ export function StammdatenCard({
                     </option>
                   ))}
                 </select>
+              </EditField>
+              <EditField label="Firma">
+                <Input value={draft.company} onChange={(e) => set('company', e.target.value)} />
               </EditField>
               <EditField label="Team">
                 <Input value={draft.team} onChange={(e) => set('team', e.target.value)} />
@@ -219,6 +225,9 @@ export function StammdatenCard({
           </>
         ) : (
           <>
+            <FieldRow icon={Building2} label="Firma">
+              {contact.company || '—'}
+            </FieldRow>
             <FieldRow icon={Briefcase} label="Team">
               {contact.team || '—'}
             </FieldRow>
