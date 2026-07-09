@@ -67,7 +67,7 @@ function RoutedContent() {
 export default function App() {
   return (
     <SessionProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <ToastProvider>
           <CommandPaletteProvider>
             <AppShell>

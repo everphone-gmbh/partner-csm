@@ -6,6 +6,8 @@ import { fileURLToPath, URL } from 'node:url'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // GitHub Pages serves the app from /partner-csm/; local dev stays at root.
+  base: process.env.GITHUB_ACTIONS ? '/partner-csm/' : '/',
   plugins: [react(), tailwindcss()],
   server: {
     // Honour the PORT env (used by the preview tooling); default to 5173 locally.
