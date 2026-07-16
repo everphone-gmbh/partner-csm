@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, Search, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
 import { canApprove, ROLE_LABEL } from '@/domain/roles'
@@ -37,7 +37,36 @@ function Logo() {
 }
 
 function RoleSwitcher({ compact }: { compact?: boolean }) {
-  const { user, users, setUserId } = useSession()
+  const { user, users, setUserId, canSwitchUser, signOut } = useSession()
+
+  // Echte Anmeldung: Nutzer anzeigen + abmelden. Der Demo-Umschalter
+  // existiert nur im Mock-Modus — bei RLS entscheidet der Server, nicht die UI.
+  if (!canSwitchUser) {
+    const account = (
+      <span className="min-w-0 leading-tight">
+        <span className="block truncate text-sm font-medium">{user.name}</span>
+        <span className="block truncate text-[11px] text-muted-foreground">{ROLE_LABEL[user.role]}</span>
+      </span>
+    )
+    const logout = (
+      <button
+        type="button"
+        onClick={() => void signOut()}
+        title="Abmelden"
+        aria-label="Abmelden"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-secondary text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <LogOut className="size-4" />
+      </button>
+    )
+    return (
+      <div className={cn('flex items-center gap-2', compact ? 'max-w-[13rem]' : 'w-full justify-between')}>
+        {account}
+        {logout}
+      </div>
+    )
+  }
+
   const select = (
     <select
       value={user.id}

@@ -73,13 +73,17 @@ export function ContactImportPage() {
   const { results, errors, warnings } = useMemo(
     () =>
       step === 'preview'
-        ? buildContactsFromRows(parsed.headers, parsed.rows, mapping, {
-            regionId,
-            relationshipManagerId,
-          })
+        ? buildContactsFromRows(
+            parsed.headers,
+            parsed.rows,
+            mapping,
+            { regionId, relationshipManagerId },
+            regions,
+          )
         : { results: [], errors: [], warnings: [] },
-    [step, parsed, mapping, regionId, relationshipManagerId],
+    [step, parsed, mapping, regionId, relationshipManagerId, regions],
   )
+  const regionName = useMemo(() => new Map(regions.map((r) => [r.id, r.name])), [regions])
   const duplicates = useMemo(() => findDuplicateRowIndices(results, existing), [results, existing])
 
   const toggleSkip = (rowIndex: number) =>
@@ -206,7 +210,7 @@ export function ContactImportPage() {
             </div>
             <div className="grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label>Region (für alle Zeilen)</Label>
+                <Label>{mapping.region ? 'Standard-Region (wenn Zeile keine gültige hat)' : 'Region (für alle Zeilen)'}</Label>
                 <select className={selectCls} value={regionId} onChange={(e) => setRegionId(e.target.value)}>
                   {regions.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -288,6 +292,7 @@ export function ContactImportPage() {
                       <div className="truncate text-sm font-medium">{contact.fullName}</div>
                       <div className="truncate text-xs text-muted-foreground">
                         {contact.position || '—'} {contact.email ? `· ${contact.email}` : ''}
+                        {` · ${regionName.get(contact.regionId) ?? 'Region?'}`}
                       </div>
                     </div>
                     {isDup && (

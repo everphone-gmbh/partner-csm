@@ -25,6 +25,8 @@ const POS_BY_NAME: Record<string, { x: number; y: number }> = {
   West: POS_BY_ID['r-west'],
   Mitte: POS_BY_ID['r-mitte'],
   Süd: POS_BY_ID['r-sued'],
+  // Telekom-Vertriebsstruktur: eigene Region Baden-Württemberg/Südwest.
+  SüdWest: { x: 104, y: 292 },
 }
 
 function regionPos(r: Region): { x: number; y: number } | undefined {
@@ -51,7 +53,15 @@ export function GermanyMap({
   onSelectRegion: (regionId: string) => void
   onSelectContact: (contactId: string) => void
 }) {
+  // Regionen ohne Geografie (Zentral, Unbekannt, …) erscheinen als Chips
+  // unter der Karte statt als Marker — sonst wären ihre Kontakte unsichtbar.
+  const offMap = regions
+    .filter((r) => !regionPos(r))
+    .map((r) => ({ region: r, count: contacts.filter((c) => c.regionId === r.id).length }))
+    .filter((e) => e.count > 0)
+
   return (
+    <div className="space-y-2">
     <svg viewBox="0 0 300 400" className="mx-auto w-full max-w-sm" role="img" aria-label="Regionen-Karte">
       <path d={SILHOUETTE} className="fill-secondary stroke-border" strokeWidth={1.5} />
       {regions.map((r) => {
@@ -114,5 +124,25 @@ export function GermanyMap({
         )
       })}
     </svg>
+    {offMap.length > 0 && (
+      <div className="flex flex-wrap justify-center gap-2">
+        {offMap.map(({ region, count }) => (
+          <button
+            key={region.id}
+            type="button"
+            onClick={() => onSelectRegion(region.id)}
+            className={cn(
+              'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              activeRegion === region.id
+                ? 'border-primary bg-primary/15 text-foreground'
+                : 'border-border bg-secondary text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {region.name} · {count} Kontakte
+          </button>
+        ))}
+      </div>
+    )}
+    </div>
   )
 }

@@ -23,5 +23,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: true,
+    // Tests laufen immer gegen den Mock — unabhängig von .env.local.
+    env: { VITE_DATA_BACKEND: 'mock' },
   },
 })

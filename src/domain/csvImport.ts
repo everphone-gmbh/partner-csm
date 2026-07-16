@@ -1,4 +1,4 @@
-import type { Contact } from './types'
+import type { Contact, Region } from './types'
 import type { NewContact } from '@/data/repository'
 
 export interface ParsedCsv {
@@ -84,6 +84,7 @@ const IMPORTABLE_FIELD_KEYS = [
   'position',
   'company',
   'email',
+  'region',
   'birthday',
   'location',
   'familyStatus',
@@ -109,6 +110,7 @@ export const IMPORTABLE_FIELDS: ImportableFieldDef[] = [
   { key: 'position', label: 'Funktion' },
   { key: 'company', label: 'Firma' },
   { key: 'email', label: 'E-Mail' },
+  { key: 'region', label: 'Region' },
   { key: 'birthday', label: 'Geburtstag' },
   { key: 'location', label: 'Wohnort' },
   { key: 'familyStatus', label: 'Familienstand' },
@@ -124,6 +126,7 @@ const HEADER_ALIASES: Record<ImportableField, string[]> = {
   position: ['position', 'funktion', 'rolle', 'title'],
   company: ['firma', 'company', 'unternehmen', 'arbeitgeber', 'organisation'],
   email: ['email', 'e-mail', 'mail'],
+  region: ['region', 'gebiet', 'vertriebsregion'],
   birthday: ['geburtstag', 'birthday', 'geburtsdatum'],
   location: ['wohnort', 'location', 'stadt', 'ort'],
   familyStatus: ['familienstand', 'family status'],
@@ -194,15 +197,22 @@ export interface ImportBuildResult {
   warnings: { rowIndex: number; reason: string }[]
 }
 
-/** Turns mapped CSV rows into NewContact payloads, applying the shared region/RM. */
+/**
+ * Turns mapped CSV rows into NewContact payloads. Region comes from the row's
+ * Region column when mapped and resolvable (name match against `regions`,
+ * case-insensitive); otherwise the shared batch region applies. The shared
+ * RM applies to every row.
+ */
 export function buildContactsFromRows(
   headers: string[],
   rows: string[][],
   mapping: FieldMapping,
   common: { regionId: string; relationshipManagerId: string },
+  regions: Region[] = [],
 ): ImportBuildResult {
   const colIndex = (header: string | undefined) =>
     header === undefined ? -1 : headers.indexOf(header)
+  const regionIdByName = new Map(regions.map((r) => [r.name.trim().toLowerCase(), r.id]))
 
   const results: ImportRowResult[] = []
   const errors: ImportBuildResult['errors'] = []
@@ -229,13 +239,27 @@ export function buildContactsFromRows(
       })
     }
 
+    const rawRegion = get('region')
+    let regionId = common.regionId
+    if (rawRegion) {
+      const resolved = regionIdByName.get(rawRegion.toLowerCase())
+      if (resolved) {
+        regionId = resolved
+      } else {
+        warnings.push({
+          rowIndex,
+          reason: `Unbekannte Region „${rawRegion}“ — Standard-Region wird verwendet`,
+        })
+      }
+    }
+
     results.push({
       rowIndex,
       contact: {
         fullName,
         position: get('position'),
         company: get('company') || undefined,
-        regionId: common.regionId,
+        regionId,
         relationshipManagerId: common.relationshipManagerId,
         team: get('team') || undefined,
         email: get('email') || undefined,

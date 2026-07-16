@@ -127,6 +127,67 @@ describe('buildContactsFromRows', () => {
     expect(warnings[0].rowIndex).toBe(0)
     expect(warnings[0].reason).toContain('31.02.1990')
   })
+
+  describe('Region-Spalte', () => {
+    const regions = [
+      { id: 'r-nord', name: 'Nord' },
+      { id: 'r-sw', name: 'SüdWest' },
+    ]
+    const regionHeaders = ['Name', 'Region']
+    const regionMapping = { fullName: 'Name', region: 'Region' } as const
+
+    it('resolves the row region by name, case-insensitively', () => {
+      const { results, warnings } = buildContactsFromRows(
+        regionHeaders,
+        [
+          ['Anke Richter', 'südwest'],
+          ['Thomas Berger', 'Nord'],
+        ],
+        regionMapping,
+        common,
+        regions,
+      )
+      expect(warnings).toEqual([])
+      expect(results[0].contact.regionId).toBe('r-sw')
+      expect(results[1].contact.regionId).toBe('r-nord')
+    })
+
+    it('falls back to the batch region with a warning for unknown names', () => {
+      const { results, warnings } = buildContactsFromRows(
+        regionHeaders,
+        [['Anke Richter', 'Atlantis']],
+        regionMapping,
+        common,
+        regions,
+      )
+      expect(results[0].contact.regionId).toBe('r-nord')
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0].reason).toContain('Atlantis')
+    })
+
+    it('uses the batch region for empty cells without a warning', () => {
+      const { results, warnings } = buildContactsFromRows(
+        regionHeaders,
+        [['Anke Richter', '']],
+        regionMapping,
+        common,
+        regions,
+      )
+      expect(results[0].contact.regionId).toBe('r-nord')
+      expect(warnings).toEqual([])
+    })
+
+    it('ignores a mapped region column when no regions are provided', () => {
+      const { results, warnings } = buildContactsFromRows(
+        regionHeaders,
+        [['Anke Richter', 'Nord']],
+        regionMapping,
+        common,
+      )
+      expect(results[0].contact.regionId).toBe('r-nord')
+      expect(warnings).toHaveLength(1)
+    })
+  })
 })
 
 describe('findDuplicateRowIndices', () => {
