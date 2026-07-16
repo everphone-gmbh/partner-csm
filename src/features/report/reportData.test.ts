@@ -46,7 +46,7 @@ const activities = [
 
 describe('buildRegionReport', () => {
   it('aggregates only the selected region', () => {
-    const r = buildRegionReport(contacts, activities, 'r-nord', today)
+    const r = buildRegionReport(contacts, activities, 'r-nord', null, today)
     expect(r.total).toBe(2)
     expect(r.engaged).toBe(1)
     expect(r.engagedPct).toBe(50)
@@ -55,24 +55,40 @@ describe('buildRegionReport', () => {
   })
 
   it('lists stale contacts (respecting cadence) sorted by staleness', () => {
-    const r = buildRegionReport(contacts, activities, 'r-nord', today)
+    const r = buildRegionReport(contacts, activities, 'r-nord', null, today)
     expect(r.stale.map((s) => s.contact.id)).toEqual(['b'])
     expect(r.stale[0].days).toBeGreaterThan(90)
   })
 
   it('includes upcoming birthdays within 30 days', () => {
-    const r = buildRegionReport(contacts, activities, 'r-nord', today)
+    const r = buildRegionReport(contacts, activities, 'r-nord', null, today)
     expect(r.birthdays.map((b) => b.contact.id)).toEqual(['a'])
   })
 
   it('counts activities of the last 30 days for the region', () => {
-    const r = buildRegionReport(contacts, activities, 'r-nord', today)
+    const r = buildRegionReport(contacts, activities, 'r-nord', null, today)
     expect(r.recentActivities).toBe(1) // only contact a's touch is in Nord
   })
 
   it('covers all regions when regionId is null', () => {
-    const r = buildRegionReport(contacts, activities, null, today)
+    const r = buildRegionReport(contacts, activities, null, null, today)
     expect(r.total).toBe(3)
     expect(r.recentActivities).toBe(2)
+  })
+
+  it('narrows to one relationship manager when managerId is set', () => {
+    const withRm = [
+      contact({ id: 'a', regionId: 'r-nord', sentiment: 'green', relationshipManagerId: 'u-alex' }),
+      contact({ id: 'b', regionId: 'r-nord', sentiment: 'neutral', relationshipManagerId: 'u-olaf' }),
+      contact({ id: 'c', regionId: 'r-sued', sentiment: 'red', relationshipManagerId: 'u-alex' }),
+    ]
+    const all = buildRegionReport(withRm, [], null, 'u-alex', today)
+    expect(all.total).toBe(2)
+    expect(all.bySentiment.green).toBe(1)
+    expect(all.bySentiment.red).toBe(1)
+
+    const combined = buildRegionReport(withRm, [], 'r-nord', 'u-alex', today)
+    expect(combined.total).toBe(1)
+    expect(combined.bySentiment.green).toBe(1)
   })
 })

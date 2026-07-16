@@ -202,17 +202,25 @@ function UpcomingReminders({
   const { toast } = useToast()
   const [text, setText] = useState('')
   const [due, setDue] = useState('')
+  const [dueTime, setDueTime] = useState('')
 
   const add = async () => {
     if (!text.trim() || !due) return
     try {
-      await repository.addReminder({ contactId, dueDate: due, text: text.trim(), createdByName: user.name })
+      await repository.addReminder({
+        contactId,
+        dueDate: due,
+        dueTime: dueTime || undefined,
+        text: text.trim(),
+        createdByName: user.name,
+      })
     } catch (err) {
       toast(saveErrorMessage(err))
       return
     }
     setText('')
     setDue('')
+    setDueTime('')
     onChanged()
   }
   const toggle = async (r: Reminder) => {
@@ -254,7 +262,10 @@ function UpcomingReminders({
                 <div className="min-w-0 flex-1">
                   <div className="text-sm">{r.text}</div>
                   <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-                    <span>{formatDate(r.dueDate)}</span>
+                    <span>
+                      {formatDate(r.dueDate)}
+                      {r.dueTime ? ` · ${r.dueTime} Uhr` : ''}
+                    </span>
                     {d !== null && (
                       <Badge variant={overdue ? 'destructive' : d <= 3 ? 'warning' : 'secondary'}>
                         {overdue ? 'überfällig' : d === 0 ? 'heute' : `in ${d} T.`}
@@ -283,6 +294,13 @@ function UpcomingReminders({
           className="flex-1"
         />
         <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="sm:w-36" />
+        <Input
+          type="time"
+          value={dueTime}
+          onChange={(e) => setDueTime(e.target.value)}
+          aria-label="Uhrzeit (optional)"
+          className="sm:w-28"
+        />
         <Button type="button" size="sm" variant="outline" onClick={add} disabled={!text.trim() || !due}>
           <Plus className="size-4" /> Reminder
         </Button>

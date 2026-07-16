@@ -15,17 +15,20 @@ export interface RegionReport {
 }
 
 /**
- * Assembles the QBR one-pager data for one region (or all, regionId = null).
- * Pure composition of the tested domain helpers — same numbers as the
- * dashboard and monitoring screens.
+ * Assembles the QBR one-pager data for one region (or all, regionId = null),
+ * optionally narrowed to one relationship manager (managerId). Pure
+ * composition of the tested domain helpers — same numbers as the dashboard
+ * and monitoring screens.
  */
 export function buildRegionReport(
   contacts: Contact[],
   activities: Activity[],
   regionId: string | null,
+  managerId: string | null = null,
   today: Date = new Date(),
 ): RegionReport {
-  const scoped = regionId ? contacts.filter((c) => c.regionId === regionId) : contacts
+  let scoped = regionId ? contacts.filter((c) => c.regionId === regionId) : contacts
+  if (managerId) scoped = scoped.filter((c) => c.relationshipManagerId === managerId)
   const scopedIds = new Set(scoped.map((c) => c.id))
 
   const bySentiment: Record<TrafficLight, number> = { green: 0, amber: 0, red: 0, neutral: 0 }

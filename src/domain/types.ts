@@ -178,6 +178,7 @@ export interface Reminder {
   id: string
   contactId: string
   dueDate: string // YYYY-MM-DD
+  dueTime?: string // HH:MM, undefined = ganztägig
   text: string
   done: boolean
   createdByName: string

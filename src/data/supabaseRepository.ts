@@ -308,6 +308,7 @@ export interface ReminderRow {
   id: string
   contact_id: string
   due_date: string
+  due_time: string | null
   text: string
   done: boolean
   created_by_name: string
@@ -318,6 +319,8 @@ export function mapRowToReminder(row: ReminderRow): Reminder {
     id: row.id,
     contactId: row.contact_id,
     dueDate: row.due_date,
+    // Postgres liefert HH:MM:SS — die UI arbeitet mit HH:MM.
+    dueTime: row.due_time ? row.due_time.slice(0, 5) : undefined,
     text: row.text,
     done: row.done,
     createdByName: row.created_by_name,
@@ -764,8 +767,9 @@ export class SupabaseRepository implements Repository {
   async listReminders(contactId?: string): Promise<Reminder[]> {
     const base = this.client
       .from('reminders')
-      .select('id, contact_id, due_date, text, done, created_by_name')
+      .select('id, contact_id, due_date, due_time, text, done, created_by_name')
       .order('due_date')
+      .order('due_time', { nullsFirst: true })
     const { data, error } = await (contactId ? base.eq('contact_id', contactId) : base)
     if (error) throw new Error(error.message)
     return ((data ?? []) as unknown as ReminderRow[]).map(mapRowToReminder)
@@ -777,11 +781,12 @@ export class SupabaseRepository implements Repository {
       .insert({
         contact_id: input.contactId,
         due_date: input.dueDate,
+        due_time: input.dueTime ?? null,
         text: input.text,
         created_by_name: input.createdByName,
         done: false,
       })
-      .select('id, contact_id, due_date, text, done, created_by_name')
+      .select('id, contact_id, due_date, due_time, text, done, created_by_name')
       .single()
     if (error) throw new Error(error.message)
     return mapRowToReminder(data as unknown as ReminderRow)
@@ -792,7 +797,7 @@ export class SupabaseRepository implements Repository {
       .from('reminders')
       .update({ done })
       .eq('id', id)
-      .select('id, contact_id, due_date, text, done, created_by_name')
+      .select('id, contact_id, due_date, due_time, text, done, created_by_name')
       .single()
     if (error) throw new Error(error.message)
     return mapRowToReminder(data as unknown as ReminderRow)

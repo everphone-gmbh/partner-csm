@@ -110,6 +110,7 @@ export interface NewEvent {
 export interface NewReminder {
   contactId: string
   dueDate: string
+  dueTime?: string // HH:MM
   text: string
   createdByName: string
 }

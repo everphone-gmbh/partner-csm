@@ -266,7 +266,12 @@ class MockRepository implements Repository {
     const items = contactId
       ? this.reminders.filter((r) => r.contactId === contactId)
       : this.reminders
-    return clone([...items].sort((a, b) => a.dueDate.localeCompare(b.dueDate)))
+    return clone(
+      [...items].sort(
+        (a, b) =>
+          a.dueDate.localeCompare(b.dueDate) || (a.dueTime ?? '').localeCompare(b.dueTime ?? ''),
+      ),
+    )
   }
 
   async addReminder(input: NewReminder) {
@@ -274,6 +279,7 @@ class MockRepository implements Repository {
       id: `rem-local-${this.seq++}`,
       contactId: input.contactId,
       dueDate: input.dueDate,
+      dueTime: input.dueTime,
       text: input.text,
       done: false,
       createdByName: input.createdByName,

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AlarmClock, Cake, Printer } from 'lucide-react'
-import type { Activity, Contact, Region } from '@/domain/types'
+import type { Activity, AppUser, Contact, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canApprove } from '@/domain/roles'
@@ -23,6 +23,7 @@ export function ReportPage() {
   const { user } = useSession()
   const allowed = canApprove(user.role)
   const [regionId, setRegionId] = useState<string>(user.regionId ?? '')
+  const [managerId, setManagerId] = useState<string>('')
 
   const { data, loading, error, retry } = useRepoQuery(
     () =>
@@ -31,6 +32,7 @@ export function ReportPage() {
             repository.listContacts(),
             repository.listAllActivities(),
             repository.listRegions(),
+            repository.listUsers(),
           ])
         : Promise.resolve(undefined),
     [allowed],
@@ -38,12 +40,14 @@ export function ReportPage() {
   const contacts: Contact[] = useMemo(() => data?.[0] ?? [], [data])
   const activities: Activity[] = useMemo(() => data?.[1] ?? [], [data])
   const regions: Region[] = data?.[2] ?? []
+  const users: AppUser[] = data?.[3] ?? []
 
   const report = useMemo(
-    () => buildRegionReport(contacts, activities, regionId || null),
-    [contacts, activities, regionId],
+    () => buildRegionReport(contacts, activities, regionId || null, managerId || null),
+    [contacts, activities, regionId, managerId],
   )
   const regionName = regionId ? regions.find((r) => r.id === regionId)?.name ?? '—' : 'Alle Regionen'
+  const managerName = managerId ? users.find((u) => u.id === managerId)?.name ?? '—' : 'Alle Nutzer'
 
   if (!allowed) {
     return (
@@ -71,6 +75,19 @@ export function ReportPage() {
               </option>
             ))}
           </select>
+          <select
+            className={selectCls}
+            value={managerId}
+            onChange={(e) => setManagerId(e.target.value)}
+            aria-label="Nach Nutzer filtern"
+          >
+            <option value="">Alle Nutzer</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
           <Button size="sm" onClick={() => window.print()}>
             <Printer className="size-4" /> Drucken / PDF
           </Button>
@@ -82,7 +99,9 @@ export function ReportPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Partner CSM — Beziehungsbericht</h1>
       </div>
       <p className="text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{regionName}</span> · Stand{' '}
+        <span className="font-medium text-foreground">{regionName}</span>
+        {' · '}
+        <span className="font-medium text-foreground">{managerName}</span> · Stand{' '}
         {formatDate(new Date().toISOString())} · vertraulich, nur zur internen Verwendung
       </p>
 

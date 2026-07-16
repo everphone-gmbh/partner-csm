@@ -7,7 +7,7 @@ interface GraphNode {
   key: string
   label: string
   sublabel?: string
-  kind: 'center' | 'person' | 'customer-with' | 'customer-without'
+  kind: 'center' | 'person' | 'region-person' | 'customer-with' | 'customer-without'
   edgeLabel?: string
   onClick?: () => void
 }
@@ -15,6 +15,7 @@ interface GraphNode {
 const NODE_STYLE: Record<GraphNode['kind'], { fill: string; text: string }> = {
   center: { fill: 'var(--primary)', text: 'var(--primary)' },
   person: { fill: '#a93b52', text: '#a93b52' }, // Northdata-inspired person red
+  'region-person': { fill: 'var(--status-neutral)', text: 'var(--muted-foreground)' },
   'customer-with': { fill: 'var(--teal)', text: 'var(--teal)' },
   'customer-without': { fill: 'var(--status-neutral)', text: 'var(--muted-foreground)' },
 }
@@ -51,10 +52,16 @@ export function NetworkGraph({
   contact,
   links,
   contactsById,
+  regionColleagues = [],
+  regionOverflow = 0,
 }: {
   contact: Contact
   links: ContactLink[]
   contactsById: Map<string, Contact>
+  /** Kontakte derselben Region ohne explizite Verknüpfung (bereits gekappt). */
+  regionColleagues?: Contact[]
+  /** Wie viele Regions-Kollegen über die Kappung hinaus existieren. */
+  regionOverflow?: number
 }) {
   const navigate = useNavigate()
 
@@ -78,6 +85,15 @@ export function NetworkGraph({
       label: cust.name,
       kind: cust.withUs ? 'customer-with' : 'customer-without',
       edgeLabel: cust.withUs ? 'Kunde mit uns' : 'Potenzial',
+    })
+  }
+  for (const colleague of regionColleagues) {
+    nodes.push({
+      key: `r-${colleague.id}`,
+      label: colleague.fullName,
+      sublabel: colleague.position || undefined,
+      kind: 'region-person',
+      onClick: () => navigate(`/contacts/${colleague.id}`),
     })
   }
 
@@ -120,6 +136,7 @@ export function NetworkGraph({
               y2={n.y}
               stroke={n.kind === 'person' ? NODE_STYLE.person.fill : 'var(--border)'}
               strokeWidth={n.kind === 'person' ? 2 : 1.5}
+              strokeDasharray={n.kind === 'region-person' ? '3 4' : undefined}
             />
             {n.edgeLabel && (
               <text
@@ -143,7 +160,7 @@ export function NetworkGraph({
             role={n.onClick ? 'link' : undefined}
           >
             <circle cx={n.x} cy={n.y} r={20} fill={NODE_STYLE[n.kind].fill} />
-            {n.kind === 'person' ? (
+            {n.kind === 'person' || n.kind === 'region-person' ? (
               <PersonGlyph x={n.x} y={n.y} />
             ) : (
               <BuildingGlyph x={n.x} y={n.y} />
@@ -187,8 +204,14 @@ export function NetworkGraph({
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2.5 rounded-full" style={{ backgroundColor: NODE_STYLE.person.fill }} />
-          Person
+          Verknüpfte Person
         </span>
+        {regionColleagues.length > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full" style={{ backgroundColor: 'var(--status-neutral)' }} />
+            Gleiche Region
+          </span>
+        )}
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2.5 rounded-full" style={{ backgroundColor: 'var(--teal)' }} />
           Kunde mit uns
@@ -198,6 +221,11 @@ export function NetworkGraph({
           Potenzial
         </span>
       </div>
+      {regionOverflow > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          + {regionOverflow} weitere Kontakte in dieser Region (siehe Kontaktliste mit Regions-Filter).
+        </p>
+      )}
     </div>
   )
 }

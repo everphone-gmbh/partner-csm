@@ -38,6 +38,19 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
     (c) => c.id !== contact.id && !links.some((l) => describeLink(l, contact.id)?.otherContactId === c.id),
   )
 
+  // Regions-Netzwerk: alle Kontakte derselben Region erscheinen im Graph,
+  // auch ohne explizite Verknüpfung. Bewertete Beziehungen zuerst; Kappung
+  // hält den Graph lesbar (relevant v. a. für „Unbekannt“).
+  const REGION_CAP = 24
+  const regionAll = candidates
+    .filter((c) => c.regionId === contact.regionId)
+    .sort((a, b) => {
+      const rated = (c: Contact) => (c.sentiment !== 'neutral' ? 0 : 1)
+      return rated(a) - rated(b) || a.fullName.localeCompare(b.fullName, 'de')
+    })
+  const regionColleagues = regionAll.slice(0, REGION_CAP)
+  const regionOverflow = regionAll.length - regionColleagues.length
+
   const add = async () => {
     if (!otherId) return
     setSaving(true)
@@ -117,14 +130,27 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
             </button>
           </p>
         )}
-        {!error && !loading && rows.length === 0 && contact.customers.length === 0 && !adding && (
-          <p className="text-sm text-muted-foreground">
-            Noch keine Verknüpfungen — wer kennt {contact.fullName.split(' ')[0]}?
-          </p>
-        )}
-        {mode === 'graph' && !loading && (rows.length > 0 || contact.customers.length > 0) && (
-          <NetworkGraph contact={contact} links={links} contactsById={byId} />
-        )}
+        {!error &&
+          !loading &&
+          rows.length === 0 &&
+          contact.customers.length === 0 &&
+          regionColleagues.length === 0 &&
+          !adding && (
+            <p className="text-sm text-muted-foreground">
+              Noch keine Verknüpfungen — wer kennt {contact.fullName.split(' ')[0]}?
+            </p>
+          )}
+        {mode === 'graph' &&
+          !loading &&
+          (rows.length > 0 || contact.customers.length > 0 || regionColleagues.length > 0) && (
+            <NetworkGraph
+              contact={contact}
+              links={links}
+              contactsById={byId}
+              regionColleagues={regionColleagues}
+              regionOverflow={regionOverflow}
+            />
+          )}
         {mode === 'list' && rows.length > 0 && (
           <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
             {rows.map(({ link, view }) => {
