@@ -14,7 +14,8 @@ export function buildPaletteItems(contacts: Contact[], events: EventItem[]): Pal
       id: c.id,
       type: 'contact',
       title: c.fullName,
-      subtitle: c.position,
+      // Firma im Untertitel macht die Palette auch nach Company durchsuchbar.
+      subtitle: [c.position, c.company].filter(Boolean).join(' · '),
       to: `/contacts/${c.id}`,
     })),
     ...events.map((e): PaletteItem => ({
