@@ -17,7 +17,7 @@ import { TrafficLightDot, TRAFFIC_LABEL } from '@/components/TrafficLight'
 import { formatDate, formatDateTime, daysUntil } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ACTIVITY_META } from './activityMeta'
-import { buildHistory, filterHistory, type TimelineFilter } from './timelineHistory'
+import { filterHistory, type TimelineEntry, type TimelineFilter } from './timelineHistory'
 
 const ADD_TYPES: ActivityType[] = ['note', 'call', 'email', 'meeting']
 
@@ -35,27 +35,33 @@ const FILTERS: { value: TimelineFilter; label: string }[] = [
  * RemindersCard. "Upcoming" (open reminders) is forward-looking and rendered
  * separately from the reverse-chronological "Verlauf" (activities + sentiment
  * changes), since a due date and a past event aren't the same kind of thing.
+ *
+ * The activity query lives in ContactProfile, not here: the Historie timeline
+ * renders the same data and would go stale after every new entry otherwise.
+ * Reminders stay local — nothing else needs them.
  */
-export function Timeline({ contact }: { contact: Contact }) {
+export function Timeline({
+  contact,
+  entries,
+  error,
+  onReload,
+}: {
+  contact: Contact
+  entries: TimelineEntry[]
+  error?: Error
+  onReload: () => void
+}) {
   const { user } = useSession()
   const canBody = canViewActivityBody(user.role)
 
   const [filter, setFilter] = useState<TimelineFilter>('all')
 
-  const activitiesQ = useRepoQuery(
-    () =>
-      repository
-        .listActivities(contact.id)
-        .then((items) => buildHistory(items, contact.sentimentHistory)),
-    [contact.id, contact.sentimentHistory],
-  )
   const remindersQ = useRepoQuery(() => repository.listReminders(contact.id), [contact.id])
-  const activities = activitiesQ.data ?? []
   const reminders = remindersQ.data ?? []
 
-  const history = useMemo(() => filterHistory(activities, filter), [activities, filter])
+  const history = useMemo(() => filterHistory(entries, filter), [entries, filter])
   const openReminders = reminders.filter((r) => !r.done)
-  const queryError = activitiesQ.error ?? remindersQ.error
+  const queryError = error ?? remindersQ.error
 
   return (
     <Card className="lg:sticky lg:top-[4.5rem]">
@@ -67,12 +73,12 @@ export function Timeline({ contact }: { contact: Contact }) {
           <QueryError
             error={queryError}
             retry={() => {
-              activitiesQ.retry()
+              onReload()
               remindersQ.retry()
             }}
           />
         )}
-        <AddActivityForm contactId={contact.id} onAdded={activitiesQ.retry} />
+        <AddActivityForm contactId={contact.id} onAdded={onReload} />
 
         <Separator />
 

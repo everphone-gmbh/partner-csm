@@ -13,6 +13,8 @@ import { localSummarizer } from '@/domain/ai'
 import { Card, CardContent } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
 import { Timeline } from '@/features/activities/Timeline'
+import { RelationshipTimelineCard } from '@/features/activities/RelationshipTimelineCard'
+import { buildHistory } from '@/features/activities/timelineHistory'
 import { BackLink } from './profile/shared'
 import { IdentityCard } from './profile/IdentityCard'
 import { StammdatenCard } from './profile/StammdatenCard'
@@ -50,6 +52,20 @@ export function ContactProfile() {
     () => (raw ? redactContactForRole(raw, user.role) : undefined),
     [raw, user.role],
   )
+
+  // Eine Abfrage für Timeline UND Historie-Zeitstrahl: beide zeigen dieselbe
+  // Historie, getrenntes Laden würde den Zeitstrahl nach neuen Einträgen
+  // veralten lassen.
+  const historyQ = useRepoQuery(
+    () =>
+      view
+        ? repository
+            .listActivities(view.id)
+            .then((items) => buildHistory(items, view.sentimentHistory))
+        : Promise.resolve([]),
+    [view?.id, view?.sentimentHistory],
+  )
+  const historyEntries = historyQ.data ?? []
 
   const regionName = view ? regions.find((r) => r.id === view.regionId)?.name : undefined
   const managerName = view ? users.find((u) => u.id === view.relationshipManagerId)?.name : undefined
@@ -164,10 +180,17 @@ export function ContactProfile() {
           {/* Private photos are sensitive-tier data — hidden from Account Managers. */}
           {canSensitive && <FotogalerieCard contact={view} canEdit={canEdit} onSave={save} />}
           <NotizCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
+          {/* Beziehungsverlauf auf einer Achse — ergänzt die Timeline rechts. */}
+          <RelationshipTimelineCard history={historyEntries} createdAt={view.createdAt} />
         </div>
 
         {/* Right: unified activity timeline (stacks below on mobile) */}
-        <Timeline contact={view} />
+        <Timeline
+          contact={view}
+          entries={historyEntries}
+          error={historyQ.error}
+          onReload={historyQ.retry}
+        />
       </div>
     </div>
   )
