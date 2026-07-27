@@ -1,3 +1,4 @@
+import type { EverphoneAccount } from '@/domain/everphoneAccounts'
 import type {
   Activity,
   AppUser,
@@ -169,4 +170,12 @@ export interface Repository {
   addReminder(input: NewReminder): Promise<Reminder>
   toggleReminder(id: string, done: boolean): Promise<Reminder>
   deleteReminder(id: string): Promise<void>
+  /**
+   * Everphone-Bestandskunden zu den übergebenen Kundennamen (exakter Abgleich
+   * auf dem normalisierten Namen). Nur die benötigten Zeilen — die
+   * Referenzliste hat Tausende Einträge und gehört nicht in den Client.
+   */
+  matchEverphoneAccounts(customerNames: string[]): Promise<EverphoneAccount[]>
+  /** Namenssuche über die Referenzliste, für die Autovervollständigung. */
+  searchEverphoneAccounts(term: string, limit?: number): Promise<EverphoneAccount[]>
 }

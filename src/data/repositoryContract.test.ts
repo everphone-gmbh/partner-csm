@@ -8,8 +8,19 @@ import type { NewContact, Repository } from './repository'
 import { createMockRepository } from './mockRepository'
 import { SupabaseRepository } from './supabaseRepository'
 import { createFakeSupabase } from '@/test/fakeSupabase'
+import { seedEverphoneAccounts } from './seed'
+import { normalizeCompanyName, type EverphoneStatus } from '@/domain/everphoneAccounts'
 
 const VERIFIER = { id: 'profiles-verifier', full_name: 'Alexandra Verifier' }
+
+/** Rückabbildung Status → Salesforce `Account.Type` für die Testdaten. */
+const SF_TYPE_BY_STATUS: Record<EverphoneStatus, string> = {
+  customer: 'Customer',
+  inactive: 'Inactive Customer',
+  offboarding: 'Offboarding',
+  prospect: 'Prospect',
+  other: 'Partner',
+}
 
 const BASE: NewContact = {
   fullName: 'Test Person',
@@ -18,13 +29,28 @@ const BASE: NewContact = {
   relationshipManagerId: VERIFIER.id,
 }
 
+// Der Mock liest die Everphone-Referenz aus seedEverphoneAccounts; damit
+// beide Implementierungen im Contract dieselben Daten sehen, wird der
+// Fake-Supabase-Client aus genau derselben Quelle befüllt.
+const EVERPHONE_ROWS = seedEverphoneAccounts.map((a, i) => ({
+  id: `ea-${i}`,
+  salesforce_id: a.salesforceId,
+  name: a.name,
+  name_normalized: normalizeCompanyName(a.name),
+  account_type: SF_TYPE_BY_STATUS[a.status],
+  active_rentals: a.activeRentals ?? null,
+}))
+
 const IMPLEMENTATIONS: [string, () => Repository][] = [
   ['mockRepository', () => createMockRepository()],
   [
     'SupabaseRepository',
     () =>
       new SupabaseRepository(
-        createFakeSupabase({ profiles: [VERIFIER] }) as unknown as SupabaseClient,
+        createFakeSupabase({
+          profiles: [VERIFIER],
+          everphone_accounts: EVERPHONE_ROWS,
+        }) as unknown as SupabaseClient,
       ),
   ],
 ]
@@ -333,6 +359,54 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.linkedin.url).toBe('https://www.linkedin.com/in/test')
       expect(read?.linkedin.verifiedByName).toBe(VERIFIER.full_name)
       expect(read?.sideFacts.map((f) => f.label)).toEqual(['Golf'])
+    })
+
+    describe('Everphone-Bestandskunden-Abgleich', () => {
+      it('trifft über Rechtsform-Unterschiede hinweg und liefert den Status', async () => {
+        const hits = await repo.matchEverphoneAccounts(['Nordmetall AG'])
+        expect(hits).toHaveLength(1)
+        expect(hits[0].status).toBe('customer')
+        expect(hits[0].activeRentals).toBe(412)
+
+        const viaShortName = await repo.matchEverphoneAccounts(['nordmetall'])
+        expect(viaShortName[0]?.salesforceId).toBe(hits[0].salesforceId)
+      })
+
+      it('gibt für unbekannte und leere Namen nichts zurück', async () => {
+        expect(await repo.matchEverphoneAccounts(['Völlig Unbekannt GmbH'])).toEqual([])
+        expect(await repo.matchEverphoneAccounts([])).toEqual([])
+        expect(await repo.matchEverphoneAccounts([''])).toEqual([])
+      })
+
+      it('gleicht mehrere Namen in einem Aufruf ab', async () => {
+        const hits = await repo.matchEverphoneAccounts([
+          'Nordmetall AG',
+          'Main Finanz AG',
+          'Gibt Es Nicht GmbH',
+        ])
+        expect(hits.map((h) => h.status).sort()).toEqual(['customer', 'offboarding'])
+      })
+
+      it('findet Kandidaten per Teilstring für die Autovervollständigung', async () => {
+        const hits = await repo.searchEverphoneAccounts('nordm')
+        expect(hits.map((h) => h.name)).toEqual(['Nordmetall AG'])
+      })
+
+      it('sucht erst ab zwei Zeichen', async () => {
+        expect(await repo.searchEverphoneAccounts('n')).toEqual([])
+        expect(await repo.searchEverphoneAccounts('  ')).toEqual([])
+      })
+
+      it('kappt die Trefferliste am Limit', async () => {
+        // „an“ steckt in „Main Finanz AG“ und „Hanse Logistik GmbH“.
+        expect(await repo.searchEverphoneAccounts('an')).toHaveLength(2)
+        expect(await repo.searchEverphoneAccounts('an', 1)).toHaveLength(1)
+      })
+
+      it('behandelt Eingaben nicht als Wildcards', async () => {
+        expect(await repo.searchEverphoneAccounts('%')).toEqual([])
+        expect(await repo.searchEverphoneAccounts('No%all')).toEqual([])
+      })
     })
   })
 }

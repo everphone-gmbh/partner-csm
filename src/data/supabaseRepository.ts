@@ -23,6 +23,11 @@ import type {
   TrafficLight,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
+import {
+  classifyAccountType,
+  normalizeCompanyName,
+  type EverphoneAccount,
+} from '@/domain/everphoneAccounts'
 import type {
   ContactPatch,
   NewActivity,
@@ -335,6 +340,24 @@ export interface EventNoteRow {
   attachments: NoteAttachment[] | null
   created_at: string
   contact_id: string | null
+}
+
+const EVERPHONE_SELECT = 'salesforce_id, name, account_type, active_rentals'
+
+export interface EverphoneAccountRow {
+  salesforce_id: string
+  name: string
+  account_type: string
+  active_rentals: number | null
+}
+
+export function mapRowToEverphoneAccount(row: EverphoneAccountRow): EverphoneAccount {
+  return {
+    salesforceId: row.salesforce_id,
+    name: row.name,
+    status: classifyAccountType(row.account_type),
+    activeRentals: row.active_rentals ?? undefined,
+  }
 }
 
 export function mapRowToEventNote(row: EventNoteRow): EventNote {
@@ -801,6 +824,33 @@ export class SupabaseRepository implements Repository {
       .single()
     if (error) throw new Error(error.message)
     return mapRowToReminder(data as unknown as ReminderRow)
+  }
+
+  async matchEverphoneAccounts(customerNames: string[]): Promise<EverphoneAccount[]> {
+    const keys = [...new Set(customerNames.map(normalizeCompanyName).filter(Boolean))]
+    if (keys.length === 0) return []
+    const { data, error } = await this.client
+      .from('everphone_accounts')
+      .select(EVERPHONE_SELECT)
+      .in('name_normalized', keys)
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as EverphoneAccountRow[]).map(mapRowToEverphoneAccount)
+  }
+
+  async searchEverphoneAccounts(term: string, limit = 8): Promise<EverphoneAccount[]> {
+    const needle = term.trim()
+    if (needle.length < 2) return []
+    // Suche auf dem Rohnamen (der Nutzer tippt „Nordm", nicht normalisiert);
+    // % und _ escapen, damit Eingaben nicht als Wildcards wirken.
+    const pattern = `%${needle.replace(/[%_\\]/g, (m) => `\\${m}`)}%`
+    const { data, error } = await this.client
+      .from('everphone_accounts')
+      .select(EVERPHONE_SELECT)
+      .ilike('name', pattern)
+      .order('name')
+      .limit(limit)
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as EverphoneAccountRow[]).map(mapRowToEverphoneAccount)
   }
 
   async deleteReminder(id: string): Promise<void> {

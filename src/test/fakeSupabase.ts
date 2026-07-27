@@ -5,9 +5,32 @@
 type Row = Record<string, unknown>
 type Result = { data: unknown; error: { message: string } | null }
 
+/**
+ * Übersetzt ein SQL-LIKE-Muster in einen case-insensitiven RegExp:
+ * `%` → beliebig viele Zeichen, `_` → ein Zeichen, `\%`/`\_`/`\\` → literal.
+ * Alles andere wird regex-escaped.
+ */
+function likeToRegExp(pattern: string): RegExp {
+  let out = ''
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i]
+    if (ch === '\\' && i + 1 < pattern.length) {
+      out += pattern[++i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    } else if (ch === '%') {
+      out += '.*'
+    } else if (ch === '_') {
+      out += '.'
+    } else {
+      out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    }
+  }
+  return new RegExp(`^${out}$`, 'i')
+}
+
 export interface FakeSupabaseSeed {
   profiles?: Row[]
   regions?: Row[]
+  everphone_accounts?: Row[]
 }
 
 const TABLES = [
@@ -26,12 +49,14 @@ const TABLES = [
   'event_notes',
   'reminders',
   'intro_requests',
+  'everphone_accounts',
 ] as const
 
 export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
   const tables: Record<string, Row[]> = Object.fromEntries(TABLES.map((t) => [t, []]))
   tables.profiles = (seed.profiles ?? []).map((r) => ({ ...r }))
   tables.regions = (seed.regions ?? []).map((r) => ({ ...r }))
+  tables.everphone_accounts = (seed.everphone_accounts ?? []).map((r) => ({ ...r }))
   let seq = 1
 
   function withEmbeds(table: string, row: Row, select: string): Row {
@@ -93,6 +118,8 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     private eqFilters: [string, unknown][] = []
     private inFilters: [string, unknown[]][] = []
     private orFilters: [string, string][][] = []
+    private ilikeFilters: [string, string][] = []
+    private limitRows?: number
     private orderBy?: { col: string; ascending: boolean }
     private mode: 'many' | 'single' | 'maybeSingle' = 'many'
     private returning = false
@@ -134,6 +161,15 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       this.inFilters.push([col, values])
       return this
     }
+    /** `%`/`_` als Wildcards, `\` als Escape — wie PostgREST/SQL LIKE. */
+    ilike(col: string, pattern: string) {
+      this.ilikeFilters.push([col, pattern])
+      return this
+    }
+    limit(n: number) {
+      this.limitRows = n
+      return this
+    }
     /** Supports the PostgREST `or` syntax subset: "col.eq.value,col2.eq.value2". */
     or(expr: string) {
       const clauses = expr.split(',').map((part) => {
@@ -161,7 +197,10 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       return (
         this.eqFilters.every(([col, v]) => row[col] === v) &&
         this.inFilters.every(([col, vs]) => vs.includes(row[col])) &&
-        this.orFilters.every((clauses) => clauses.some(([col, v]) => row[col] === v))
+        this.orFilters.every((clauses) => clauses.some(([col, v]) => row[col] === v)) &&
+        this.ilikeFilters.every(([col, pattern]) =>
+          likeToRegExp(pattern).test(String(row[col] ?? '')),
+        )
       )
     }
 
@@ -224,6 +263,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           return ascending ? av.localeCompare(bv) : bv.localeCompare(av)
         })
       }
+      if (this.limitRows !== undefined) matched = matched.slice(0, this.limitRows)
       return this.finish(matched)
     }
 

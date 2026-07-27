@@ -1,3 +1,4 @@
+import type { EverphoneAccount } from '@/domain/everphoneAccounts'
 import type {
   Activity,
   AppUser,
@@ -385,4 +386,20 @@ export const seedIntroRequests: IntroRequest[] = [
     helperName: 'Alexandra v. Königsmarck',
     resolvedAt: '2026-06-26T08:30:00.000Z',
   },
+]
+
+/**
+ * Everphone-Bestandskunden-Referenz für den Demo-Modus. In der echten
+ * Installation kommt die Liste aus Salesforce (Tabelle `everphone_accounts`,
+ * Migration 0015); hier decken die Einträge bewusst alle Status-Fälle der
+ * Seed-Kunden ab: Treffer als Kunde, Offboarding, ehemaliger Kunde, Funnel
+ * und Nicht-Treffer.
+ */
+export const seedEverphoneAccounts: EverphoneAccount[] = [
+  { salesforceId: 'sf-demo-1', name: 'Nordmetall AG', status: 'customer', activeRentals: 412 },
+  { salesforceId: 'sf-demo-2', name: 'Sachsen Digital GmbH', status: 'customer', activeRentals: 87 },
+  { salesforceId: 'sf-demo-3', name: 'Main Finanz AG', status: 'offboarding', activeRentals: 15 },
+  { salesforceId: 'sf-demo-4', name: 'Schwaben Tech GmbH', status: 'inactive' },
+  { salesforceId: 'sf-demo-5', name: 'Hanse Logistik GmbH', status: 'prospect' },
+  { salesforceId: 'sf-demo-6', name: 'Ruhr Mobility SE', status: 'prospect' },
 ]

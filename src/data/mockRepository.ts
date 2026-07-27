@@ -9,6 +9,12 @@ import type {
   Reminder,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
+import {
+  indexAccountsByName,
+  matchAccount,
+  type EverphoneAccount,
+} from '@/domain/everphoneAccounts'
+import { seedEverphoneAccounts } from './seed'
 import type {
   ContactPatch,
   NewActivity,
@@ -297,6 +303,25 @@ class MockRepository implements Repository {
 
   async deleteReminder(id: string) {
     this.reminders = this.reminders.filter((r) => r.id !== id)
+  }
+
+  async matchEverphoneAccounts(customerNames: string[]) {
+    const index = indexAccountsByName(seedEverphoneAccounts)
+    const hits = customerNames
+      .map((name) => matchAccount(name, index))
+      .filter((a): a is EverphoneAccount => Boolean(a))
+    return clone([...new Map(hits.map((a) => [a.salesforceId, a])).values()])
+  }
+
+  async searchEverphoneAccounts(term: string, limit = 8) {
+    const needle = term.trim().toLowerCase()
+    if (needle.length < 2) return []
+    return clone(
+      seedEverphoneAccounts
+        .filter((a) => a.name.toLowerCase().includes(needle))
+        .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+        .slice(0, limit),
+    )
   }
 
   async listEventNotes(eventId: string) {
