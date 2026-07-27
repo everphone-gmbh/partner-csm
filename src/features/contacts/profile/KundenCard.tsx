@@ -76,10 +76,13 @@ export function KundenCard({
     return match ? needsAmAlignment(match.status) : false
   })
 
-  // Autovervollständigung aus der Referenzliste (entprellt).
+  // Autovervollständigung aus der Referenzliste (entprellt). `pickedName`
+  // unterdrückt die Suche direkt nach einer Auswahl — sonst öffnet sich die
+  // Liste sofort wieder, weil das Eingabefeld sich geändert hat.
   const [suggestions, setSuggestions] = useState<EverphoneAccount[]>([])
+  const [pickedName, setPickedName] = useState<string | undefined>()
   useEffect(() => {
-    if (!adding || name.trim().length < 2) {
+    if (!adding || name.trim().length < 2 || name === pickedName) {
       setSuggestions([])
       return
     }
@@ -98,7 +101,7 @@ export function KundenCard({
       active = false
       clearTimeout(handle)
     }
-  }, [adding, name])
+  }, [adding, name, pickedName])
 
   const add = async (presetName?: string) => {
     const finalName = (presetName ?? name).trim()
@@ -115,6 +118,7 @@ export function KundenCard({
       setName('')
       setSfUrl('')
       setSuggestions([])
+      setPickedName(undefined)
       setAdding(false)
     } finally {
       setSaving(false)
@@ -188,6 +192,7 @@ export function KundenCard({
                         type="button"
                         onClick={() => {
                           setName(s.name)
+                          setPickedName(s.name)
                           setSuggestions([])
                         }}
                         className="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-sm hover:bg-secondary"
@@ -217,7 +222,15 @@ export function KundenCard({
               placeholder="Salesforce-Link (optional, https://…)"
             />
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAdding(false)
+                  setSuggestions([])
+                  setPickedName(undefined)
+                }}
+              >
                 Abbrechen
               </Button>
               <Button size="sm" onClick={() => add()} disabled={!name.trim() || saving}>
