@@ -44,10 +44,14 @@ function RoleSwitcher({ compact }: { compact?: boolean }) {
   // existiert nur im Mock-Modus — bei RLS entscheidet der Server, nicht die UI.
   if (!canSwitchUser) {
     const account = (
-      <span className="min-w-0 leading-tight">
+      <Link
+        to="/account"
+        title="Mein Konto (Passwort ändern)"
+        className="min-w-0 leading-tight transition-colors hover:text-primary"
+      >
         <span className="block truncate text-sm font-medium">{user.name}</span>
         <span className="block truncate text-[11px] text-muted-foreground">{ROLE_LABEL[user.role]}</span>
-      </span>
+      </Link>
     )
     const logout = (
       <button

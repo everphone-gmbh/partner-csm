@@ -10,6 +10,9 @@ import { ContactList } from '@/features/contacts/ContactList'
 import { ContactProfile } from '@/features/contacts/ContactProfile'
 
 // Rarely-visited routes load on demand; the landing paths stay eager.
+const AccountPage = lazy(() =>
+  import('@/features/auth/AccountPage').then((m) => ({ default: m.AccountPage })),
+)
 const ContactFormPage = lazy(() =>
   import('@/features/contacts/ContactFormPage').then((m) => ({ default: m.ContactFormPage })),
 )
@@ -56,6 +59,7 @@ function RoutedContent() {
           <Route path="/events/:id/briefing" element={<BriefingPage />} />
           <Route path="/monitoring" element={<MonitoringPage />} />
           <Route path="/report" element={<ReportPage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/board" element={<BoardPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

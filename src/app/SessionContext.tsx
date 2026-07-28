@@ -6,6 +6,8 @@ import { LoginPage } from '@/features/auth/LoginPage'
 interface SessionValue {
   user: AppUser
   users: AppUser[]
+  /** E-Mail der Anmeldung; im Mock-Modus undefined. */
+  email?: string
   /** Mock-Demo: Rolle wechseln. Im Supabase-Modus ohne Wirkung (RLS zählt). */
   setUserId: (id: string) => void
   /** true nur im Mock-Modus — dort gibt es den „Ansicht als…“-Umschalter. */
@@ -27,6 +29,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const supabaseMode = activeBackend === 'supabase'
   const [auth, setAuth] = useState<AuthState>(supabaseMode ? 'loading' : 'signedIn')
   const [authUserId, setAuthUserId] = useState<string | undefined>(undefined)
+  const [authEmail, setAuthEmail] = useState<string | undefined>(undefined)
   const [users, setUsers] = useState<AppUser[]>([])
   const [userId, setUserId] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -41,11 +44,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (!active) return
         setAuthUserId(session?.user.id)
+        setAuthEmail(session?.user.email ?? undefined)
         setAuth(session ? 'signedIn' : 'signedOut')
       })
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
         if (!active) return
         setAuthUserId(session?.user.id)
+        setAuthEmail(session?.user.email ?? undefined)
         setAuth(session ? 'signedIn' : 'signedOut')
         if (!session) setUsers([])
       })
@@ -92,8 +97,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [supabaseMode, users, userId, authUserId])
 
   const value = useMemo<SessionValue>(
-    () => ({ user: user as AppUser, users, setUserId, canSwitchUser: !supabaseMode, signOut }),
-    [user, users, supabaseMode, signOut],
+    () => ({
+      user: user as AppUser,
+      users,
+      email: authEmail,
+      setUserId,
+      canSwitchUser: !supabaseMode,
+      signOut,
+    }),
+    [user, users, authEmail, supabaseMode, signOut],
   )
 
   if (supabaseMode && auth === 'signedOut') return <LoginPage />
