@@ -41,11 +41,19 @@ import type {
   Repository,
 } from './repository'
 
-// ⚠ PRE-BUILT, NOT YET INTEGRATION-TESTED against the live DB.
-// Blocked on applying the migrations (the SQL executor 404s for this tenant).
-// The pure mappers below are unit-tested; the query wiring needs a live verify.
+// Live gegen die Sovereign-Cloud-Instanz seit 2026-07-16 (Migrationen 0001+).
+// Die reinen Mapper sind unit-getestet, das Query-Wiring läuft zusätzlich in
+// der Contract-Suite gegen einen Fake-Client (src/test/fakeSupabase.ts).
 
 type NameResolver = (id?: string | null) => string | undefined
+
+/**
+ * Lesequellen sind die redaktierten Views (Migration 0018), nicht die
+ * Basistabellen: der Server entscheidet, welche Felder ein Tier bekommt.
+ * Schreibzugriffe gehen weiter direkt auf die Tabellen (privilegiert per RLS).
+ */
+const CONTACT_READ = 'contact_cards'
+const ACTIVITY_READ = 'activity_cards'
 
 const CONTACT_SELECT =
   'id, full_name, position, photo_url, region_id, relationship_manager_id, company, team, email, ' +
@@ -440,7 +448,7 @@ export class SupabaseRepository implements Repository {
 
   async listContacts(): Promise<Contact[]> {
     const [{ data, error }, names] = await Promise.all([
-      this.client.from('contacts').select(CONTACT_SELECT).order('full_name'),
+      this.client.from(CONTACT_READ).select(CONTACT_SELECT).order('full_name'),
       this.names(),
     ])
     if (error) throw new Error(error.message)
@@ -450,7 +458,7 @@ export class SupabaseRepository implements Repository {
 
   async getContact(id: string): Promise<Contact | undefined> {
     const [{ data, error }, names] = await Promise.all([
-      this.client.from('contacts').select(CONTACT_SELECT).eq('id', id).maybeSingle(),
+      this.client.from(CONTACT_READ).select(CONTACT_SELECT).eq('id', id).maybeSingle(),
       this.names(),
     ])
     if (error) throw new Error(error.message)
@@ -659,7 +667,7 @@ export class SupabaseRepository implements Repository {
   async listActivities(contactId: string): Promise<Activity[]> {
     const [{ data, error }, names] = await Promise.all([
       this.client
-        .from('activities')
+        .from(ACTIVITY_READ)
         .select('id, contact_id, type, occurred_at, author_id, body, ai_summary')
         .eq('contact_id', contactId)
         .order('occurred_at', { ascending: false }),
@@ -691,7 +699,7 @@ export class SupabaseRepository implements Repository {
   async listAllActivities(): Promise<Activity[]> {
     const [{ data, error }, names] = await Promise.all([
       this.client
-        .from('activities')
+        .from(ACTIVITY_READ)
         .select('id, contact_id, type, occurred_at, author_id, body, ai_summary')
         .order('occurred_at', { ascending: false }),
       this.names(),

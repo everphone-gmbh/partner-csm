@@ -52,6 +52,19 @@ const TABLES = [
   'everphone_accounts',
 ] as const
 
+/**
+ * Lese-Views (Migration 0018) auf ihre Basistabelle abbilden.
+ *
+ * Der Fake kennt keine Rollen und bildet damit den PRIVILEGIERTEN Fall ab —
+ * genau den prüft die Contract-Suite (gleiche Felder in beiden Backends). Dass
+ * die Views für den Account-Manager-Tier Felder auf NULL setzen, ist Server-
+ * verhalten und wird gegen die echte Datenbank verifiziert, nicht hier.
+ */
+const VIEW_SOURCE: Record<string, string> = {
+  contact_cards: 'contacts',
+  activity_cards: 'activities',
+}
+
 export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
   const tables: Record<string, Row[]> = Object.fromEntries(TABLES.map((t) => [t, []]))
   tables.profiles = (seed.profiles ?? []).map((r) => ({ ...r }))
@@ -125,7 +138,12 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     private mode: 'many' | 'single' | 'maybeSingle' = 'many'
     private returning = false
 
-    constructor(private table: string) {}
+    private table: string
+
+    constructor(table: string) {
+      // Views verhalten sich hier wie ihre Basistabelle (siehe VIEW_SOURCE).
+      this.table = VIEW_SOURCE[table] ?? table
+    }
 
     select(cols = '*') {
       if (this.op === 'select') this.selectCols = cols
