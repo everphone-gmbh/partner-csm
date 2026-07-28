@@ -88,6 +88,12 @@ export function EventDetail() {
     [attendees],
   )
   const conflicts = useMemo(() => conflictingContactIds(attendees), [attendees])
+  // Stabile Identität: eventDays() liefert sonst bei jedem Rendern ein neues
+  // Array und lässt Effekte in SlotEditor unnötig feuern.
+  const days = useMemo(
+    () => (event ? eventDays(event) : []),
+    [event?.date, event?.endDate],
+  )
   const slotCount = attendees.filter((a) => a.slotAt).length
   const notAttending = contacts.filter((c) => !attendees.some((a) => a.contactId === c.id))
 
@@ -335,7 +341,7 @@ export function EventDetail() {
                     />
                     <SlotEditor
                       attendee={a}
-                      days={eventDays(event)}
+                      days={days}
                       hasConflict={conflicts.has(a.contactId)}
                       onSave={(patch) => void saveSlot(a.contactId, patch)}
                     />
@@ -398,12 +404,16 @@ function SlotEditor({
   const [point, setPoint] = useState(attendee.meetingPoint ?? '')
 
   // Wenn der Termin von außen wechselt (Neuladen, Rollback), Felder mitziehen.
+  // Abhängigkeit ist bewusst der zusammengefügte String, nicht das Array:
+  // sonst genügt eine neue Array-Identität, um die Eingabe zurückzusetzen,
+  // während der Nutzer gerade tippt.
+  const dayKey = days.join('|')
   useEffect(() => {
     const next = slotToInputs(attendee.slotAt)
-    setDay(next.day || days[0] || '')
+    setDay(next.day || dayKey.split('|')[0] || '')
     setTime(next.time)
     setPoint(attendee.meetingPoint ?? '')
-  }, [attendee.slotAt, attendee.meetingPoint, days])
+  }, [attendee.slotAt, attendee.meetingPoint, dayKey])
 
   const commitSlot = (nextDay: string, nextTime: string) => {
     const slotAt = inputsToSlot(nextDay, nextTime)

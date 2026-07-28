@@ -791,7 +791,7 @@ export class SupabaseRepository implements Repository {
     contactId: string,
     patch: AttendeePatch,
   ): Promise<EventAttendee> {
-    const row: Record<string, unknown> = { event_id: eventId, contact_id: contactId }
+    const row: Record<string, unknown> = {}
     if (patch.status !== undefined) row.status = patch.status
     if (patch.purpose !== undefined) row.purpose = patch.purpose
     if (patch.slotAt !== undefined) {
@@ -801,9 +801,26 @@ export class SupabaseRepository implements Repository {
     }
     if (patch.slotMinutes !== undefined) row.slot_minutes = patch.slotMinutes
     if (patch.meetingPoint !== undefined) row.meeting_point = patch.meetingPoint
+
+    // KEIN upsert: PostgREST schreibt bei `merge-duplicates` die ganze Zeile
+    // und setzt alles, was nicht im Payload steht, auf NULL — ein Status-
+    // Wechsel würde also Termin und „Wofür" mitlöschen. Deshalb erst
+    // aktualisieren und nur anlegen, wenn es die Zeile noch nicht gibt.
+    if (Object.keys(row).length > 0) {
+      const { data: updated, error: updateError } = await this.client
+        .from('event_attendees')
+        .update(row)
+        .eq('event_id', eventId)
+        .eq('contact_id', contactId)
+        .select(ATTENDEE_SELECT)
+      if (updateError) throw new Error(updateError.message)
+      const hit = (updated ?? []) as unknown as AttendeeRow[]
+      if (hit.length > 0) return mapRowToAttendee(hit[0])
+    }
+
     const { data, error } = await this.client
       .from('event_attendees')
-      .upsert(row, { onConflict: 'event_id,contact_id' })
+      .insert({ event_id: eventId, contact_id: contactId, ...row })
       .select(ATTENDEE_SELECT)
       .single()
     if (error) throw new Error(error.message)

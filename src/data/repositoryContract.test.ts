@@ -417,6 +417,49 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         expect(read.slotMinutes).toBeUndefined()
       })
 
+      it('behält alle anderen Felder bei einem Teil-Patch (kein Zeilen-Überschreiben)', async () => {
+        // Regression: mit PostgREST-upsert löschte ein Status-Wechsel Termin,
+        // Dauer, Treffpunkt und „Wofür" — nicht im Payload = auf NULL gesetzt.
+        const c = await repo.createContact(BASE)
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-14' })
+        await repo.setAttendee(ev.id, c.id, {
+          status: 'accepted',
+          purpose: 'Rahmenvertrag besprechen',
+          slotAt: '2026-10-14T08:00:00.000Z',
+          slotMinutes: 60,
+          meetingPoint: 'Halle 4',
+        })
+
+        // Jeder Teil-Patch darf nur sein eigenes Feld verändern.
+        await repo.setAttendee(ev.id, c.id, { status: 'attended' })
+        let [read] = await repo.listEventAttendees(ev.id)
+        expect(read.purpose).toBe('Rahmenvertrag besprechen')
+        expect(read.slotMinutes).toBe(60)
+        expect(read.meetingPoint).toBe('Halle 4')
+        expect(read.slotAt).toBeDefined()
+
+        await repo.setAttendee(ev.id, c.id, { purpose: 'Neues Ziel' })
+        ;[read] = await repo.listEventAttendees(ev.id)
+        expect(read.status).toBe('attended')
+        expect(read.slotMinutes).toBe(60)
+        expect(read.meetingPoint).toBe('Halle 4')
+
+        await repo.setAttendee(ev.id, c.id, { slotMinutes: 90 })
+        ;[read] = await repo.listEventAttendees(ev.id)
+        expect(read.slotMinutes).toBe(90)
+        expect(read.status).toBe('attended')
+        expect(read.purpose).toBe('Neues Ziel')
+        expect(read.meetingPoint).toBe('Halle 4')
+      })
+
+      it('legt beim ersten Patch genau eine Zeile an', async () => {
+        const c = await repo.createContact(BASE)
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-14' })
+        await repo.setAttendee(ev.id, c.id, { status: 'invited' })
+        await repo.setAttendee(ev.id, c.id, { purpose: 'Ziel' })
+        expect(await repo.listEventAttendees(ev.id)).toHaveLength(1)
+      })
+
       it('lässt Teilnehmer ohne Termin zu', async () => {
         const c = await repo.createContact(BASE)
         const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-14' })
