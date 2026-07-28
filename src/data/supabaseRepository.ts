@@ -29,6 +29,7 @@ import {
   type EverphoneAccount,
 } from '@/domain/everphoneAccounts'
 import type {
+  AttendeePatch,
   ContactPatch,
   NewActivity,
   NewContact,
@@ -295,6 +296,7 @@ export interface EventRow {
   id: string
   name: string
   event_date: string
+  end_date: string | null
   location: string | null
   description: string | null
 }
@@ -304,8 +306,32 @@ export function mapRowToEvent(row: EventRow): EventItem {
     id: row.id,
     name: row.name,
     date: row.event_date,
+    endDate: row.end_date ?? undefined,
     location: row.location ?? undefined,
     description: row.description ?? undefined,
+  }
+}
+
+const EVENT_SELECT = 'id, name, event_date, end_date, location, description'
+const ATTENDEE_SELECT = 'contact_id, status, purpose, slot_at, slot_minutes, meeting_point'
+
+export interface AttendeeRow {
+  contact_id: string
+  status: AttendanceStatus
+  purpose: string | null
+  slot_at: string | null
+  slot_minutes: number | null
+  meeting_point: string | null
+}
+
+export function mapRowToAttendee(row: AttendeeRow): EventAttendee {
+  return {
+    contactId: row.contact_id,
+    status: row.status,
+    purpose: row.purpose ?? undefined,
+    slotAt: row.slot_at ?? undefined,
+    slotMinutes: row.slot_minutes ?? undefined,
+    meetingPoint: row.meeting_point ?? undefined,
   }
 }
 
@@ -718,7 +744,7 @@ export class SupabaseRepository implements Repository {
   async listEvents(): Promise<EventItem[]> {
     const { data, error } = await this.client
       .from('events')
-      .select('id, name, event_date, location, description')
+      .select(EVENT_SELECT)
       .order('event_date')
     if (error) throw new Error(error.message)
     return ((data ?? []) as unknown as EventRow[]).map(mapRowToEvent)
@@ -727,7 +753,7 @@ export class SupabaseRepository implements Repository {
   async getEvent(id: string): Promise<EventItem | undefined> {
     const { data, error } = await this.client
       .from('events')
-      .select('id, name, event_date, location, description')
+      .select(EVENT_SELECT)
       .eq('id', id)
       .maybeSingle()
     if (error) throw new Error(error.message)
@@ -740,10 +766,11 @@ export class SupabaseRepository implements Repository {
       .insert({
         name: input.name,
         event_date: input.date,
+        end_date: input.endDate ?? null,
         location: input.location ?? null,
         description: input.description ?? null,
       })
-      .select('id, name, event_date, location, description')
+      .select(EVENT_SELECT)
       .single()
     if (error) throw new Error(error.message)
     return mapRowToEvent(data as unknown as EventRow)
@@ -752,30 +779,35 @@ export class SupabaseRepository implements Repository {
   async listEventAttendees(eventId: string): Promise<EventAttendee[]> {
     const { data, error } = await this.client
       .from('event_attendees')
-      .select('contact_id, status, purpose')
+      .select(ATTENDEE_SELECT)
       .eq('event_id', eventId)
+      .order('slot_at', { nullsFirst: false })
     if (error) throw new Error(error.message)
-    return (
-      (data ?? []) as unknown as { contact_id: string; status: AttendanceStatus; purpose: string | null }[]
-    ).map((r) => ({ contactId: r.contact_id, status: r.status, purpose: r.purpose ?? undefined }))
+    return ((data ?? []) as unknown as AttendeeRow[]).map(mapRowToAttendee)
   }
 
   async setAttendee(
     eventId: string,
     contactId: string,
-    patch: { status?: AttendanceStatus; purpose?: string },
+    patch: AttendeePatch,
   ): Promise<EventAttendee> {
     const row: Record<string, unknown> = { event_id: eventId, contact_id: contactId }
     if (patch.status !== undefined) row.status = patch.status
     if (patch.purpose !== undefined) row.purpose = patch.purpose
+    if (patch.slotAt !== undefined) {
+      row.slot_at = patch.slotAt
+      // Ohne Termin ist eine Dauer sinnlos — der DB-Check verbietet sie auch.
+      if (patch.slotAt === null) row.slot_minutes = null
+    }
+    if (patch.slotMinutes !== undefined) row.slot_minutes = patch.slotMinutes
+    if (patch.meetingPoint !== undefined) row.meeting_point = patch.meetingPoint
     const { data, error } = await this.client
       .from('event_attendees')
       .upsert(row, { onConflict: 'event_id,contact_id' })
-      .select('contact_id, status, purpose')
+      .select(ATTENDEE_SELECT)
       .single()
     if (error) throw new Error(error.message)
-    const r = data as unknown as { contact_id: string; status: AttendanceStatus; purpose: string | null }
-    return { contactId: r.contact_id, status: r.status, purpose: r.purpose ?? undefined }
+    return mapRowToAttendee(data as unknown as AttendeeRow)
   }
 
   async removeAttendee(eventId: string, contactId: string): Promise<void> {

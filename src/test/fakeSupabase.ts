@@ -120,7 +120,8 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     private orFilters: [string, string][][] = []
     private ilikeFilters: [string, string][] = []
     private limitRows?: number
-    private orderBy?: { col: string; ascending: boolean }
+    private conflictCols: string[] = []
+    private orderBy?: { col: string; ascending: boolean; nullsFirst: boolean }
     private mode: 'many' | 'single' | 'maybeSingle' = 'many'
     private returning = false
 
@@ -144,9 +145,13 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       this.payload = payload
       return this
     }
-    upsert(payload: Row, _opts?: unknown) {
+    upsert(payload: Row, opts?: { onConflict?: string }) {
       this.op = 'upsert'
       this.payload = payload
+      // Konfliktspalten wie bei PostgREST: "event_id,contact_id".
+      this.conflictCols = opts?.onConflict
+        ? opts.onConflict.split(',').map((c) => c.trim()).filter(Boolean)
+        : []
       return this
     }
     delete() {
@@ -180,8 +185,14 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       this.orFilters.push(clauses)
       return this
     }
-    order(col: string, opts?: { ascending?: boolean }) {
-      this.orderBy = { col, ascending: opts?.ascending !== false }
+    order(col: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) {
+      this.orderBy = {
+        col,
+        ascending: opts?.ascending !== false,
+        // Postgres-Standard: NULLs zuletzt bei ASC. Ohne diese Nachbildung
+        // würde der Fake leere Werte nach vorne sortieren.
+        nullsFirst: opts?.nullsFirst ?? false,
+      }
       return this
     }
     single() {
@@ -210,13 +221,25 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
 
       if (this.op === 'insert' || this.op === 'upsert') {
         const items = Array.isArray(this.payload) ? this.payload : [this.payload as Row]
-        const inserted = items.map((item) => {
+        const written = items.map((item) => {
+          // Upsert mit Konfliktspalten: vorhandene Zeile ergänzen statt eine
+          // zweite anzulegen — sonst prüft die Contract-Suite Upsert-Methoden
+          // gegen ein Verhalten, das Postgres nie zeigt.
+          if (this.op === 'upsert' && this.conflictCols.length > 0) {
+            const existing = rows.find((r) =>
+              this.conflictCols.every((col) => r[col] === item[col]),
+            )
+            if (existing) {
+              Object.assign(existing, item)
+              return existing
+            }
+          }
           const base = this.table === 'contacts' ? contactDefaults(item) : { ...item }
           if (base.id === undefined) base.id = `${this.table}-${seq++}`
           rows.push(base)
           return base
         })
-        return this.finish(inserted)
+        return this.finish(written)
       }
 
       if (this.op === 'update') {
@@ -256,10 +279,15 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       // select
       let matched = rows.filter((r) => this.matches(r))
       if (this.orderBy) {
-        const { col, ascending } = this.orderBy
+        const { col, ascending, nullsFirst } = this.orderBy
+        const isNull = (v: unknown) => v === null || v === undefined
         matched = [...matched].sort((a, b) => {
-          const av = String(a[col] ?? '')
-          const bv = String(b[col] ?? '')
+          const an = isNull(a[col])
+          const bn = isNull(b[col])
+          if (an !== bn) return an === nullsFirst ? -1 : 1
+          if (an && bn) return 0
+          const av = String(a[col])
+          const bv = String(b[col])
           return ascending ? av.localeCompare(bv) : bv.localeCompare(av)
         })
       }

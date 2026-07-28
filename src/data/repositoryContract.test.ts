@@ -361,6 +361,73 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.sideFacts.map((f) => f.label)).toEqual(['Golf'])
     })
 
+    describe('Event-Scheduling', () => {
+      it('legt mehrtägige Events an und liest das Enddatum zurück', async () => {
+        const ev = await repo.createEvent({
+          name: 'Digital X',
+          date: '2026-10-14',
+          endDate: '2026-10-16',
+          location: 'Köln',
+        })
+        expect(ev.endDate).toBe('2026-10-16')
+        expect((await repo.getEvent(ev.id))?.endDate).toBe('2026-10-16')
+      })
+
+      it('lässt das Enddatum bei eintägigen Events leer', async () => {
+        const ev = await repo.createEvent({ name: 'Webinar', date: '2026-10-14' })
+        expect(ev.endDate).toBeUndefined()
+        expect((await repo.getEvent(ev.id))?.endDate).toBeUndefined()
+      })
+
+      it('speichert Termin, Dauer und Treffpunkt eines Teilnehmers', async () => {
+        const c = await repo.createContact(BASE)
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-14' })
+        const slot = '2026-10-14T12:30:00.000Z'
+        await repo.setAttendee(ev.id, c.id, {
+          status: 'accepted',
+          slotAt: slot,
+          slotMinutes: 45,
+          meetingPoint: 'Halle 4, Stand B3',
+        })
+        const [read] = await repo.listEventAttendees(ev.id)
+        expect(read.status).toBe('accepted')
+        expect(Date.parse(read.slotAt!)).toBe(Date.parse(slot))
+        expect(read.slotMinutes).toBe(45)
+        expect(read.meetingPoint).toBe('Halle 4, Stand B3')
+      })
+
+      it('lässt den Termin unberührt, wenn nur der Status geändert wird', async () => {
+        const c = await repo.createContact(BASE)
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-14' })
+        await repo.setAttendee(ev.id, c.id, { slotAt: '2026-10-14T09:00:00.000Z', slotMinutes: 30 })
+        await repo.setAttendee(ev.id, c.id, { status: 'attended' })
+        const [read] = await repo.listEventAttendees(ev.id)
+        expect(read.status).toBe('attended')
+        expect(read.slotAt).toBeDefined()
+        expect(read.slotMinutes).toBe(30)
+      })
+
+      it('löscht mit dem Termin auch die Dauer', async () => {
+        const c = await repo.createContact(BASE)
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-14' })
+        await repo.setAttendee(ev.id, c.id, { slotAt: '2026-10-14T09:00:00.000Z', slotMinutes: 60 })
+        await repo.setAttendee(ev.id, c.id, { slotAt: null })
+        const [read] = await repo.listEventAttendees(ev.id)
+        expect(read.slotAt).toBeUndefined()
+        expect(read.slotMinutes).toBeUndefined()
+      })
+
+      it('lässt Teilnehmer ohne Termin zu', async () => {
+        const c = await repo.createContact(BASE)
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-14' })
+        await repo.setAttendee(ev.id, c.id, { status: 'invited' })
+        const [read] = await repo.listEventAttendees(ev.id)
+        expect(read.slotAt).toBeUndefined()
+        expect(read.slotMinutes).toBeUndefined()
+        expect(read.meetingPoint).toBeUndefined()
+      })
+    })
+
     describe('Everphone-Bestandskunden-Abgleich', () => {
       it('trifft über Rechtsform-Unterschiede hinweg und liefert den Status', async () => {
         const hits = await repo.matchEverphoneAccounts(['Nordmetall AG'])

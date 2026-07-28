@@ -1,6 +1,5 @@
 import type {
   Activity,
-  AttendanceStatus,
   Contact,
   ContactLink,
   EventItem,
@@ -16,6 +15,7 @@ import {
 } from '@/domain/everphoneAccounts'
 import { seedEverphoneAccounts } from './seed'
 import type {
+  AttendeePatch,
   ContactPatch,
   NewActivity,
   NewContact,
@@ -233,6 +233,7 @@ class MockRepository implements Repository {
       id: `ev-local-${this.seq++}`,
       name: input.name,
       date: input.date,
+      endDate: input.endDate,
       location: input.location,
       description: input.description,
     }
@@ -241,25 +242,30 @@ class MockRepository implements Repository {
   }
 
   async listEventAttendees(eventId: string) {
-    return this.attendees
-      .filter((a) => a.eventId === eventId)
-      .map((a) => ({ contactId: a.contactId, status: a.status, purpose: a.purpose }))
+    return clone(
+      this.attendees
+        .filter((a) => a.eventId === eventId)
+        .map(({ eventId: _e, ...rest }) => rest),
+    )
   }
 
-  async setAttendee(
-    eventId: string,
-    contactId: string,
-    patch: { status?: AttendanceStatus; purpose?: string },
-  ) {
+  async setAttendee(eventId: string, contactId: string, patch: AttendeePatch) {
     let rec = this.attendees.find((a) => a.eventId === eventId && a.contactId === contactId)
     if (!rec) {
-      rec = { eventId, contactId, status: patch.status ?? 'invited', purpose: patch.purpose }
+      rec = { eventId, contactId, status: patch.status ?? 'invited' }
       this.attendees.push(rec)
-    } else {
-      if (patch.status !== undefined) rec.status = patch.status
-      if (patch.purpose !== undefined) rec.purpose = patch.purpose
     }
-    return { contactId: rec.contactId, status: rec.status, purpose: rec.purpose }
+    if (patch.status !== undefined) rec.status = patch.status
+    if (patch.purpose !== undefined) rec.purpose = patch.purpose
+    if (patch.slotAt !== undefined) {
+      rec.slotAt = patch.slotAt ?? undefined
+      // Dauer ohne Termin ist sinnlos (der DB-Check verbietet sie ebenfalls).
+      if (patch.slotAt === null) rec.slotMinutes = undefined
+    }
+    if (patch.slotMinutes !== undefined) rec.slotMinutes = patch.slotMinutes ?? undefined
+    if (patch.meetingPoint !== undefined) rec.meetingPoint = patch.meetingPoint ?? undefined
+    const { eventId: _e, ...out } = rec
+    return clone(out)
   }
 
   async removeAttendee(eventId: string, contactId: string) {

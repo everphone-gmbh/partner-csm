@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, CalendarDays, MapPin, Sparkles, Tag } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Clock, MapPin, Sparkles, Tag } from 'lucide-react'
 import type { AttendanceStatus, Contact, EventAttendee } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/format'
+import { bySlotFirst, isMultiDay, slotTimeLabel } from './eventScheduling'
 import { ATTENDANCE_LABEL, ATTENDANCE_VARIANT } from './eventMeta'
 import { MetPill } from './MetPill'
 
@@ -66,8 +67,11 @@ export function BriefingPage() {
     return attendees
       .map((a) => ({ attendee: a, contact: scopedById.get(a.contactId) }))
       .filter((x): x is { attendee: EventAttendee; contact: Contact } => Boolean(x.contact))
+      // Vor Ort zählt die Uhrzeit: terminierte Gespräche chronologisch zuerst,
+      // danach die übrigen nach Status.
       .sort(
         (x, y) =>
+          bySlotFirst(x.attendee, y.attendee) ||
           BRIEFING_ORDER.indexOf(x.attendee.status) - BRIEFING_ORDER.indexOf(y.attendee.status) ||
           x.contact.fullName.localeCompare(y.contact.fullName, 'de'),
       )
@@ -117,7 +121,10 @@ export function BriefingPage() {
             <h1 className="truncate text-lg font-semibold tracking-tight">{event.name}</h1>
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
-                <CalendarDays className="size-3" /> {formatDate(event.date)}
+                <CalendarDays className="size-3" />{' '}
+                {isMultiDay(event)
+                  ? `${formatDate(event.date)} – ${formatDate(event.endDate!)}`
+                  : formatDate(event.date)}
               </span>
               {event.location && (
                 <span className="inline-flex items-center gap-1">
@@ -187,6 +194,21 @@ export function BriefingPage() {
                   onChange={(next) => setStatus(contact.id, next)}
                 />
               </div>
+
+              {attendee.slotAt && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-secondary px-3 py-2 text-sm">
+                  <span className="inline-flex items-center gap-1.5 font-semibold">
+                    <Clock className="size-4 text-primary" />
+                    {isMultiDay(event) && `${formatDate(attendee.slotAt)}, `}
+                    {slotTimeLabel(attendee.slotAt)} Uhr
+                  </span>
+                  {attendee.meetingPoint && (
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      <MapPin className="size-3.5" /> {attendee.meetingPoint}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {attendee.purpose && (
                 <div className="rounded-lg bg-primary/5 px-3 py-2">

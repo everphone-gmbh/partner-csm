@@ -160,7 +160,9 @@ export type AttendanceStatus = 'invited' | 'accepted' | 'declined' | 'attended' 
 export interface EventItem {
   id: string
   name: string
-  date: string // YYYY-MM-DD
+  date: string // YYYY-MM-DD — Start (bei eintägigen Events der einzige Tag)
+  /** Enddatum bei mehrtägigen Events; undefined = eintägig. */
+  endDate?: string // YYYY-MM-DD
   location?: string
   description?: string
 }
@@ -170,6 +172,12 @@ export interface EventAttendee {
   status: AttendanceStatus
   /** "Wofür" — why they're coming / what to discuss on site. */
   purpose?: string
+  /** Standtermin als Zeitpunkt (ISO); undefined = kein Termin vereinbart. */
+  slotAt?: string
+  /** Dauer des Termins in Minuten; undefined = Standarddauer. */
+  slotMinutes?: number
+  /** Treffpunkt vor Ort, z. B. „Halle 4, Stand B3". */
+  meetingPoint?: string
 }
 
 // --- Reminders (self-set) ---

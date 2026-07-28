@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router-dom'
 import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
+import { useDueReminderCount } from '@/app/useDueReminders'
 import { canApprove, ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
 
@@ -124,6 +125,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 
 function Sidebar() {
   const items = useNavItems()
+  const dueReminders = useDueReminderCount()
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-black/[0.05] bg-card/80 backdrop-blur-xl lg:flex dark:border-white/[0.08] print:hidden">
       <div className="space-y-3 px-5 py-5">
@@ -134,7 +136,15 @@ function Sidebar() {
         {items.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} className={navLinkClass}>
             <Icon className="size-4 shrink-0" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {to === '/dashboard' && dueReminders > 0 && (
+              <span
+                title={`${dueReminders} fällige Reminder`}
+                className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground"
+              >
+                {dueReminders}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -167,6 +177,7 @@ function MobileHeader() {
 
 function BottomNav() {
   const items = useNavItems()
+  const dueReminders = useDueReminderCount()
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-black/[0.05] bg-card/80 backdrop-blur-xl lg:hidden dark:border-white/[0.08] print:hidden">
       <div className="flex">
@@ -181,7 +192,14 @@ function BottomNav() {
               )
             }
           >
-            <Icon className="size-5" />
+            <span className="relative">
+              <Icon className="size-5" />
+              {to === '/dashboard' && dueReminders > 0 && (
+                <span className="absolute -right-2 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">
+                  {dueReminders}
+                </span>
+              )}
+            </span>
             {label}
           </NavLink>
         ))}

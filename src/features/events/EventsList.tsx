@@ -11,12 +11,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/format'
+import { isMultiDay } from './eventScheduling'
 
 export function EventsList() {
   const { toast } = useToast()
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [location, setLocation] = useState('')
 
   const { data, loading, error, retry } = useRepoQuery(async () => {
@@ -41,6 +43,8 @@ export function EventsList() {
       await repository.createEvent({
         name: name.trim(),
         date,
+        // Enddatum nur übernehmen, wenn es nach dem Start liegt (mehrtägig).
+        endDate: endDate && endDate > date ? endDate : undefined,
         location: location.trim() || undefined,
       })
     } catch (err) {
@@ -48,6 +52,7 @@ export function EventsList() {
       return
     }
     setName('')
+    setEndDate('')
     setDate('')
     setLocation('')
     setCreating(false)
@@ -77,8 +82,17 @@ export function EventsList() {
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Datum</Label>
+                <Label>Beginn</Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Ende (optional)</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  min={date || undefined}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
               </div>
               <div className="space-y-1">
                 <Label>Ort</Label>
@@ -110,7 +124,9 @@ export function EventsList() {
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
                         <CalendarDays className="size-3" />
-                        {formatDate(e.date)}
+                        {isMultiDay(e)
+                          ? `${formatDate(e.date)} – ${formatDate(e.endDate!)}`
+                          : formatDate(e.date)}
                       </span>
                       {e.location && (
                         <span className="inline-flex items-center gap-1">

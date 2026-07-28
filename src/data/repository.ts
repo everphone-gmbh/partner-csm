@@ -104,6 +104,7 @@ export interface NewIntroRequest {
 export interface NewEvent {
   name: string
   date: string
+  endDate?: string
   location?: string
   description?: string
 }
@@ -114,6 +115,16 @@ export interface NewReminder {
   dueTime?: string // HH:MM
   text: string
   createdByName: string
+}
+
+/** Feldweise Änderung eines Teilnehmers; fehlende Schlüssel bleiben unberührt. */
+export interface AttendeePatch {
+  status?: AttendanceStatus
+  purpose?: string
+  /** null löscht den Termin (und damit auch Dauer). */
+  slotAt?: string | null
+  slotMinutes?: number | null
+  meetingPoint?: string | null
 }
 
 export interface NewEventNote {
@@ -160,7 +171,7 @@ export interface Repository {
   setAttendee(
     eventId: string,
     contactId: string,
-    patch: { status?: AttendanceStatus; purpose?: string },
+    patch: AttendeePatch,
   ): Promise<EventAttendee>
   removeAttendee(eventId: string, contactId: string): Promise<void>
   listEventNotes(eventId: string): Promise<EventNote[]>

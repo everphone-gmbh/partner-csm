@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, BellPlus, CalendarDays, ClipboardList, MapPin, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, BellPlus, CalendarDays, ClipboardList, Clock, MapPin, Plus, Trash2 } from 'lucide-react'
 import type { AttendanceStatus, Contact, EventAttendee } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -18,6 +18,15 @@ import { Input } from '@/components/ui/input'
 import { formatDate } from '@/lib/format'
 import { ATTENDANCE_LABEL, ATTENDANCE_ORDER, ATTENDANCE_VARIANT } from './eventMeta'
 import { EventNotes } from './EventNotes'
+import {
+  bySlotFirst,
+  conflictingContactIds,
+  DEFAULT_SLOT_MINUTES,
+  eventDays,
+  inputsToSlot,
+  isMultiDay,
+  slotToInputs,
+} from './eventScheduling'
 
 const selectCls =
   'h-9 rounded-[10px] border border-transparent bg-secondary px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -67,13 +76,19 @@ export function EventDetail() {
     })
     return m
   }, [attendees])
+  // Agenda-Reihenfolge: terminierte Gespräche chronologisch nach vorne,
+  // der Rest danach nach Status — vor Ort zählt „was kommt als Nächstes".
   const sorted = useMemo(
     () =>
       [...attendees].sort(
-        (a, b) => ATTENDANCE_ORDER.indexOf(a.status) - ATTENDANCE_ORDER.indexOf(b.status),
+        (a, b) =>
+          bySlotFirst(a, b) ||
+          ATTENDANCE_ORDER.indexOf(a.status) - ATTENDANCE_ORDER.indexOf(b.status),
       ),
     [attendees],
   )
+  const conflicts = useMemo(() => conflictingContactIds(attendees), [attendees])
+  const slotCount = attendees.filter((a) => a.slotAt).length
   const notAttending = contacts.filter((c) => !attendees.some((a) => a.contactId === c.id))
 
   const setStatus = async (contactId: string, status: AttendanceStatus) => {
@@ -96,6 +111,37 @@ export function EventDetail() {
       loadAttendees() // resync with what the server actually has
     }
   }
+  /** Termin, Dauer und Treffpunkt eines Teilnehmers sichern (optimistisch). */
+  const saveSlot = async (
+    contactId: string,
+    patch: { slotAt?: string | null; slotMinutes?: number | null; meetingPoint?: string | null },
+  ) => {
+    const before = attendees
+    setAttendees((prev) =>
+      prev.map((a) =>
+        a.contactId === contactId
+          ? {
+              ...a,
+              ...(patch.slotAt !== undefined ? { slotAt: patch.slotAt ?? undefined } : {}),
+              ...(patch.slotAt === null ? { slotMinutes: undefined } : {}),
+              ...(patch.slotMinutes !== undefined
+                ? { slotMinutes: patch.slotMinutes ?? undefined }
+                : {}),
+              ...(patch.meetingPoint !== undefined
+                ? { meetingPoint: patch.meetingPoint ?? undefined }
+                : {}),
+            }
+          : a,
+      ),
+    )
+    try {
+      if (id) await repository.setAttendee(id, contactId, patch)
+    } catch (err) {
+      setAttendees(before)
+      toast(saveErrorMessage(err))
+    }
+  }
+
   const removeAttendee = async (contactId: string) => {
     if (!id) return
     try {
@@ -183,7 +229,12 @@ export function EventDetail() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="size-4" />
-              {formatDate(event.date)}
+              {isMultiDay(event)
+                ? `${formatDate(event.date)} – ${formatDate(event.endDate!)}`
+                : formatDate(event.date)}
+              {isMultiDay(event) && (
+                <span className="text-xs">({eventDays(event).length} Tage)</span>
+              )}
             </span>
             {event.location && (
               <span className="inline-flex items-center gap-1">
@@ -219,10 +270,24 @@ export function EventDetail() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between">
           <CardTitle className="text-base">Teilnehmer</CardTitle>
+          {slotCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="size-3.5" /> {slotCount} Termin{slotCount === 1 ? '' : 'e'} geplant
+            </span>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
+          {conflicts.size > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-status-amber/40 bg-status-amber/10 px-3 py-2 text-xs text-foreground">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-amber" />
+              <span>
+                {conflicts.size} Termine überschneiden sich zeitlich. Betroffene Gespräche sind
+                unten markiert — bitte entzerren, sonst steht jemand am Stand ohne Ansprechpartner.
+              </span>
+            </div>
+          )}
           {sorted.length === 0 ? (
             <p className="text-sm text-muted-foreground">Noch keine Teilnehmer.</p>
           ) : (
@@ -268,6 +333,12 @@ export function EventDetail() {
                       onBlur={(e) => savePurpose(a.contactId, e.target.value)}
                       placeholder="Wofür? (Ziel / Gesprächsaufhänger)"
                     />
+                    <SlotEditor
+                      attendee={a}
+                      days={eventDays(event)}
+                      hasConflict={conflicts.has(a.contactId)}
+                      onSave={(patch) => void saveSlot(a.contactId, patch)}
+                    />
                   </li>
                 )
               })}
@@ -295,6 +366,121 @@ export function EventDetail() {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+const DURATIONS = [15, 30, 45, 60, 90, 120]
+
+/**
+ * Standtermin eines Teilnehmers: Tag (nur Event-Tage), Uhrzeit, Dauer,
+ * Treffpunkt. Der Tag ist eine Auswahl statt eines Datumsfelds — so kann kein
+ * Termin außerhalb des Events entstehen.
+ */
+function SlotEditor({
+  attendee,
+  days,
+  hasConflict,
+  onSave,
+}: {
+  attendee: EventAttendee
+  days: string[]
+  hasConflict: boolean
+  onSave: (patch: {
+    slotAt?: string | null
+    slotMinutes?: number | null
+    meetingPoint?: string | null
+  }) => void
+}) {
+  const current = slotToInputs(attendee.slotAt)
+  const [day, setDay] = useState(current.day || days[0] || '')
+  const [time, setTime] = useState(current.time)
+  const [point, setPoint] = useState(attendee.meetingPoint ?? '')
+
+  // Wenn der Termin von außen wechselt (Neuladen, Rollback), Felder mitziehen.
+  useEffect(() => {
+    const next = slotToInputs(attendee.slotAt)
+    setDay(next.day || days[0] || '')
+    setTime(next.time)
+    setPoint(attendee.meetingPoint ?? '')
+  }, [attendee.slotAt, attendee.meetingPoint, days])
+
+  const commitSlot = (nextDay: string, nextTime: string) => {
+    const slotAt = inputsToSlot(nextDay, nextTime)
+    // Zeit gelöscht → Termin aufheben; unvollständig → noch nichts speichern.
+    if (!nextTime) {
+      if (attendee.slotAt) onSave({ slotAt: null })
+      return
+    }
+    if (!slotAt) return
+    if (slotAt === attendee.slotAt) return
+    onSave({ slotAt, slotMinutes: attendee.slotMinutes ?? DEFAULT_SLOT_MINUTES })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+        <Clock className="size-3.5" /> Termin
+      </span>
+      {days.length > 1 && (
+        <select
+          className={selectCls}
+          value={day}
+          aria-label="Tag des Termins"
+          onChange={(e) => {
+            setDay(e.target.value)
+            commitSlot(e.target.value, time)
+          }}
+        >
+          {days.map((d) => (
+            <option key={d} value={d}>
+              {formatDate(d)}
+            </option>
+          ))}
+        </select>
+      )}
+      <Input
+        type="time"
+        value={time}
+        aria-label="Uhrzeit des Termins"
+        className="w-28"
+        onChange={(e) => setTime(e.target.value)}
+        onBlur={(e) => commitSlot(day, e.target.value)}
+      />
+      {attendee.slotAt && (
+        <>
+          <select
+            className={selectCls}
+            value={attendee.slotMinutes ?? DEFAULT_SLOT_MINUTES}
+            aria-label="Dauer in Minuten"
+            onChange={(e) => onSave({ slotMinutes: Number(e.target.value) })}
+          >
+            {DURATIONS.map((m) => (
+              <option key={m} value={m}>
+                {m} Min.
+              </option>
+            ))}
+          </select>
+          <Input
+            value={point}
+            aria-label="Treffpunkt"
+            className="min-w-40 flex-1"
+            placeholder="Treffpunkt, z. B. Halle 4, Stand B3"
+            onChange={(e) => setPoint(e.target.value)}
+            onBlur={(e) => {
+              const next = e.target.value.trim()
+              if (next !== (attendee.meetingPoint ?? '')) {
+                onSave({ meetingPoint: next || null })
+              }
+            }}
+          />
+          {hasConflict && (
+            <Badge variant="warning" className="shrink-0">
+              <AlertTriangle className="size-3" /> Überschneidung
+            </Badge>
+          )}
+        </>
+      )}
     </div>
   )
 }
