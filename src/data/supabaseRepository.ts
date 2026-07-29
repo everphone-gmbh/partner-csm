@@ -3,6 +3,7 @@ import type {
   Activity,
   ActivityType,
   AppUser,
+  AuditEntry,
   AttendanceStatus,
   BuyingRole,
   Contact,
@@ -374,6 +375,33 @@ export interface EventNoteRow {
   attachments: NoteAttachment[] | null
   created_at: string
   contact_id: string | null
+}
+
+export interface AuditRow {
+  id: number
+  at: string
+  action: string
+  entity: string
+  entity_id: string | null
+  actor_id: string | null
+  detail: { fields?: string[] } | null
+}
+
+export function mapRowToAuditEntry(
+  row: AuditRow,
+  resolveName: NameResolver = () => undefined,
+): AuditEntry {
+  return {
+    id: row.id,
+    at: row.at,
+    action: row.action as AuditEntry['action'],
+    entity: row.entity,
+    entityId: row.entity_id ?? undefined,
+    actorId: row.actor_id ?? undefined,
+    // Kein Name = per Skript/Service-Key geändert, nicht über die App.
+    actorName: resolveName(row.actor_id),
+    fields: row.detail?.fields,
+  }
 }
 
 const EVERPHONE_SELECT = 'salesforce_id, name, account_type, active_rentals'
@@ -881,6 +909,20 @@ export class SupabaseRepository implements Repository {
       .single()
     if (error) throw new Error(error.message)
     return mapRowToReminder(data as unknown as ReminderRow)
+  }
+
+  async listAuditLog(limit = 100): Promise<AuditEntry[]> {
+    const [{ data, error }, names] = await Promise.all([
+      this.client
+        .from('audit_log')
+        .select('id, at, action, entity, entity_id, actor_id, detail')
+        .order('at', { ascending: false })
+        .limit(limit),
+      this.names(),
+    ])
+    if (error) throw new Error(error.message)
+    const resolve = this.resolver(names)
+    return ((data ?? []) as unknown as AuditRow[]).map((row) => mapRowToAuditEntry(row, resolve))
   }
 
   async matchEverphoneAccounts(customerNames: string[]): Promise<EverphoneAccount[]> {

@@ -50,6 +50,7 @@ const TABLES = [
   'reminders',
   'intro_requests',
   'everphone_accounts',
+  'audit_log',
 ] as const
 
 /**
@@ -124,6 +125,45 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     }
   }
 
+  /**
+   * Nachbildung der Audit-Trigger aus Migration 0019: die App verlässt sich
+   * darauf, dass Änderungen protokolliert werden, ohne sie selbst zu schreiben.
+   * Ohne diese Nachbildung würde die Contract-Suite ein Verhalten prüfen, das
+   * im Supabase-Zweig gar nicht entstehen kann.
+   *
+   * `at` wird streng aufsteigend erzeugt und `id` ist monoton — die Sortierung
+   * ist damit deterministisch, unabhängig von der Uhrauflösung.
+   */
+  const AUDIT_ENTITY: Record<string, string> = {
+    contacts: 'contact',
+    contact_photos: 'contact_photo',
+    side_facts: 'side_fact',
+  }
+  let auditSeq = 1
+  let auditClock = Date.parse('2026-07-01T00:00:00.000Z')
+
+  function writeAudit(table: string, action: 'insert' | 'update' | 'delete', row: Row, before?: Row) {
+    const entity = AUDIT_ENTITY[table]
+    if (!entity) return
+    let detail: Row = {}
+    if (action === 'update') {
+      const fields = Object.keys(row)
+        .filter((k) => k !== 'updated_at' && JSON.stringify(row[k]) !== JSON.stringify(before?.[k]))
+        .sort()
+      if (fields.length === 0) return // nur updated_at → kein Eintrag
+      detail = { fields }
+    }
+    tables.audit_log.push({
+      id: auditSeq++,
+      at: new Date((auditClock += 1000)).toISOString(),
+      action,
+      entity,
+      entity_id: row.id ?? before?.id ?? null,
+      actor_id: null,
+      detail,
+    })
+  }
+
   class Builder implements PromiseLike<Result> {
     private op: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select'
     private selectCols = '*'
@@ -134,7 +174,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     private ilikeFilters: [string, string][] = []
     private limitRows?: number
     private conflictCols: string[] = []
-    private orderBy?: { col: string; ascending: boolean; nullsFirst: boolean }
+    private orderBys: { col: string; ascending: boolean; nullsFirst: boolean }[] = []
     private mode: 'many' | 'single' | 'maybeSingle' = 'many'
     private returning = false
 
@@ -203,14 +243,18 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       this.orFilters.push(clauses)
       return this
     }
+    /**
+     * Mehrfach aufrufbar wie bei PostgREST: die Reihenfolge der Aufrufe ist die
+     * Sortierpriorität. (Vorher überschrieb jeder Aufruf den vorigen — der
+     * Adapter sortiert Reminder nach Datum UND Uhrzeit.)
+     */
     order(col: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) {
-      this.orderBy = {
+      this.orderBys.push({
         col,
         ascending: opts?.ascending !== false,
-        // Postgres-Standard: NULLs zuletzt bei ASC. Ohne diese Nachbildung
-        // würde der Fake leere Werte nach vorne sortieren.
+        // Postgres-Standard: NULLs zuletzt bei ASC.
         nullsFirst: opts?.nullsFirst ?? false,
-      }
+      })
       return this
     }
     single() {
@@ -255,6 +299,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           const base = this.table === 'contacts' ? contactDefaults(item) : { ...item }
           if (base.id === undefined) base.id = `${this.table}-${seq++}`
           rows.push(base)
+          writeAudit(this.table, 'insert', base)
           return base
         })
         return this.finish(written)
@@ -268,12 +313,17 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           return { data: null, error: { message: 'empty patch body' } }
         }
         const matched = rows.filter((r) => this.matches(r))
-        for (const r of matched) Object.assign(r, patch)
+        for (const r of matched) {
+          const before = { ...r }
+          Object.assign(r, patch)
+          writeAudit(this.table, 'update', { ...patch, id: r.id }, before)
+        }
         return this.finish(matched)
       }
 
       if (this.op === 'delete') {
         const removed = rows.filter((r) => this.matches(r))
+        for (const r of removed) writeAudit(this.table, 'delete', r)
         tables[this.table] = rows.filter((r) => !this.matches(r))
         // Emulate the schema's ON DELETE CASCADE from contacts.
         if (this.table === 'contacts') {
@@ -296,17 +346,24 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
 
       // select
       let matched = rows.filter((r) => this.matches(r))
-      if (this.orderBy) {
-        const { col, ascending, nullsFirst } = this.orderBy
+      if (this.orderBys.length > 0) {
         const isNull = (v: unknown) => v === null || v === undefined
         matched = [...matched].sort((a, b) => {
-          const an = isNull(a[col])
-          const bn = isNull(b[col])
-          if (an !== bn) return an === nullsFirst ? -1 : 1
-          if (an && bn) return 0
-          const av = String(a[col])
-          const bv = String(b[col])
-          return ascending ? av.localeCompare(bv) : bv.localeCompare(av)
+          for (const { col, ascending, nullsFirst } of this.orderBys) {
+            const an = isNull(a[col])
+            const bn = isNull(b[col])
+            if (an !== bn) return an === nullsFirst ? -1 : 1
+            if (an && bn) continue
+            const av = a[col]
+            const bv = b[col]
+            // Zahlen numerisch vergleichen (audit_log.id), sonst lexikalisch.
+            const cmp =
+              typeof av === 'number' && typeof bv === 'number'
+                ? av - bv
+                : String(av).localeCompare(String(bv))
+            if (cmp !== 0) return ascending ? cmp : -cmp
+          }
+          return 0
         })
       }
       if (this.limitRows !== undefined) matched = matched.slice(0, this.limitRows)

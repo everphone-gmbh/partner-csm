@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Activity as ActivityIcon, AlarmClock, TrendingUp, Users } from 'lucide-react'
-import type { Activity, AppUser, Contact, Region } from '@/domain/types'
+import type { Activity, AppUser, AuditEntry, Contact, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
@@ -9,6 +9,7 @@ import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { formatDateTime } from '@/lib/format'
 import { Avatar } from '@/components/ui/avatar'
 import { completenessScore, findDuplicateContacts } from '@/domain/dataQuality'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +19,24 @@ import { CoverageBar, SentimentDonut, WeeklyActivityBars } from './charts'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 const WEEKS = 8
+
+const AUDIT_LABEL: Record<AuditEntry['action'], string> = {
+  insert: 'Angelegt',
+  update: 'Geändert',
+  delete: 'Gelöscht',
+}
+
+const AUDIT_VARIANT: Record<AuditEntry['action'], 'success' | 'secondary' | 'destructive'> = {
+  insert: 'success',
+  update: 'secondary',
+  delete: 'destructive',
+}
+
+const AUDIT_ENTITY_LABEL: Record<string, string> = {
+  contact: 'Kontakt',
+  contact_photo: 'Foto',
+  side_fact: 'Anknüpfungspunkt',
+}
 
 export function MonitoringPage() {
   const { user } = useSession()
@@ -33,6 +52,7 @@ export function MonitoringPage() {
             repository.listContacts(),
             repository.listAllActivities(),
             repository.listRegions(),
+            repository.listAuditLog(40),
           ])
         : Promise.resolve(undefined),
     [isAdmin],
@@ -41,6 +61,7 @@ export function MonitoringPage() {
   const contacts: Contact[] = useMemo(() => data?.[1] ?? [], [data])
   const activities: Activity[] = useMemo(() => data?.[2] ?? [], [data])
   const regions: Region[] = data?.[3] ?? []
+  const auditLog: AuditEntry[] = useMemo(() => data?.[4] ?? [], [data])
 
   const ranking = useMemo(
     () => computeManagerRanking(users, contacts, activities),
@@ -178,6 +199,48 @@ export function MonitoringPage() {
           ))}
           {ranking.length === 0 && (
             <p className="text-sm text-muted-foreground">Keine Relationship Manager vorhanden.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Änderungsprotokoll — DSGVO-Nachweispflicht */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Änderungsprotokoll</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Wer hat wann welche personenbezogenen Daten geändert. Protokolliert werden
+            Feldnamen, bewusst keine Werte — sonst lägen die Daten doppelt.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {auditLog.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Noch keine Änderungen protokolliert.
+            </p>
+          ) : (
+            <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
+              {auditLog.map((entry) => (
+                <li key={entry.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-2 text-sm">
+                  <Badge variant={AUDIT_VARIANT[entry.action]} className="shrink-0">
+                    {AUDIT_LABEL[entry.action]}
+                  </Badge>
+                  <span className="text-muted-foreground">{AUDIT_ENTITY_LABEL[entry.entity] ?? entry.entity}</span>
+                  {entry.entityId && entry.entity === 'contact' && entry.action !== 'delete' && (
+                    <Link to={`/contacts/${entry.entityId}`} className="hover:underline">
+                      öffnen
+                    </Link>
+                  )}
+                  {entry.fields && entry.fields.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      Felder: {entry.fields.join(', ')}
+                    </span>
+                  )}
+                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                    {entry.actorName ?? 'System/Import'} · {formatDateTime(entry.at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

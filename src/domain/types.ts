@@ -192,6 +192,27 @@ export interface Reminder {
   createdByName: string
 }
 
+// --- Änderungsprotokoll (DSGVO-Rechenschaftspflicht) ---
+
+export type AuditAction = 'insert' | 'update' | 'delete'
+
+/**
+ * Ein Protokolleintrag. Enthält bewusst KEINE Feldwerte, nur die Namen der
+ * geänderten Spalten — sonst lägen die Personendaten doppelt (Migration 0019).
+ */
+export interface AuditEntry {
+  id: number
+  at: string
+  action: AuditAction
+  /** 'contact' | 'contact_photo' | 'side_fact' */
+  entity: string
+  entityId?: string
+  actorId?: string
+  actorName?: string
+  /** Geänderte Spalten bei 'update'. */
+  fields?: string[]
+}
+
 // --- Event notes (quick capture on site) ---
 
 export type NoteAttachmentKind = 'image' | 'audio'

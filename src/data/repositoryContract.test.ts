@@ -361,6 +361,51 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.sideFacts.map((f) => f.label)).toEqual(['Golf'])
     })
 
+    describe('Änderungsprotokoll', () => {
+      it('protokolliert Anlegen, Ändern und Löschen eines Kontakts', async () => {
+        const c = await repo.createContact(BASE)
+        await repo.updateContact(c.id, { birthday: '1980-01-01' })
+        await repo.deleteContact(c.id)
+
+        const log = await repo.listAuditLog()
+        const mine = log.filter((e) => e.entityId === c.id)
+        expect(mine.map((e) => e.action)).toEqual(['delete', 'update', 'insert'])
+        expect(mine.every((e) => e.entity === 'contact')).toBe(true)
+      })
+
+      it('nennt bei Änderungen die betroffenen Felder, aber keine Werte', async () => {
+        const c = await repo.createContact(BASE)
+        await repo.updateContact(c.id, { birthday: '1980-01-01', pets: 'Hund' })
+        const entry = (await repo.listAuditLog()).find(
+          (e) => e.entityId === c.id && e.action === 'update',
+        )
+        expect(entry?.fields).toBeDefined()
+        expect(entry!.fields!.length).toBeGreaterThan(0)
+        // Der Eintrag darf die Werte selbst nirgends enthalten.
+        expect(JSON.stringify(entry)).not.toContain('1980-01-01')
+        expect(JSON.stringify(entry)).not.toContain('Hund')
+      })
+
+      it('liefert neueste Einträge zuerst und achtet auf das Limit', async () => {
+        const c = await repo.createContact(BASE)
+        await repo.updateContact(c.id, { position: 'A' })
+        await repo.updateContact(c.id, { position: 'B' })
+        const log = await repo.listAuditLog()
+        expect(log.length).toBeGreaterThanOrEqual(3)
+        for (let i = 1; i < log.length; i++) {
+          expect(Date.parse(log[i - 1].at)).toBeGreaterThanOrEqual(Date.parse(log[i].at))
+        }
+        expect(await repo.listAuditLog(1)).toHaveLength(1)
+      })
+
+      it('protokolliert nichts, wenn ein Update nichts verändert', async () => {
+        const c = await repo.createContact({ ...BASE, position: 'CIO' })
+        const before = (await repo.listAuditLog()).length
+        await repo.updateContact(c.id, { position: 'CIO' })
+        expect((await repo.listAuditLog()).length).toBe(before)
+      })
+    })
+
     describe('Event-Scheduling', () => {
       it('legt mehrtägige Events an und liest das Enddatum zurück', async () => {
         const ev = await repo.createEvent({

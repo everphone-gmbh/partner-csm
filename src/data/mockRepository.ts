@@ -1,5 +1,6 @@
 import type {
   Activity,
+  AuditEntry,
   Contact,
   ContactLink,
   EventItem,
@@ -59,6 +60,21 @@ class MockRepository implements Repository {
   private links = clone(seedContactLinks)
   private introRequests = clone(seedIntroRequests)
   private seq = 1
+  // Im Mock von Hand geführt; produktiv schreiben DB-Trigger (Migration 0019).
+  private auditLog: AuditEntry[] = []
+  private auditSeq = 1
+
+  private audit(action: AuditEntry['action'], entity: string, entityId: string, fields?: string[]) {
+    this.auditLog.unshift({
+      id: this.auditSeq++,
+      at: nowIso(),
+      action,
+      entity,
+      entityId,
+      actorName: 'Demo-Nutzer',
+      fields,
+    })
+  }
 
   async listRegions() {
     return clone(this.regions)
@@ -105,17 +121,24 @@ class MockRepository implements Repository {
       updatedAt: now,
     }
     this.contacts.push(contact)
+    this.audit('insert', 'contact', contact.id)
     return clone(contact)
   }
 
   async updateContact(id: string, patch: ContactPatch) {
     const idx = this.contacts.findIndex((c) => c.id === id)
     if (idx < 0) throw new Error(`contact ${id} not found`)
-    this.contacts[idx] = { ...this.contacts[idx], ...patch, updatedAt: nowIso() }
+    const before = this.contacts[idx]
+    const fields = (Object.keys(patch) as (keyof ContactPatch)[]).filter(
+      (k) => JSON.stringify(patch[k]) !== JSON.stringify(before[k as keyof Contact]),
+    )
+    this.contacts[idx] = { ...before, ...patch, updatedAt: nowIso() }
+    if (fields.length > 0) this.audit('update', 'contact', id, fields as string[])
     return clone(this.contacts[idx])
   }
 
   async deleteContact(id: string) {
+    if (this.contacts.some((c) => c.id === id)) this.audit('delete', 'contact', id)
     // Mirror the DB's ON DELETE CASCADE: dependent personal data goes too.
     this.contacts = this.contacts.filter((c) => c.id !== id)
     this.activities = this.activities.filter((a) => a.contactId !== id)
@@ -309,6 +332,10 @@ class MockRepository implements Repository {
 
   async deleteReminder(id: string) {
     this.reminders = this.reminders.filter((r) => r.id !== id)
+  }
+
+  async listAuditLog(limit = 100) {
+    return clone(this.auditLog.slice(0, limit))
   }
 
   async matchEverphoneAccounts(customerNames: string[]) {

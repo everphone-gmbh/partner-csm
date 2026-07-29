@@ -2,6 +2,7 @@ import type { EverphoneAccount } from '@/domain/everphoneAccounts'
 import type {
   Activity,
   AppUser,
+  AuditEntry,
   AttendanceStatus,
   BuyingRole,
   Contact,
@@ -189,4 +190,9 @@ export interface Repository {
   matchEverphoneAccounts(customerNames: string[]): Promise<EverphoneAccount[]>
   /** Namenssuche über die Referenzliste, für die Autovervollständigung. */
   searchEverphoneAccounts(term: string, limit?: number): Promise<EverphoneAccount[]>
+  /**
+   * Änderungsprotokoll, neueste zuerst. Nur für privilegierte Rollen lesbar
+   * (RLS `audit_read`); geschrieben wird ausschließlich per DB-Trigger.
+   */
+  listAuditLog(limit?: number): Promise<AuditEntry[]>
 }
