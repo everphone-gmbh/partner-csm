@@ -630,6 +630,14 @@ export class SupabaseRepository implements Repository {
   }
 
   async deleteContact(id: string): Promise<void> {
+    // Dateien ZUERST: ON DELETE CASCADE räumt nur Tabellenzeilen, die Dateien
+    // im Storage kennt Postgres nicht. Scheitert danach das Löschen der Zeile,
+    // fehlen zwar Bilder, aber der Kontakt ist noch da — wiederholbar. In der
+    // umgekehrten Reihenfolge blieben Personenfotos ohne jede Referenz liegen,
+    // also unsichtbar und trotzdem vorhanden. Das ist der schlimmere Fall.
+    const { fileStore } = await import('@/lib/fileStore')
+    await fileStore.removeContactFiles(id)
+
     // Dependent rows (side_facts, activities, photos, reminders, attendance)
     // are removed by the schema's ON DELETE CASCADE.
     const { error } = await this.client.from('contacts').delete().eq('id', id)

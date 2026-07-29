@@ -1,6 +1,7 @@
 /**
  * Read an image File, downscale it to fit `maxDim`, and return a JPEG data URL.
- * Keeps mock-stored photos small; the live version will upload to Supabase Storage.
+ * Nur noch für Sonderfälle — für Uploads `fileToResizedBlob` verwenden, damit
+ * nicht erst base64 erzeugt und dann wieder dekodiert wird.
  */
 export async function fileToResizedDataUrl(
   file: File,
@@ -35,4 +36,19 @@ export async function fileToResizedDataUrl(
   ctx.fillRect(0, 0, w, h)
   ctx.drawImage(img, 0, 0, w, h)
   return canvas.toDataURL('image/jpeg', quality)
+}
+
+/**
+ * Wie fileToResizedDataUrl, liefert aber einen JPEG-Blob für den Upload.
+ * Fällt auf die Originaldatei zurück, wenn der Canvas nicht verfügbar ist —
+ * lieber ein großes Bild als keines.
+ */
+export async function fileToResizedBlob(
+  file: File,
+  maxDim = 512,
+  quality = 0.8,
+): Promise<Blob> {
+  const dataUrl = await fileToResizedDataUrl(file, maxDim, quality)
+  const res = await fetch(dataUrl)
+  return await res.blob()
 }

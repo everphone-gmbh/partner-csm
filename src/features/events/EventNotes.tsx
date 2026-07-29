@@ -8,11 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { fileToResizedDataUrl } from '@/lib/image'
+import { fileToResizedBlob } from '@/lib/image'
+import { fileStore } from '@/lib/fileStore'
+import { useFileUrl } from '@/lib/useFileUrl'
 import { formatDateTime } from '@/lib/format'
 
 /** Records a voice memo via MediaRecorder and returns it as a data URL. */
-function VoiceRecorder({ onRecorded }: { onRecorded: (url: string) => void }) {
+function VoiceRecorder({ onRecorded }: { onRecorded: (audio: Blob) => void }) {
   const [recording, setRecording] = useState(false)
   const [error, setError] = useState(false)
   const recRef = useRef<MediaRecorder | null>(null)
@@ -27,10 +29,8 @@ function VoiceRecorder({ onRecorded }: { onRecorded: (url: string) => void }) {
         if (e.data.size) chunksRef.current.push(e.data)
       }
       rec.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' })
-        const reader = new FileReader()
-        reader.onload = () => onRecorded(reader.result as string)
-        reader.readAsDataURL(blob)
+        // Blob weitergeben, nicht base64: der Upload braucht die Rohdaten.
+        onRecorded(new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' }))
         stream.getTracks().forEach((t) => t.stop())
       }
       recRef.current = rec
@@ -59,16 +59,24 @@ function VoiceRecorder({ onRecorded }: { onRecorded: (url: string) => void }) {
 }
 
 function AttachmentView({ attachment, size }: { attachment: NoteAttachment; size: string }) {
+  const resolved = useFileUrl(attachment.url)
+  if (!resolved) {
+    return attachment.kind === 'image' ? (
+      <div className={`${size} animate-pulse rounded-md bg-secondary`} aria-hidden="true" />
+    ) : (
+      <span className="text-xs text-muted-foreground">Sprachmemo wird geladen…</span>
+    )
+  }
   if (attachment.kind === 'image') {
     return (
       <img
-        src={attachment.url}
+        src={resolved}
         alt={attachment.name ?? ''}
         className={`${size} rounded-md border border-border object-cover`}
       />
     )
   }
-  return <audio src={attachment.url} controls className="h-8" />
+  return <audio src={resolved} controls className="h-8" />
 }
 
 export function EventNotes({
@@ -100,16 +108,28 @@ export function EventNotes({
   useEffect(refresh, [eventId])
 
   const addImages = async (files: FileList) => {
-    const added: NoteAttachment[] = []
-    for (const f of Array.from(files)) {
-      const url = await fileToResizedDataUrl(f, 1024)
-      added.push({ id: crypto.randomUUID(), kind: 'image', url, name: f.name })
+    try {
+      const added: NoteAttachment[] = []
+      for (const f of Array.from(files)) {
+        const blob = await fileToResizedBlob(f, 1024)
+        const url = await fileStore.upload('event-note-media', eventId, blob)
+        added.push({ id: crypto.randomUUID(), kind: 'image', url, name: f.name })
+      }
+      setPending((p) => [...p, ...added])
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    } finally {
+      if (imgRef.current) imgRef.current.value = ''
     }
-    setPending((p) => [...p, ...added])
-    if (imgRef.current) imgRef.current.value = ''
   }
-  const addAudio = (url: string) =>
-    setPending((p) => [...p, { id: crypto.randomUUID(), kind: 'audio', url, name: 'Sprachmemo' }])
+  const addAudio = async (blob: Blob) => {
+    try {
+      const url = await fileStore.upload('event-note-media', eventId, blob)
+      setPending((p) => [...p, { id: crypto.randomUUID(), kind: 'audio', url, name: 'Sprachmemo' }])
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    }
+  }
   const removePending = (id: string) => setPending((p) => p.filter((a) => a.id !== id))
 
   const save = async () => {

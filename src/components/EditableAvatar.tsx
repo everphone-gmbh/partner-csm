@@ -1,7 +1,8 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Camera } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
-import { fileToResizedDataUrl } from '@/lib/image'
+import { fileToResizedBlob } from '@/lib/image'
+import { fileStore } from '@/lib/fileStore'
 import { cn } from '@/lib/utils'
 
 /** Avatar with a camera/upload affordance. On mobile, opens the rear camera.
@@ -9,14 +10,21 @@ import { cn } from '@/lib/utils'
 export function EditableAvatar({
   src,
   name,
+  folder,
   editable = true,
   onChange,
+  onError,
   className,
 }: {
   src?: string | null
   name: string
+  /** Zielordner im Bucket — MUSS die Kontakt-ID sein, sonst greift die
+   *  Zugriffsregel aus Migration 0020 nicht. */
+  folder: string
   editable?: boolean
-  onChange: (dataUrl: string) => void
+  /** Erhält die zu speichernde Referenz (Storage-Pfad oder Data-URL). */
+  onChange: (ref: string) => void
+  onError?: (message: string) => void
   className?: string
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -35,7 +43,10 @@ export function EditableAvatar({
     if (!file) return
     setBusy(true)
     try {
-      onChange(await fileToResizedDataUrl(file))
+      const blob = await fileToResizedBlob(file)
+      onChange(await fileStore.upload('contact-avatars', folder, blob))
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Foto konnte nicht gespeichert werden')
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''

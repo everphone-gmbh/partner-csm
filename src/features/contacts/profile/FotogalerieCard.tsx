@@ -3,7 +3,10 @@ import { Camera, X } from 'lucide-react'
 import type { Contact, GalleryPhoto } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { fileToResizedDataUrl } from '@/lib/image'
+import { fileToResizedBlob } from '@/lib/image'
+import { fileStore } from '@/lib/fileStore'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { useFileUrl } from '@/lib/useFileUrl'
 
 export function FotogalerieCard({
   contact,
@@ -17,23 +20,33 @@ export function FotogalerieCard({
   const gallery = contact.gallery ?? []
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const { toast } = useToast()
 
   const addFiles = async (files: FileList) => {
     setBusy(true)
     try {
       const added: GalleryPhoto[] = []
       for (const file of Array.from(files)) {
-        const url = await fileToResizedDataUrl(file, 800)
+        const blob = await fileToResizedBlob(file, 800)
+        const url = await fileStore.upload('contact-gallery', contact.id, blob)
         added.push({ id: crypto.randomUUID(), url })
       }
       await onSave({ gallery: [...gallery, ...added] })
+    } catch (err) {
+      toast(saveErrorMessage(err))
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''
     }
   }
-  const remove = (photoId: string) =>
-    void onSave({ gallery: gallery.filter((p) => p.id !== photoId) })
+  const remove = async (photoId: string) => {
+    const photo = gallery.find((p) => p.id === photoId)
+    await onSave({ gallery: gallery.filter((p) => p.id !== photoId) })
+    // Datei erst nach erfolgreichem Speichern löschen, damit bei einem Fehler
+    // kein Eintrag ohne Bild zurückbleibt. Verwaiste Dateien wären schlimmer:
+    // Personenfotos, die niemand mehr sieht, aber weiter existieren.
+    if (photo) await fileStore.remove(photo.url).catch(() => undefined)
+  }
 
   return (
     <Card>
@@ -72,7 +85,7 @@ export function FotogalerieCard({
                 key={p.id}
                 className="group relative aspect-square overflow-hidden rounded-md border border-border"
               >
-                <img src={p.url} alt={p.caption ?? ''} className="size-full object-cover" />
+                <GalleryImage url={p.url} caption={p.caption} />
                 {canEdit && (
                   <button
                     type="button"
@@ -90,4 +103,13 @@ export function FotogalerieCard({
       </CardContent>
     </Card>
   )
+}
+
+/** Einzelnes Galeriebild — löst die Storage-Referenz zur Anzeige auf. */
+function GalleryImage({ url, caption }: { url: string; caption?: string }) {
+  const resolved = useFileUrl(url)
+  if (!resolved) {
+    return <div className="size-full animate-pulse bg-secondary" aria-hidden="true" />
+  }
+  return <img src={resolved} alt={caption ?? ''} className="size-full object-cover" />
 }
