@@ -398,6 +398,20 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         expect(await repo.listAuditLog(1)).toHaveLength(1)
       })
 
+      it('ordnet auch Einträge mit identischem Zeitstempel korrekt', async () => {
+        // Postgres stempelt alle Änderungen einer Transaktion mit derselben
+        // Zeit; ohne die laufende Nummer als zweiten Schlüssel wäre die
+        // Reihenfolge zufällig.
+        const c = await repo.createContact(BASE)
+        await repo.updateContact(c.id, { position: 'Erst' })
+        await repo.updateContact(c.id, { position: 'Dann' })
+        const mine = (await repo.listAuditLog()).filter((e) => e.entityId === c.id)
+        expect(mine.map((e) => e.action)).toEqual(['update', 'update', 'insert'])
+        // Neueste zuerst ⇒ absteigende laufende Nummer.
+        expect(mine[0].id).toBeGreaterThan(mine[1].id)
+        expect(mine[1].id).toBeGreaterThan(mine[2].id)
+      })
+
       it('protokolliert nichts, wenn ein Update nichts verändert', async () => {
         const c = await repo.createContact({ ...BASE, position: 'CIO' })
         const before = (await repo.listAuditLog()).length

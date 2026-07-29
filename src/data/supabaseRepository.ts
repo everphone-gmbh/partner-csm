@@ -916,7 +916,10 @@ export class SupabaseRepository implements Repository {
       this.client
         .from('audit_log')
         .select('id, at, action, entity, entity_id, actor_id, detail')
+        // `at` ist die Transaktionszeit: mehrere Änderungen aus EINEM Request
+        // tragen dieselbe. Die laufende Nummer entscheidet dann.
         .order('at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(limit),
       this.names(),
     ])

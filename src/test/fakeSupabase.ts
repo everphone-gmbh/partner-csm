@@ -131,8 +131,10 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
    * Ohne diese Nachbildung würde die Contract-Suite ein Verhalten prüfen, das
    * im Supabase-Zweig gar nicht entstehen kann.
    *
-   * `at` wird streng aufsteigend erzeugt und `id` ist monoton — die Sortierung
-   * ist damit deterministisch, unabhängig von der Uhrauflösung.
+   * `at` ist für ALLE Einträge gleich — genau wie in Postgres, wo `now()` die
+   * Transaktionszeit liefert und mehrere Änderungen eines Requests denselben
+   * Stempel tragen. Damit muss die Sortierung über die laufende Nummer laufen,
+   * und der Contract prüft den schwierigen Fall statt des bequemen.
    */
   const AUDIT_ENTITY: Record<string, string> = {
     contacts: 'contact',
@@ -140,7 +142,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     side_facts: 'side_fact',
   }
   let auditSeq = 1
-  let auditClock = Date.parse('2026-07-01T00:00:00.000Z')
+  const AUDIT_AT = '2026-07-01T00:00:00.000Z'
 
   function writeAudit(table: string, action: 'insert' | 'update' | 'delete', row: Row, before?: Row) {
     const entity = AUDIT_ENTITY[table]
@@ -155,7 +157,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     }
     tables.audit_log.push({
       id: auditSeq++,
-      at: new Date((auditClock += 1000)).toISOString(),
+      at: AUDIT_AT,
       action,
       entity,
       entity_id: row.id ?? before?.id ?? null,
