@@ -6,6 +6,7 @@ import type {
   EventItem,
   EventNote,
   IntroRequest,
+  OrgUnit,
   Reminder,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
@@ -36,6 +37,7 @@ import {
   seedEventNotes,
   seedEvents,
   seedReminders,
+  seedOrgUnits,
   seedRegions,
   seedUsers,
 } from './seed'
@@ -59,6 +61,7 @@ class MockRepository implements Repository {
   private reminders = clone(seedReminders)
   private links = clone(seedContactLinks)
   private introRequests = clone(seedIntroRequests)
+  private orgUnits: OrgUnit[] = clone(seedOrgUnits)
   private seq = 1
   // Im Mock von Hand geführt; produktiv schreiben DB-Trigger (Migration 0019).
   private auditLog: AuditEntry[] = []
@@ -336,6 +339,10 @@ class MockRepository implements Repository {
 
   async listAuditLog(limit = 100) {
     return clone(this.auditLog.slice(0, limit))
+  }
+
+  async listOrgUnits() {
+    return clone(this.orgUnits)
   }
 
   async matchEverphoneAccounts(customerNames: string[]) {

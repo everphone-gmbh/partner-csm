@@ -1,4 +1,5 @@
 import type { EverphoneAccount } from '@/domain/everphoneAccounts'
+import type { OrgUnit } from '@/domain/types'
 import type {
   Activity,
   AppUser,
@@ -386,6 +387,19 @@ export const seedIntroRequests: IntroRequest[] = [
     helperName: 'Alexandra v. Königsmarck',
     resolvedAt: '2026-06-26T08:30:00.000Z',
   },
+]
+
+/**
+ * Soll-Organisationsstruktur für den Demo-Modus. Deckt bewusst alle vier
+ * Abdeckungs-Zustände ab: „Partner Management" und „Sales Leadership" haben
+ * Kontakte aus dem Seed, „Einkauf Konzern" absichtlich keinen — so ist die
+ * eigentliche Lücke auch ohne Backend sichtbar.
+ */
+export const seedOrgUnits: OrgUnit[] = [
+  { id: 'ou-1', company: 'Deutsche Telekom', department: 'Partner Management', team: null },
+  { id: 'ou-2', company: 'Deutsche Telekom', department: 'Sales Leadership', team: null },
+  { id: 'ou-3', company: 'Deutsche Telekom', department: 'Einkauf Konzern', team: null },
+  { id: 'ou-4', company: 'Deutsche Telekom', department: 'Einkauf Konzern', team: 'Mobilfunk' },
 ]
 
 /**

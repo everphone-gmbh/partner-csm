@@ -16,6 +16,7 @@ import type {
   IntroRequest,
   LinkedInInfo,
   NoteAttachment,
+  OrgUnit,
   Region,
   Reminder,
   SentimentEntry,
@@ -195,4 +196,6 @@ export interface Repository {
    * (RLS `audit_read`); geschrieben wird ausschließlich per DB-Trigger.
    */
   listAuditLog(limit?: number): Promise<AuditEntry[]>
+  /** Soll-Organisationsstruktur der Partner — Maßstab der Abdeckungsanalyse. */
+  listOrgUnits(): Promise<OrgUnit[]>
 }

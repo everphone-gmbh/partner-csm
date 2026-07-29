@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Target, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
 import { useDueReminderCount } from '@/app/useDueReminders'
@@ -17,7 +17,10 @@ const NAV = [
 function useNavItems() {
   const { user } = useSession()
   const items = [...NAV]
-  if (canApprove(user.role)) items.push({ to: '/report', label: 'Bericht', icon: FileText })
+  if (canApprove(user.role)) {
+    items.push({ to: '/coverage', label: 'Abdeckung', icon: Target })
+    items.push({ to: '/report', label: 'Bericht', icon: FileText })
+  }
   if (user.role === 'overall_admin')
     items.push({ to: '/monitoring', label: 'Monitoring', icon: BarChart3 })
   return items

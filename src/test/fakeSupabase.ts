@@ -31,6 +31,7 @@ export interface FakeSupabaseSeed {
   profiles?: Row[]
   regions?: Row[]
   everphone_accounts?: Row[]
+  org_units?: Row[]
 }
 
 const TABLES = [
@@ -51,6 +52,7 @@ const TABLES = [
   'intro_requests',
   'everphone_accounts',
   'audit_log',
+  'org_units',
 ] as const
 
 /**
@@ -71,6 +73,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
   tables.profiles = (seed.profiles ?? []).map((r) => ({ ...r }))
   tables.regions = (seed.regions ?? []).map((r) => ({ ...r }))
   tables.everphone_accounts = (seed.everphone_accounts ?? []).map((r) => ({ ...r }))
+  tables.org_units = (seed.org_units ?? []).map((r) => ({ ...r }))
   let seq = 1
 
   function withEmbeds(table: string, row: Row, select: string): Row {

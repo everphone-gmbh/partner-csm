@@ -8,7 +8,7 @@ import type { NewContact, Repository } from './repository'
 import { createMockRepository } from './mockRepository'
 import { SupabaseRepository } from './supabaseRepository'
 import { createFakeSupabase } from '@/test/fakeSupabase'
-import { seedEverphoneAccounts } from './seed'
+import { seedEverphoneAccounts, seedOrgUnits } from './seed'
 import { normalizeCompanyName, type EverphoneStatus } from '@/domain/everphoneAccounts'
 
 const VERIFIER = { id: 'profiles-verifier', full_name: 'Alexandra Verifier' }
@@ -50,6 +50,8 @@ const IMPLEMENTATIONS: [string, () => Repository][] = [
         createFakeSupabase({
           profiles: [VERIFIER],
           everphone_accounts: EVERPHONE_ROWS,
+          // Gleiche Quelle wie der Mock, damit der Contract identische Daten prüft.
+          org_units: seedOrgUnits.map((u) => ({ ...u, note: null })),
         }) as unknown as SupabaseClient,
       ),
   ],
@@ -359,6 +361,25 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.linkedin.url).toBe('https://www.linkedin.com/in/test')
       expect(read?.linkedin.verifiedByName).toBe(VERIFIER.full_name)
       expect(read?.sideFacts.map((f) => f.label)).toEqual(['Golf'])
+    })
+
+    describe('Soll-Organisationsstruktur', () => {
+      it('liefert Einheiten mit Firma, Abteilung und Team', async () => {
+        const units = await repo.listOrgUnits()
+        expect(units.length).toBeGreaterThan(0)
+        for (const u of units) {
+          expect(u.company).toBeTruthy()
+          expect(u.department).toBeTruthy()
+          // team darf null sein (Abteilungsebene), aber nicht undefined-artig.
+          expect(u.team === null || typeof u.team === 'string').toBe(true)
+        }
+      })
+
+      it('enthält sowohl Abteilungsebene als auch Unterteams', async () => {
+        const units = await repo.listOrgUnits()
+        expect(units.some((u) => u.team === null)).toBe(true)
+        expect(units.some((u) => u.team !== null)).toBe(true)
+      })
     })
 
     describe('Änderungsprotokoll', () => {

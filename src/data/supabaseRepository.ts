@@ -16,6 +16,7 @@ import type {
   IntroRequestStatus,
   LinkedInStatus,
   NoteAttachment,
+  OrgUnit,
   Region,
   Reminder,
   Role,
@@ -375,6 +376,24 @@ export interface EventNoteRow {
   attachments: NoteAttachment[] | null
   created_at: string
   contact_id: string | null
+}
+
+export interface OrgUnitRow {
+  id: string
+  company: string
+  department: string
+  team: string | null
+  note: string | null
+}
+
+export function mapRowToOrgUnit(row: OrgUnitRow): OrgUnit {
+  return {
+    id: row.id,
+    company: row.company,
+    department: row.department,
+    team: row.team,
+    note: row.note ?? undefined,
+  }
 }
 
 export interface AuditRow {
@@ -934,6 +953,17 @@ export class SupabaseRepository implements Repository {
     if (error) throw new Error(error.message)
     const resolve = this.resolver(names)
     return ((data ?? []) as unknown as AuditRow[]).map((row) => mapRowToAuditEntry(row, resolve))
+  }
+
+  async listOrgUnits(): Promise<OrgUnit[]> {
+    const { data, error } = await this.client
+      .from('org_units')
+      .select('id, company, department, team, note')
+      .order('company')
+      .order('department')
+      .order('team', { nullsFirst: true })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as OrgUnitRow[]).map(mapRowToOrgUnit)
   }
 
   async matchEverphoneAccounts(customerNames: string[]): Promise<EverphoneAccount[]> {

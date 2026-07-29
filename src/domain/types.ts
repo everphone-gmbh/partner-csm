@@ -192,6 +192,20 @@ export interface Reminder {
   createdByName: string
 }
 
+// --- Soll-Organisationsstruktur der Partner (Abdeckungsanalyse) ---
+
+/**
+ * Eine Organisationseinheit eines Partners. `team === undefined` bezeichnet die
+ * Abteilungsebene selbst (Leitung, Assistenz, Stabsstellen).
+ */
+export interface OrgUnit {
+  id: string
+  company: string
+  department: string
+  team: string | null
+  note?: string
+}
+
 // --- Änderungsprotokoll (DSGVO-Rechenschaftspflicht) ---
 
 export type AuditAction = 'insert' | 'update' | 'delete'
