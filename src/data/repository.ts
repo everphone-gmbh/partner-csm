@@ -156,6 +156,8 @@ export interface Repository {
   reassignContacts(fromUserId: string, toUserId: string): Promise<number>
   /** Links where the contact is either endpoint (the Beziehungsnetz). */
   listContactLinks(contactId: string): Promise<ContactLink[]>
+  /** Alle Verknüpfungen — für die Wegsuche über das gesamte Netz. */
+  listAllContactLinks(): Promise<ContactLink[]>
   addContactLink(input: NewContactLink): Promise<ContactLink>
   deleteContactLink(id: string): Promise<void>
   listActivities(contactId: string): Promise<Activity[]>

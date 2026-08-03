@@ -686,6 +686,28 @@ export class SupabaseRepository implements Repository {
     }))
   }
 
+  async listAllContactLinks(): Promise<ContactLink[]> {
+    const { data, error } = await this.client
+      .from('contact_links')
+      .select('id, from_contact_id, to_contact_id, kind, note')
+    if (error) throw new Error(error.message)
+    return (
+      (data ?? []) as unknown as {
+        id: string
+        from_contact_id: string
+        to_contact_id: string
+        kind: ContactLinkKind
+        note: string | null
+      }[]
+    ).map((r) => ({
+      id: r.id,
+      fromContactId: r.from_contact_id,
+      toContactId: r.to_contact_id,
+      kind: r.kind,
+      note: r.note ?? undefined,
+    }))
+  }
+
   async addContactLink(input: NewContactLink): Promise<ContactLink> {
     const { data, error } = await this.client
       .from('contact_links')

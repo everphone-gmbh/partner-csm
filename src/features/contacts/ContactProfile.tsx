@@ -20,6 +20,7 @@ import { IdentityCard } from './profile/IdentityCard'
 import { StammdatenCard } from './profile/StammdatenCard'
 import { FactsCard } from './profile/FactsCard'
 import { NetworkCard } from './profile/NetworkCard'
+import { IntroPathCard } from './profile/IntroPathCard'
 import { KundenCard } from './profile/KundenCard'
 import { FotogalerieCard } from './profile/FotogalerieCard'
 import { NotizCard } from './profile/NotizCard'
@@ -176,6 +177,7 @@ export function ContactProfile() {
           />
           <FactsCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
           <NetworkCard contact={view} canEdit={canEdit} />
+          <IntroPathCard contact={view} />
           <KundenCard contact={view} canEdit={canEdit} onSave={save} />
           {/* Private photos are sensitive-tier data — hidden from Account Managers. */}
           {canSensitive && <FotogalerieCard contact={view} canEdit={canEdit} onSave={save} />}

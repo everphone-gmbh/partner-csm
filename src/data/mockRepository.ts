@@ -167,6 +167,10 @@ class MockRepository implements Repository {
     )
   }
 
+  async listAllContactLinks() {
+    return clone(this.links)
+  }
+
   async addContactLink(input: NewContactLink) {
     const link: ContactLink = {
       id: `link-local-${this.seq++}`,
