@@ -92,10 +92,15 @@ Push auf `main` → GitHub Actions baut und veröffentlicht auf GitHub Pages.
 Supabase-Zugangsdaten kommen aus GitHub-Repo-Secrets, nicht aus dem Code.
 Prüfen mit `gh run list --limit 1`.
 
-**CI prüft nur den Build** — `npm test`, `npm run lint` und die Typprüfung laufen
-dort **nicht**. Ein Push mit roten Tests wird trotzdem veröffentlicht. Bis das im
-Workflow ergänzt ist: vor jedem Push lokal `npm test && npx tsc -b --noEmit`.
-Es gibt keinen Branch-Schutz, alles läuft direkt auf `main`.
+**CI ist die Qualitätsschranke:** der `build`-Job fährt `npm test`, dann
+`npm run lint`, dann `npm run build` (das `tsc -b` enthält, deshalb kein eigener
+Typprüfungs-Schritt). Schlägt einer davon fehl, läuft `deploy` nicht — rote Tests
+werden nicht veröffentlicht.
+
+Zwei Einschränkungen: `oxlint` beendet auch mit Warnungen als Erfolg, fängt also
+nur echte Fehler; und es gibt **keinen Branch-Schutz** — alles läuft direkt auf
+`main`, CI prüft also erst nach dem Push. Vor größeren Änderungen deshalb lokal
+`npm test` fahren, statt sich auf CI zu verlassen.
 
 ## Anmelden
 

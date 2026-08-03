@@ -24,6 +24,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+
+      # Qualitätsschranke VOR dem Build: schlägt einer dieser Schritte fehl,
+      # scheitert der Job und der deploy-Job (needs: build) läuft nicht — eine
+      # Änderung mit roten Tests wird also nicht mehr veröffentlicht.
+      # Die Tests brauchen keine Secrets: vite.config.ts pinnt sie über test.env
+      # fest auf VITE_DATA_BACKEND=mock, sie erreichen die echte Datenbank nie.
+      - name: Tests
+        run: npm test
+      - name: Lint
+        run: npm run lint
+
+      # Die Typprüfung läuft hier bewusst nicht separat — "npm run build" ist
+      # "tsc -b && vite build" und bricht bei Typfehlern von selbst ab.
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
