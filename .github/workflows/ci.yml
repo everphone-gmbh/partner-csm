@@ -1,0 +1,42 @@
+name: CI
+
+# Ergänzt deploy.yml. Dort greift die Qualitätsschranke erst beim Push auf main,
+# also NACH dem Merge — sie schützt damit die veröffentlichte Seite, nicht den
+# Hauptzweig. Dieser Workflow prüft Pull Requests davor, insbesondere die
+# Dependabot-PRs, die sonst völlig ungeprüft nach main laufen.
+#
+# Damit das verbindlich wird, muss "test" in den Repo-Einstellungen als required
+# status check für main eingetragen werden — ohne Branch-Schutz bleibt die
+# Prüfung freiwillig und lässt sich wegmergen.
+on:
+  pull_request:
+  workflow_dispatch:
+
+# Eigene Gruppe, ausdrücklich NICHT "pages": sonst reihen sich PR-Prüfungen und
+# Auslieferungen gegenseitig auf. Hier ist Abbrechen richtig, weil nichts
+# veröffentlicht wird — ein überholter PR-Lauf hat keinen Wert.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - name: Typen der Testdateien
+        run: npx tsc -p tsconfig.test.json --noEmit
+      # Ohne Secrets, weil hier nichts veröffentlicht wird: der Build belegt nur,
+      # dass alles kompiliert (npm run build = tsc -b && vite build). Die Tests
+      # brauchen ohnehin keine — vite.config.ts pinnt sie auf mock.
+      - run: npm run build

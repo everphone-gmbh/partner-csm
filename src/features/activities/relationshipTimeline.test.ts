@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Activity, SentimentEntry } from '@/domain/types'
+import type { Activity } from '@/domain/types'
 import { buildHistory } from './timelineHistory'
 import { buildRelationshipTimeline } from './relationshipTimeline'
 

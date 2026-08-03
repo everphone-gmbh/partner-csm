@@ -12,7 +12,12 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # Bewusst NICHT abbrechen: seit der Qualitätsschranke dauert der build-Job
+  # länger, und ein nachgeschobener Push mit roten Tests würde sonst einen noch
+  # laufenden, grünen Lauf abwürgen — dessen deploy-Job liefe nie, der eigene
+  # scheitert an den Tests, und live bliebe stumm der Stand von davor. Läufe
+  # reihen sich stattdessen auf. (So macht es auch die GitHub-Pages-Vorlage.)
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -35,8 +40,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Die Typprüfung läuft hier bewusst nicht separat — "npm run build" ist
-      # "tsc -b && vite build" und bricht bei Typfehlern von selbst ab.
+      # "npm run build" ist "tsc -b && vite build", prüft also die Typen von src
+      # mit — aber tsconfig.app.json schließt Tests und src/test ausdrücklich
+      # aus. Ohne diesen Schritt liefe ein Typfehler in src/test/fakeSupabase.ts
+      # (der Postgres-Nachbildung, an der die Vertrags-Tests hängen) durch alle
+      # drei Befehle hindurch.
+      - name: Typen der Testdateien
+        run: npx tsc -p tsconfig.test.json --noEmit
+
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

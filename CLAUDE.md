@@ -92,15 +92,30 @@ Push auf `main` → GitHub Actions baut und veröffentlicht auf GitHub Pages.
 Supabase-Zugangsdaten kommen aus GitHub-Repo-Secrets, nicht aus dem Code.
 Prüfen mit `gh run list --limit 1`.
 
-**CI ist die Qualitätsschranke:** der `build`-Job fährt `npm test`, dann
-`npm run lint`, dann `npm run build` (das `tsc -b` enthält, deshalb kein eigener
-Typprüfungs-Schritt). Schlägt einer davon fehl, läuft `deploy` nicht — rote Tests
-werden nicht veröffentlicht.
+**Zwei Workflows, zwei Aufgaben:**
 
-Zwei Einschränkungen: `oxlint` beendet auch mit Warnungen als Erfolg, fängt also
-nur echte Fehler; und es gibt **keinen Branch-Schutz** — alles läuft direkt auf
-`main`, CI prüft also erst nach dem Push. Vor größeren Änderungen deshalb lokal
-`npm test` fahren, statt sich auf CI zu verlassen.
+- `deploy.yml` (Push auf `main`) fährt `npm test`, `npm run lint`,
+  `tsc -p tsconfig.test.json --noEmit`, dann `npm run build` und veröffentlicht.
+  Scheitert einer der Schritte, läuft `deploy` nicht — rote Tests gehen nicht
+  live. Schützt die **veröffentlichte Seite**.
+- `ci.yml` (Pull Requests) fährt dieselben Prüfungen ohne Veröffentlichung.
+  Schützt den **Hauptzweig**, vor allem gegen ungeprüfte Dependabot-PRs.
+
+Zwei Feinheiten, die leicht falsch gemacht werden:
+
+- `deploy.yml` hat bewusst `cancel-in-progress: false`. Mit `true` würde ein
+  nachgeschobener Push mit roten Tests einen noch laufenden grünen Lauf
+  abwürgen: dessen `deploy` liefe nie, der eigene scheitert — und live bliebe
+  stumm der Stand von davor. In der Oberfläche sieht das nur nach „cancelled"
+  aus.
+- Die Typprüfung braucht **beide** Konfigurationen. `tsc -b` prüft `src` ohne
+  Tests, weil `tsconfig.app.json` sie ausschließt; `tsconfig.test.json` holt die
+  32 Test- und Testinfrastruktur-Dateien nach — darunter `fakeSupabase.ts`.
+
+Grenzen: `oxlint` beendet auch mit Warnungen als Erfolg, fängt also nur echte
+Fehler. Und es gibt **keinen Branch-Schutz** — solange `test` aus `ci.yml` nicht
+als required status check für `main` eingetragen ist, lässt sich die Prüfung
+wegmergen, und Pushes direkt auf `main` werden erst nach dem Push geprüft.
 
 ## Anmelden
 
