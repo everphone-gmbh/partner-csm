@@ -226,10 +226,13 @@ Beide brauchen `.env.local` (Service-Key) und die angemeldete Salesforce-CLI:
 - **Datenschutz-Freigaben und Abnahmen** stehen teilweise aus — Einzelheiten und
   Zuständige in `CLAUDE.local.md`. Vor einer Ausweitung des Nutzerkreises dort
   nachsehen.
-- **Datenpflege durch das Team** ist der eigentliche Engpass: viele Kontakte
-  ohne Region und ohne Betreuer, keine bewerteten Beziehungen, keine gepflegten
-  Verknüpfungen. Ohne diese Angaben laufen Dashboard, Bericht, Abdeckung und
-  Vorstellungspfade weitgehend leer — das ist kein Fehler im Code.
+- **Datenpflege durch das Team** ist der eigentliche Engpass (gemessen am
+  2026-08-03): 446 der 671 Kontakte sitzen in der Platzhalter-Region
+  „Unbekannt", 607 haben keinen Betreuer, 458 keine Position, 467 kein Team;
+  0 bewertete Beziehungen, 0 Verknüpfungen, 0 Gespräche, 0 Reminder, 0 Events.
+  Dashboard, Bericht, Abdeckung und Vorstellungspfade laufen deshalb weitgehend
+  leer — das ist kein Fehler im Code. Zahlen vor dem Zitieren neu messen; bei
+  Textspalten auf nicht-leere Werte zählen, nicht nur auf `not null`.
 - **Endpunkt-abhängig:** echte KI-Zusammenfassungen, Memo-Transkription und
   Visitenkarten-Erfassung brauchen einen EU-gehosteten Dienst mit AVV.
 - **Offene technische Schulden** (Anhänge-Rechte, verwaiste Storage-Dateien,
