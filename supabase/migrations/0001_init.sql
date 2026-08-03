@@ -1,6 +1,7 @@
 -- Partner CSM Tool — initial schema
--- ⚠ AUTHORED, NOT YET APPLIED. Run only against the Sovereign-Cloud Supabase
---   instance once provisioning + DPO sign-off are in place. Never on Telekom cloud.
+-- Status: ANGEWENDET auf der Sovereign-Cloud-Instanz (gcpdev, Tenant partner-csm)
+--   im Juli 2026. Trägt seitdem echte Personendaten — siehe CLAUDE.md.
+--   Niemals in der Telekom-Cloud anwenden.
 
 create extension if not exists "pgcrypto";
 

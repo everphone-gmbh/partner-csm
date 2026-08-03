@@ -1,6 +1,8 @@
 -- Partner CSM Tool — Row Level Security + field-level redaction
--- ⚠ AUTHORED, NOT YET APPLIED. Encodes the 3-tier access model from the briefing.
---   Review with the DPO before applying.
+-- Status: ANGEWENDET (gcpdev) im Juli 2026. Bildet das 3-Stufen-Zugriffsmodell
+--   aus dem Briefing ab; die serverseitige Redaktion kam in 0018 dazu.
+-- ⚠ OFFEN: Die Freigabe des Datenschutzbeauftragten steht weiterhin aus — die
+--   Anwendung erfolgte ohne sie. Siehe CLAUDE.md, Abschnitt „Offen".
 
 -- Caller's role / region, read from profiles (security definer to avoid recursion).
 create or replace function auth_role() returns app_role

@@ -17,6 +17,11 @@ dist-ssr
 .env.*
 !.env.example
 
+# Interne Übergabe-Notizen: offene Schwachstellen, Zuständigkeiten, Betriebswissen.
+# Claude Code lädt die Datei automatisch mit, sie darf aber nicht ins öffentliche
+# Repo — siehe CLAUDE.md.
+CLAUDE.local.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
