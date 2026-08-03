@@ -112,10 +112,19 @@ Zwei Feinheiten, die leicht falsch gemacht werden:
   Tests, weil `tsconfig.app.json` sie ausschließt; `tsconfig.test.json` holt die
   32 Test- und Testinfrastruktur-Dateien nach — darunter `fakeSupabase.ts`.
 
-Grenzen: `oxlint` beendet auch mit Warnungen als Erfolg, fängt also nur echte
-Fehler. Und es gibt **keinen Branch-Schutz** — solange `test` aus `ci.yml` nicht
-als required status check für `main` eingetragen ist, lässt sich die Prüfung
-wegmergen, und Pushes direkt auf `main` werden erst nach dem Push geprüft.
+**Branch-Schutz auf `main`** (seit 2026-08-03): der Check `test` aus `ci.yml` ist
+Pflicht, Force-Push und Löschen sind gesperrt, eine Review-Pflicht gibt es nicht
+(dafür ist das Team zu klein). Ein roter Pull Request lässt sich damit nicht mehr
+mergen.
+
+Bewusst **nicht** auf Administratoren ausgedehnt: Jannik pusht direkt auf `main`,
+und genau das soll weiter funktionieren. Direkte Pushes werden deshalb wie bisher
+erst *nach* dem Push von `deploy.yml` geprüft — die Schranke verhindert dann die
+Veröffentlichung, nicht den Commit. Wer sicher gehen will, fährt vorher lokal
+`npm test`.
+
+Grenze: `oxlint` beendet auch mit Warnungen als Erfolg und fängt daher nur echte
+Fehler.
 
 ## Anmelden
 
