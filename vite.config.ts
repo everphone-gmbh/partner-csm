@@ -25,5 +25,11 @@ export default defineConfig({
     css: true,
     // Tests laufen immer gegen den Mock — unabhängig von .env.local.
     env: { VITE_DATA_BACKEND: 'mock' },
+    // Hintergrund-Tasks legen Arbeitsbäume unter .claude/worktrees/ ab. Ohne
+    // diesen Ausschluss sammelt Vitest deren Testdateien mit ein und scheitert
+    // an einer zweiten React-Instanz — ein roter Lauf, der über dieses Projekt
+    // nichts aussagt. `exclude` ersetzt die Vorgaben, node_modules muss also
+    // mit aufgeführt werden.
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.claude/**'],
   },
 })

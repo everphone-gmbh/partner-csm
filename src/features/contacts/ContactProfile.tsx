@@ -87,7 +87,9 @@ export function ContactProfile() {
     }
   }
 
-  // GDPR erasure — deliberately Overall-Admin only (mirrors RLS in 0008).
+  // DSGVO-Löschung — nur Overall-Admin. Die Datenbank erzwingt das seit 0023
+  // selbst; zuvor stand die Policy auf is_privileged(), die Beschränkung
+  // existierte also NUR hier in der Oberfläche und war über die API umgehbar.
   const erase = async () => {
     if (!raw) return
     const sure = window.confirm(

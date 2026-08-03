@@ -22,6 +22,10 @@ dist-ssr
 # Repo — siehe CLAUDE.md.
 CLAUDE.local.md
 
+# Datenschutz-Unterlagen: enthalten Bewertungen offener Risiken und interne
+# Namen. Gehören zum DPO/Legal, nicht in ein öffentliches Repository.
+DSGVO-Paket.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

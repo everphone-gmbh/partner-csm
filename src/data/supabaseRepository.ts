@@ -657,6 +657,25 @@ export class SupabaseRepository implements Repository {
     const { fileStore } = await import('@/lib/fileStore')
     await fileStore.removeContactFiles(id)
 
+    // Anhänge an Event-Notizen fasst removeContactFiles nicht: sie liegen unter
+    // <eventId>/… (EventNotes.tsx), sind über den Pfad also nicht kontaktbezogen
+    // auffindbar. Ihre Verweise stehen in der Notiz-Zeile, die gleich per
+    // Kaskade verschwindet — daher vorher auslesen und einzeln entfernen. Sonst
+    // bleiben Fotos und Sprachmemos referenzlos in der Ablage liegen, und die
+    // sind laut 0012 personenbezogene Daten des Kontakts.
+    const { data: notes } = await this.client
+      .from('event_notes')
+      .select('attachments')
+      .eq('contact_id', id)
+    for (const note of (notes ?? []) as { attachments?: unknown }[]) {
+      const list = Array.isArray(note.attachments) ? note.attachments : []
+      for (const entry of list) {
+        const ref = (entry as { url?: unknown })?.url
+        // remove() lässt Data-URLs und externe Links unangetastet.
+        if (typeof ref === 'string' && ref) await fileStore.remove(ref)
+      }
+    }
+
     // Dependent rows (side_facts, activities, photos, reminders, attendance)
     // are removed by the schema's ON DELETE CASCADE.
     const { error } = await this.client.from('contacts').delete().eq('id', id)
