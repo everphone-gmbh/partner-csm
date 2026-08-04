@@ -32,6 +32,7 @@ import {
 } from '@/domain/everphoneAccounts'
 import type {
   AttendeePatch,
+  BulkAssignPatch,
   ContactPatch,
   NewActivity,
   NewContact,
@@ -480,9 +481,13 @@ export class SupabaseRepository implements Repository {
   }
 
   async listRegions(): Promise<Region[]> {
-    const { data, error } = await this.client.from('regions').select('id, name').order('name')
+    const { data, error } = await this.client
+      .from('regions')
+      .select('id, name, is_placeholder')
+      .order('name')
     if (error) throw new Error(error.message)
-    return (data ?? []) as Region[]
+    const rows = (data ?? []) as unknown as { id: string; name: string; is_placeholder: boolean }[]
+    return rows.map((r) => ({ id: r.id, name: r.name, isPlaceholder: Boolean(r.is_placeholder) }))
   }
 
   async listUsers(): Promise<AppUser[]> {
@@ -643,6 +648,26 @@ export class SupabaseRepository implements Repository {
       .from('contacts')
       .update({ relationship_manager_id: toUserId })
       .eq('relationship_manager_id', fromUserId)
+      .select('id')
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as { id: string }[]).length
+  }
+
+  async bulkAssign(contactIds: string[], patch: BulkAssignPatch): Promise<number> {
+    if (contactIds.length === 0) return 0
+    // Teil-Update: nur die übergebenen Spalten. KEIN upsert — der schriebe die
+    // ganze Zeile und setzte alles Nichtübergebene auf NULL (siehe setAttendee).
+    const row: Record<string, string> = {}
+    if (patch.regionId !== undefined) row.region_id = patch.regionId
+    if (patch.relationshipManagerId !== undefined) {
+      row.relationship_manager_id = patch.relationshipManagerId
+    }
+    if (Object.keys(row).length === 0) return 0
+
+    const { data, error } = await this.client
+      .from('contacts')
+      .update(row)
+      .in('id', contactIds)
       .select('id')
     if (error) throw new Error(error.message)
     return ((data ?? []) as { id: string }[]).length

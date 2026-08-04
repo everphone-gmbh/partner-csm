@@ -17,11 +17,14 @@ import type {
 // personal data. Today (demo) is 2026-06-30.
 
 export const seedRegions: Region[] = [
-  { id: 'r-nord', name: 'Nord' },
-  { id: 'r-sued', name: 'Süd' },
-  { id: 'r-ost', name: 'Ost' },
-  { id: 'r-west', name: 'West' },
-  { id: 'r-mitte', name: 'Mitte' },
+  { id: 'r-nord', name: 'Nord', isPlaceholder: false },
+  { id: 'r-sued', name: 'Süd', isPlaceholder: false },
+  { id: 'r-ost', name: 'Ost', isPlaceholder: false },
+  { id: 'r-west', name: 'West', isPlaceholder: false },
+  { id: 'r-mitte', name: 'Mitte', isPlaceholder: false },
+  // Spiegelt die Produktionslage: dort liegen 446 der 671 Kontakte in einem
+  // Platzhalter, weil der Import keine verlässliche Region hergab.
+  { id: 'r-unbekannt', name: 'Unbekannt', isPlaceholder: true },
 ]
 
 export const seedUsers: AppUser[] = [

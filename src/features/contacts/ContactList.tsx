@@ -2,11 +2,14 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Check, X, HelpCircle, Plus, Upload, Map as MapIcon, List as ListIcon } from 'lucide-react'
 import type { Activity, AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
+import type { BulkAssignPatch } from '@/data/repository'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { canApprove } from '@/domain/roles'
+import { describeGaps, findGaps, isBlank, isPlaceholderRegion, isUnassigned } from '@/domain/placeholders'
+import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { useScopedContacts } from '@/app/useScopedContacts'
 import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { Input } from '@/components/ui/input'
@@ -20,6 +23,10 @@ import { TrafficLightDot, TRAFFIC_LABEL } from '@/components/TrafficLight'
 import { cn } from '@/lib/utils'
 
 type SortMode = 'name' | 'stale'
+
+/** Gleiche Optik wie die vorhandenen Filter-Auswahlfelder. */
+const SELECT_CLS =
+  'h-8 max-w-52 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 const LINKEDIN_MINI: Record<LinkedInStatus, { icon: typeof Check; cls: string; title: string }> = {
   has_account: { icon: Check, cls: 'text-status-green', title: 'LinkedIn vorhanden' },
@@ -43,6 +50,14 @@ export function ContactList() {
   const [companyFilter, setCompanyFilter] = useState<string>('')
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [sortMode, setSortMode] = useState<SortMode>(specialFilter === 'stale' ? 'stale' : 'name')
+  const [onlyUnassigned, setOnlyUnassigned] = useState(false)
+  // Auswahl bewusst über Filterwechsel hinweg: erst Firma A wählen, dann
+  // Firma B, dann einmal zuordnen.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [bulkRegion, setBulkRegion] = useState('')
+  const [bulkManager, setBulkManager] = useState('')
+  const [applying, setApplying] = useState(false)
+  const { toast } = useToast()
 
   const { data, loading, error, retry } = useRepoQuery(
     () =>
@@ -55,7 +70,9 @@ export function ContactList() {
     [],
   )
   const contacts: Contact[] = useMemo(() => data?.[0] ?? [], [data])
-  const regions: Region[] = data?.[1] ?? []
+  // Memoisiert wie contacts/activities: `?? []` erzeugt sonst bei jedem Rendern
+  // ein neues Array und lässt die Filter-useMemo unnötig neu laufen.
+  const regions: Region[] = useMemo(() => data?.[1] ?? [], [data])
   const users: AppUser[] = data?.[2] ?? []
   const activities: Activity[] = useMemo(() => data?.[3] ?? [], [data])
 
@@ -90,6 +107,7 @@ export function ContactList() {
       list = list.filter((c) => attentionByContact.get(c.id)?.level !== 'ok')
     if (regionFilter) list = list.filter((c) => c.regionId === regionFilter)
     if (companyFilter) list = list.filter((c) => c.company === companyFilter)
+    if (onlyUnassigned) list = list.filter((c) => isUnassigned(c, regions))
     const term = q.trim().toLowerCase()
     if (term) {
       list = list.filter(
@@ -104,7 +122,64 @@ export function ContactList() {
         ? (attentionByContact.get(b.id)?.days ?? 0) - (attentionByContact.get(a.id)?.days ?? 0)
         : a.fullName.localeCompare(b.fullName, 'de'),
     )
-  }, [roleScoped, q, regionFilter, companyFilter, sortMode, attentionByContact, specialFilter])
+  }, [
+    roleScoped,
+    q,
+    regionFilter,
+    companyFilter,
+    onlyUnassigned,
+    regions,
+    sortMode,
+    attentionByContact,
+    specialFilter,
+  ])
+
+  const canBulk = canApprove(user.role)
+
+  const unassignedCount = useMemo(
+    () => roleScoped.filter((c) => isUnassigned(c, regions)).length,
+    [roleScoped, regions],
+  )
+
+  const toggleOne = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const applyBulk = async () => {
+    const ids = [...selected]
+    const patch: BulkAssignPatch = {}
+    if (bulkRegion) patch.regionId = bulkRegion
+    if (bulkManager) patch.relationshipManagerId = bulkManager
+    if (ids.length === 0 || (!patch.regionId && !patch.relationshipManagerId)) return
+
+    // Rückfrage ab 25: eine Massenzuordnung ist nicht einzeln rückgängig zu
+    // machen, und der Knopf sitzt neben harmlosen Filtern.
+    const what = [
+      patch.regionId ? `Region → ${regionName(patch.regionId)}` : null,
+      patch.relationshipManagerId ? `Betreuer → ${userName(patch.relationshipManagerId)}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    if (ids.length > 25 && !window.confirm(`${ids.length} Kontakte ändern?\n\n${what}`)) return
+
+    setApplying(true)
+    try {
+      const changed = await repository.bulkAssign(ids, patch)
+      toast(`${changed} ${changed === 1 ? 'Kontakt' : 'Kontakte'} zugeordnet.`, 'success')
+      setSelected(new Set())
+      setBulkRegion('')
+      setBulkManager('')
+      retry() // neu laden, sonst zeigt die Liste die alte Zuordnung
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    } finally {
+      setApplying(false)
+    }
+  }
 
   if (error) return <QueryError error={error} retry={retry} />
 
@@ -218,8 +293,92 @@ export function ContactList() {
               onClick={() => setRegionFilter(r.id)}
             >
               {r.name}
+              {r.isPlaceholder ? ' (Platzhalter)' : ''}
             </FilterChip>
           ))}
+        </div>
+      )}
+
+      {canBulk && viewMode === 'list' && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <FilterChip active={onlyUnassigned} onClick={() => setOnlyUnassigned((v) => !v)}>
+              Nur unzugeordnete ({unassignedCount})
+            </FilterChip>
+            {visible.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelected(new Set(visible.map((c) => c.id)))}
+                className="text-xs text-primary hover:underline"
+              >
+                Alle {visible.length} sichtbaren wählen
+              </button>
+            )}
+            {selected.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="text-xs text-muted-foreground hover:underline"
+              >
+                Auswahl leeren
+              </button>
+            )}
+          </div>
+
+          {selected.size > 0 && (
+            <Card className="border-primary/40 bg-primary/5">
+              <CardContent className="flex flex-wrap items-end gap-3 pt-5 sm:pt-5">
+                <div className="text-sm font-medium">
+                  {selected.size} {selected.size === 1 ? 'Kontakt' : 'Kontakte'} ausgewählt
+                </div>
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  Region
+                  <select
+                    value={bulkRegion}
+                    onChange={(e) => setBulkRegion(e.target.value)}
+                    className={SELECT_CLS}
+                  >
+                    <option value="">unverändert</option>
+                    {regions.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                        {r.isPlaceholder ? ' (Platzhalter)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  Betreuer
+                  <select
+                    value={bulkManager}
+                    onChange={(e) => setBulkManager(e.target.value)}
+                    className={SELECT_CLS}
+                  >
+                    <option value="">unverändert</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                        {u.regionId ? ` · ${regionName(u.regionId)}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={applyBulk}
+                  disabled={applying || (!bulkRegion && !bulkManager)}
+                  className={cn(buttonVariants({ size: 'sm' }), 'disabled:opacity-50')}
+                >
+                  {applying ? 'Übernimmt…' : 'Zuordnen'}
+                </button>
+                <p className="w-full text-xs text-muted-foreground">
+                  Wirkt nur auf die ausgewählten Kontakte. „unverändert“ lässt das Feld, wie es ist —
+                  so lässt sich eine Region an einen anderen Betreuer übergeben, ohne die Region
+                  anzufassen.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -248,9 +407,35 @@ export function ContactList() {
           const mini = LINKEDIN_MINI[c.linkedin.status]
           const MiniIcon = mini.icon
           const attention = attentionByContact.get(c.id)
+          const placeholderRegion = isPlaceholderRegion(c.regionId, regions)
+          const noManager = isBlank(c.relationshipManagerId)
+          const gaps = findGaps(c, regions)
+          const isSelected = selected.has(c.id)
           return (
-            <Link key={c.id} to={`/contacts/${c.id}`} className="group">
-              <Card className="flex items-center gap-3 p-3 transition-colors group-hover:border-primary/40 group-hover:bg-secondary/40">
+            <Card
+              key={c.id}
+              className={cn(
+                'group flex items-center gap-3 p-3 transition-colors hover:border-primary/40 hover:bg-secondary/40',
+                isSelected && 'border-primary bg-primary/5',
+              )}
+            >
+              {/*
+                Das Kästchen steht bewusst NEBEN dem Link, nicht darin: ein
+                Auswahlkästchen innerhalb eines Links ist ungültiges Markup, und
+                der Versuch, die Navigation per preventDefault abzufangen,
+                unterdrückt auch das native Umschalten — die Leiste zählte dann
+                richtig, das Kästchen blieb aber optisch leer.
+              */}
+              {canBulk && (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleOne(c.id)}
+                  aria-label={`${c.fullName} auswählen`}
+                  className="size-4 shrink-0 accent-primary"
+                />
+              )}
+              <Link to={`/contacts/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar src={c.photoUrl} name={c.fullName} className="size-11" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -265,19 +450,36 @@ export function ContactList() {
                     <TrafficLightDot value={c.sentiment} />
                     <span>{TRAFFIC_LABEL[c.sentiment]}</span>
                     <span>·</span>
-                    <span className="truncate">{regionName(c.regionId)}</span>
+                    <span
+                      className={cn('truncate', placeholderRegion && 'italic text-status-amber')}
+                      title={placeholderRegion ? 'Platzhalter, keine echte Region' : undefined}
+                    >
+                      {regionName(c.regionId)}
+                      {placeholderRegion ? ' (Platzhalter)' : ''}
+                    </span>
                   </div>
+                  {gaps.length > 0 && (
+                    <div className="mt-0.5 text-xs italic text-muted-foreground">
+                      {describeGaps(gaps)}
+                    </div>
+                  )}
                   {attention && attention.level !== 'ok' && (
                     <div className="mt-1">
                       <AttentionBadge level={attention.level} days={attention.days} />
                     </div>
                   )}
                 </div>
-                <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
-                  {userName(c.relationshipManagerId).split(' ')[0]}
-                </Badge>
-              </Card>
-            </Link>
+                {noManager ? (
+                  <Badge variant="warning" className="hidden shrink-0 sm:inline-flex">
+                    nicht zugeordnet
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
+                    {userName(c.relationshipManagerId).split(' ')[0]}
+                  </Badge>
+                )}
+              </Link>
+            </Card>
           )
         })}
       </div>

@@ -62,6 +62,16 @@ export interface NewContact {
  * key absent = leave unchanged. sideFacts is replaced wholesale; gallery is
  * diffed by id (photos are relation rows, not a column, on Supabase).
  */
+/**
+ * Was eine Massenzuordnung setzen darf — bewusst eng gehalten. Alles andere
+ * (Name, Notizen, sensible Felder) gehört an den einzelnen Kontakt und nicht in
+ * eine Aktion, die 400 Datensätze auf einmal überschreibt.
+ */
+export interface BulkAssignPatch {
+  regionId?: string
+  relationshipManagerId?: string
+}
+
 export interface ContactPatch {
   fullName?: string
   position?: string
@@ -154,6 +164,20 @@ export interface Repository {
   deleteContact(id: string): Promise<void>
   /** Handover when a manager leaves: moves all their contacts, returns the count. */
   reassignContacts(fromUserId: string, toUserId: string): Promise<number>
+
+  /**
+   * Setzt Region und/oder Betreuer für viele Kontakte in einem Schritt.
+   *
+   * Bewusst mit expliziten IDs statt einem serverseitigen Filter: die Oberfläche
+   * entscheidet über ihre eigenen Filter (Region, Firma, Team, Suche), was
+   * ausgewählt ist. Ein falsch gesetzter Filter kann so nicht den halben Bestand
+   * umschreiben — geändert wird genau, was der Nutzer angehakt hat.
+   *
+   * Nicht übergebene Felder bleiben unangetastet; es ist ein Teil-Update.
+   *
+   * @returns Anzahl der tatsächlich geänderten Kontakte
+   */
+  bulkAssign(contactIds: string[], patch: BulkAssignPatch): Promise<number>
   /** Links where the contact is either endpoint (the Beziehungsnetz). */
   listContactLinks(contactId: string): Promise<ContactLink[]>
   /** Alle Verknüpfungen — für die Wegsuche über das gesamte Netz. */

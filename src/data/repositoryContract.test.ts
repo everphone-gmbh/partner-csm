@@ -598,5 +598,66 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         expect(await repo.searchEverphoneAccounts('No%all')).toEqual([])
       })
     })
+
+    describe('Massenzuordnung', () => {
+      it('setzt den Betreuer nur für die ausgewählten Kontakte', async () => {
+        const a = await repo.createContact({ ...BASE, fullName: 'A' })
+        const b = await repo.createContact({ ...BASE, fullName: 'B' })
+        const c = await repo.createContact({ ...BASE, fullName: 'C' })
+
+        const changed = await repo.bulkAssign([a.id, b.id], { relationshipManagerId: 'u-neu' })
+
+        expect(changed).toBe(2)
+        expect((await repo.getContact(a.id))?.relationshipManagerId).toBe('u-neu')
+        expect((await repo.getContact(b.id))?.relationshipManagerId).toBe('u-neu')
+        expect((await repo.getContact(c.id))?.relationshipManagerId).toBe(VERIFIER.id)
+      })
+
+      it('setzt Region und Betreuer in einem Schritt', async () => {
+        const a = await repo.createContact({ ...BASE, fullName: 'A' })
+
+        await repo.bulkAssign([a.id], { regionId: 'r-2', relationshipManagerId: 'u-neu' })
+
+        const after = await repo.getContact(a.id)
+        expect(after?.regionId).toBe('r-2')
+        expect(after?.relationshipManagerId).toBe('u-neu')
+      })
+
+      it('lässt alle übrigen Felder unangetastet', async () => {
+        // Der eigentliche Grund für diesen Test: mit upsert statt update würde
+        // die ganze Zeile geschrieben und alles Nichtübergebene auf NULL fallen.
+        const a = await repo.createContact({
+          ...BASE,
+          fullName: 'Vollständig',
+          position: 'CIO',
+          email: 'cio@example.com',
+          team: 'Team A',
+          freeText: 'Wichtige Notiz',
+        })
+
+        await repo.bulkAssign([a.id], { relationshipManagerId: 'u-neu' })
+
+        const after = await repo.getContact(a.id)
+        expect(after?.fullName).toBe('Vollständig')
+        expect(after?.position).toBe('CIO')
+        expect(after?.email).toBe('cio@example.com')
+        expect(after?.team).toBe('Team A')
+        expect(after?.freeText).toBe('Wichtige Notiz')
+      })
+
+      it('zählt nur getroffene Kontakte und ignoriert unbekannte IDs', async () => {
+        const a = await repo.createContact({ ...BASE, fullName: 'A' })
+
+        expect(await repo.bulkAssign([a.id, 'gibt-es-nicht'], { regionId: 'r-2' })).toBe(1)
+      })
+
+      it('tut ohne Auswahl oder ohne Feld nichts', async () => {
+        const a = await repo.createContact({ ...BASE, fullName: 'A' })
+
+        expect(await repo.bulkAssign([], { regionId: 'r-2' })).toBe(0)
+        expect(await repo.bulkAssign([a.id], {})).toBe(0)
+        expect((await repo.getContact(a.id))?.regionId).toBe('r-1')
+      })
+    })
   })
 }

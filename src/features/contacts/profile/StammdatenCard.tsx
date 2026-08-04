@@ -135,6 +135,7 @@ export function StammdatenCard({
                   {regions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
+                      {r.isPlaceholder ? ' (Platzhalter)' : ''}
                     </option>
                   ))}
                 </select>

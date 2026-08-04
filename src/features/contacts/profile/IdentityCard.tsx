@@ -46,6 +46,7 @@ export function IdentityCard({
   contact,
   canEdit,
   regionName,
+  regionIsPlaceholder,
   managerName,
   viewerId,
   viewerName,
@@ -54,6 +55,8 @@ export function IdentityCard({
   contact: Contact
   canEdit: boolean
   regionName?: string
+  /** Kennzeichnet „Unbekannt“ & Co. als Platzhalter statt als echtes Gebiet. */
+  regionIsPlaceholder?: boolean
   managerName?: string
   viewerId: string
   viewerName: string
@@ -91,7 +94,13 @@ export function IdentityCard({
               <p className="text-sm text-muted-foreground">{contact.position || '—'}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="secondary">{regionName ?? '—'}</Badge>
+              <Badge
+                variant={regionIsPlaceholder ? 'warning' : 'secondary'}
+                title={regionIsPlaceholder ? 'Platzhalter, keine echte Region' : undefined}
+              >
+                {regionName ?? '—'}
+                {regionIsPlaceholder ? ' (Platzhalter)' : ''}
+              </Badge>
               {contact.buyingRole && (
                 <Badge variant={BUYING_ROLE_VARIANT[contact.buyingRole]}>
                   {BUYING_ROLE_LABEL[contact.buyingRole]}

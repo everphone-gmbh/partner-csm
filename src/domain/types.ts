@@ -81,6 +81,13 @@ export interface GalleryPhoto {
 export interface Region {
   id: string
   name: string
+  /**
+   * Kein echtes Vertriebsgebiet, sondern ein Sammelbecken für Kontakte ohne
+   * verlässliche Regionsangabe (contacts.region_id ist NOT NULL, sie brauchen
+   * also ein Ziel). Die Datenbank führt das Kennzeichen, damit eine Umbenennung
+   * es nicht aushebelt — siehe Migration 0024.
+   */
+  isPlaceholder: boolean
 }
 
 export interface AppUser {

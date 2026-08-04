@@ -130,8 +130,8 @@ describe('buildContactsFromRows', () => {
 
   describe('Region-Spalte', () => {
     const regions = [
-      { id: 'r-nord', name: 'Nord' },
-      { id: 'r-sw', name: 'SüdWest' },
+      { id: 'r-nord', name: 'Nord', isPlaceholder: false },
+      { id: 'r-sw', name: 'SüdWest', isPlaceholder: false },
     ]
     const regionHeaders = ['Name', 'Region']
     const regionMapping = { fullName: 'Name', region: 'Region' } as const

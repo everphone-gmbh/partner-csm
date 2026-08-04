@@ -18,6 +18,7 @@ import {
 import { seedEverphoneAccounts } from './seed'
 import type {
   AttendeePatch,
+  BulkAssignPatch,
   ContactPatch,
   NewActivity,
   NewContact,
@@ -159,6 +160,41 @@ class MockRepository implements Repository {
       return { ...c, relationshipManagerId: toUserId, updatedAt: nowIso() }
     })
     return moved
+  }
+
+  async bulkAssign(contactIds: string[], patch: BulkAssignPatch) {
+    // Ohne Feld gibt es kein UPDATE — der Supabase-Adapter kehrt hier ebenfalls
+    // früh zurück, sonst weichen die Rückgabewerte voneinander ab.
+    if (patch.regionId === undefined && patch.relationshipManagerId === undefined) return 0
+    const wanted = new Set(contactIds)
+    let matched = 0
+    this.contacts = this.contacts.map((c) => {
+      if (!wanted.has(c.id)) return c
+      // Getroffen zählt, nicht geändert: Postgres gibt bei
+      // `update … in (…) returning id` auch Zeilen zurück, deren Wert schon
+      // stimmte. Beide Adapter müssen dieselbe Zahl liefern.
+      matched++
+      const next = { ...c }
+      const fields: string[] = []
+      if (patch.regionId !== undefined && patch.regionId !== c.regionId) {
+        next.regionId = patch.regionId
+        fields.push('region_id')
+      }
+      if (
+        patch.relationshipManagerId !== undefined &&
+        patch.relationshipManagerId !== c.relationshipManagerId
+      ) {
+        next.relationshipManagerId = patch.relationshipManagerId
+        fields.push('relationship_manager_id')
+      }
+      if (fields.length === 0) return c
+      next.updatedAt = nowIso()
+      // Produktiv schreibt der DB-Trigger je Zeile einen Eintrag und lässt
+      // wertgleiche Updates aus (0019).
+      this.audit('update', 'contact', c.id, fields)
+      return next
+    })
+    return matched
   }
 
   async listContactLinks(contactId: string) {

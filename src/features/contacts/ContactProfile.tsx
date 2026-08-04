@@ -9,6 +9,7 @@ import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { canApprove, canViewSensitiveFields, redactContactForRole } from '@/domain/roles'
+import { isPlaceholderRegion } from '@/domain/placeholders'
 import { localSummarizer } from '@/domain/ai'
 import { Card, CardContent } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
@@ -148,6 +149,7 @@ export function ContactProfile() {
         contact={view}
         canEdit={canEdit}
         regionName={regionName}
+        regionIsPlaceholder={isPlaceholderRegion(view.regionId, regions)}
         managerName={managerName}
         viewerId={user.id}
         viewerName={user.name}
