@@ -39,9 +39,18 @@ npm install && npm run dev
 > ⚠ **Lokal ist Produktion.** Es gibt **keine** zweite Instanz und keine
 > Testdatenbank. Auf Janniks Rechner steht `.env.local` auf `supabase` — ein
 > unbedachtes `npm run dev` arbeitet also auf 671 echten Personendatensätzen,
-> und `deleteContact` löscht dort zusätzlich die Storage-Dateien. Wer an der
-> Oberfläche arbeitet, stellt `VITE_DATA_BACKEND=mock` — die Tests warnen nicht,
-> weil sie ohnehin immer im Demo-Modus laufen.
+> und `deleteContact` löscht dort zusätzlich die Storage-Dateien. Die Tests
+> warnen nicht, weil sie ohnehin immer im Demo-Modus laufen.
+>
+> **Für Arbeit an der Oberfläche deshalb den Demo-Start nehmen:**
+>
+> ```bash
+> npm run dev -- --mode demo
+> ```
+>
+> Der lädt `.env.demo` (`VITE_DATA_BACKEND=mock`) **nach** `.env.local` und
+> überschreibt sie damit, läuft auf Port 5174 und rührt die echten Daten nicht
+> an. `.env.demo` ist gitignored; fehlt sie, genügt genau diese eine Zeile.
 
 Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
@@ -187,6 +196,23 @@ prüfen: siehe `CLAUDE.local.md` — dort steht auch, warum ein
 
 8. **UI-Detail:** `CardContent` hat standardmäßig `sm:pt-0`. Bei Karten ohne
    `CardHeader` deshalb `pt-5 sm:pt-5` setzen, sonst fehlt oben der Abstand.
+
+9. **Kein Auswahlkästchen in einen Link legen.** In der Kontaktliste steckte es
+   zuerst in der verlinkten Karte, mit `preventDefault` gegen die Navigation —
+   das unterdrückt aber auch das native Umschalten: die Leiste zählte richtig,
+   das Kästchen blieb optisch leer. Außerdem ist es ungültiges Markup. Kästchen
+   **neben** den Link legen, Link nimmt den Rest der Zeile.
+
+10. **Leer heißt hier meist `''`, nicht `NULL`.** Der Import hat 458 Positionen
+    als leeren String hinterlassen; `count(position)` liefert deshalb 671,
+    obwohl nur 213 Kontakte eine Position haben. `src/domain/placeholders.ts`
+    ist die einzige Wahrheit dazu (`isBlank`, `findGaps`, `isUnassigned`) —
+    Lückenprüfungen dort ergänzen, nicht in Komponenten nachbauen.
+
+11. **Was Platzhalter ist, sagt die Datenbank**, nicht der Code:
+    `regions.is_placeholder` (Migration 0024). Die Region „Unbekannt" hält 446
+    Kontakte und ist kein Vertriebsgebiet. Nie über den Namen erkennen — eine
+    Umbenennung hebelt das sonst aus.
 
 ## Datenpflege-Skripte
 
