@@ -56,10 +56,36 @@ Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
 
 ```bash
-npm test                 # 308 Tests
-npx tsc -b --noEmit
+npm test                 # 333 Tests
+npx tsc -b --noEmit      # App
+npx tsc -p tsconfig.test.json --noEmit   # Tests (App-Config schließt sie aus)
 npm run build
 ```
+
+### Tests für ganze Seiten
+
+`src/test/pageHarness.tsx` stellt Router, Sitzung und ein **frisches** Repository
+je Testfall. Eine Testdatei braucht genau zwei Zeilen — sie müssen vor den
+Importen stehen, weil `vi.mock` hochgezogen wird:
+
+```ts
+vi.mock('@/data/repositoryProvider', () => import('@/test/pageHarness'))
+vi.mock('@/app/SessionContext', () => import('@/test/pageHarness'))
+```
+
+Dann `renderPage(<Seite />, { route: '/contacts', as: 'account_manager' })`.
+Zurück kommt zusätzlich `repo`, damit ein Test den Zustand nach einer Aktion
+direkt prüfen kann statt nur die Oberfläche. `currentLocation()` zeigt, wohin der
+Router gesprungen ist — damit lässt sich belegen, dass ein Klick **nicht**
+navigiert hat.
+
+Warum die Ersatzmodule: das echte `repositoryProvider` liefert im Mock-Modus
+einen Singleton (Testfälle würden sich die Daten verändern), und der echte
+`SessionProvider` leitet die Rolle aus einer Supabase-Anmeldung ab.
+
+**Was diese Tests nicht abdecken:** Anmeldung, Rollenherleitung und alles
+Serverseitige — RLS, die redigierenden Views, Storage-Regeln. Dafür bleibt es bei
+der Prüfung von Hand mit echtem Token.
 
 ## Migration anwenden
 
