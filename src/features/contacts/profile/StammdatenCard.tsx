@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Briefcase, Building2, Cake, Mail, MapPin, Heart, Users, PawPrint, Repeat, Smartphone, Trophy } from 'lucide-react'
+import { Briefcase, Building2, Cake, Home, Mail, MapPin, Heart, Phone, Users, PawPrint, Repeat, Smartphone, Trophy } from 'lucide-react'
 import type { AppUser, BuyingRole, Contact, Region } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, daysUntilBirthday } from '@/lib/format'
-import { EditButton, EditField, FieldRow, selectCls } from './shared'
+import { EditButton, EditField, FieldRow, selectCls, telHref } from './shared'
 
 interface StammDraft {
   fullName: string
@@ -19,6 +19,9 @@ interface StammDraft {
   company: string
   team: string
   email: string
+  phoneWork: string
+  phoneMobile: string
+  phonePrivate: string
   birthday: string
   location: string
   familyStatus: string
@@ -48,6 +51,9 @@ function toStammDraft(c: Contact): StammDraft {
     company: c.company ?? '',
     team: c.team ?? '',
     email: c.email ?? '',
+    phoneWork: c.phoneWork ?? '',
+    phoneMobile: c.phoneMobile ?? '',
+    phonePrivate: c.phonePrivate ?? '',
     birthday: c.birthday ?? '',
     location: c.location ?? '',
     familyStatus: c.familyStatus ?? '',
@@ -98,6 +104,9 @@ export function StammdatenCard({
         company: draft.company.trim() || undefined,
         team: draft.team.trim() || undefined,
         email: draft.email.trim() || undefined,
+        phoneWork: draft.phoneWork.trim() || undefined,
+        phoneMobile: draft.phoneMobile.trim() || undefined,
+        phonePrivate: draft.phonePrivate.trim() || undefined,
         birthday: draft.birthday || undefined,
         location: draft.location.trim() || undefined,
         familyStatus: draft.familyStatus.trim() || undefined,
@@ -161,6 +170,30 @@ export function StammdatenCard({
               </EditField>
               <EditField label="E-Mail">
                 <Input type="email" value={draft.email} onChange={(e) => set('email', e.target.value)} />
+              </EditField>
+              <EditField label="Telefon (dienstlich)">
+                <Input
+                  type="tel"
+                  value={draft.phoneWork}
+                  onChange={(e) => set('phoneWork', e.target.value)}
+                  placeholder="+49 30 000000-0"
+                />
+              </EditField>
+              <EditField label="Mobil (dienstlich)">
+                <Input
+                  type="tel"
+                  value={draft.phoneMobile}
+                  onChange={(e) => set('phoneMobile', e.target.value)}
+                  placeholder="+49 170 0000000"
+                />
+              </EditField>
+              <EditField label="Telefon (privat)">
+                <Input
+                  type="tel"
+                  value={draft.phonePrivate}
+                  onChange={(e) => set('phonePrivate', e.target.value)}
+                  placeholder="nur mit Einverständnis"
+                />
               </EditField>
               <EditField label="Geburtstag">
                 <Input type="date" value={draft.birthday} onChange={(e) => set('birthday', e.target.value)} />
@@ -244,6 +277,34 @@ export function StammdatenCard({
               {contact.email ? (
                 <a href={`mailto:${contact.email}`} className="text-primary hover:underline">
                   {contact.email}
+                </a>
+              ) : (
+                '—'
+              )}
+            </FieldRow>
+            <FieldRow icon={Phone} label="Telefon (dienstlich)">
+              {contact.phoneWork ? (
+                <a href={telHref(contact.phoneWork)} className="text-primary hover:underline">
+                  {contact.phoneWork}
+                </a>
+              ) : (
+                '—'
+              )}
+            </FieldRow>
+            <FieldRow icon={Smartphone} label="Mobil (dienstlich)">
+              {contact.phoneMobile ? (
+                <a href={telHref(contact.phoneMobile)} className="text-primary hover:underline">
+                  {contact.phoneMobile}
+                </a>
+              ) : (
+                '—'
+              )}
+            </FieldRow>
+            {/* Privatsphäre: gleiche Stufe wie Geburtstag, für Account Manager gesperrt. */}
+            <FieldRow icon={Home} label="Telefon (privat)" locked={!canSensitive}>
+              {contact.phonePrivate ? (
+                <a href={telHref(contact.phonePrivate)} className="text-primary hover:underline">
+                  {contact.phonePrivate}
                 </a>
               ) : (
                 '—'

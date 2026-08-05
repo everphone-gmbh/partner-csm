@@ -41,6 +41,9 @@ export interface NewContact {
   company?: string
   team?: string
   email?: string
+  phoneWork?: string
+  phoneMobile?: string
+  phonePrivate?: string
   birthday?: string
   location?: string
   familyStatus?: string
@@ -81,6 +84,9 @@ export interface ContactPatch {
   company?: string
   team?: string
   email?: string
+  phoneWork?: string
+  phoneMobile?: string
+  phonePrivate?: string
   birthday?: string
   location?: string
   familyStatus?: string

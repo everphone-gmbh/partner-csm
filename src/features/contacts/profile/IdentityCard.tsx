@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { EditableAvatar } from '@/components/EditableAvatar'
+import { telHref } from './shared'
 import { TrafficLightBadge, TrafficLightDot, TrafficLightPicker } from '@/components/TrafficLight'
 import { SentimentSparkline } from '@/components/SentimentSparkline'
 import { BUYING_ROLE_LABEL, BUYING_ROLE_VARIANT } from '@/domain/buyingCenter'
@@ -108,6 +109,31 @@ export function IdentityCard({
               )}
               <span>RM: {managerName ?? '—'}</span>
             </div>
+            {/*
+              Direktkontakt: anklickbar, damit ein Anruf vom Handy aus einem Tipp
+              besteht. Die PRIVATE Nummer steht hier bewusst nicht — sie gehört
+              nicht prominent auf jeden Bildschirm, sondern in die Stammdaten mit
+              Schloss-Kennzeichnung.
+            */}
+            {(contact.email || contact.phoneMobile || contact.phoneWork) && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                {contact.email && (
+                  <a href={`mailto:${contact.email}`} className="text-primary hover:underline">
+                    {contact.email}
+                  </a>
+                )}
+                {contact.phoneMobile && (
+                  <a href={telHref(contact.phoneMobile)} className="text-primary hover:underline">
+                    Mobil {contact.phoneMobile}
+                  </a>
+                )}
+                {contact.phoneWork && (
+                  <a href={telHref(contact.phoneWork)} className="text-primary hover:underline">
+                    Tel {contact.phoneWork}
+                  </a>
+                )}
+              </div>
+            )}
             <LinkedInInline
               info={contact.linkedin}
               canEdit={canEdit}

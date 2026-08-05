@@ -6,6 +6,15 @@ import { Label } from '@/components/ui/label'
 export const selectCls =
   'h-10 w-full rounded-[10px] border border-transparent bg-secondary px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
+/**
+ * Nummer für einen `tel:`-Link säubern. In der Anzeige sind Leerzeichen,
+ * Klammern und Bindestriche erwünscht; im Link stören sie, weil manche Geräte
+ * dann nicht wählen. Ein führendes Plus bleibt erhalten.
+ */
+export function telHref(number: string): string {
+  return `tel:${number.replace(/[^+0-9]/g, '')}`
+}
+
 export function BackLink() {
   return (
     <Link

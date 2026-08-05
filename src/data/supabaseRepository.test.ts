@@ -16,6 +16,9 @@ const contactRow: ContactRow = {
   relationship_manager_id: 'u-alex',
   company: 'Telekom Deutschland GmbH',
   email: 'anke@example.com',
+  phone_work: '+49 40 123456-0',
+  phone_mobile: '+49 170 1234567',
+  phone_private: '+49 40 999999',
   birthday: '1979-07-03',
   location: 'Hamburg',
   family_status: 'verheiratet',
@@ -46,6 +49,9 @@ describe('mapRowToContact', () => {
   it('maps snake_case columns and nested relations to the domain Contact', () => {
     const c = mapRowToContact(contactRow, (id) => (id === 'u-alex' ? 'Alexandra' : undefined))
     expect(c.fullName).toBe('Anke Richter')
+    expect(c.phoneWork).toBe('+49 40 123456-0')
+    expect(c.phoneMobile).toBe('+49 170 1234567')
+    expect(c.phonePrivate).toBe('+49 40 999999')
     expect(c.regionId).toBe('r-nord')
     expect(c.linkedin.status).toBe('no_account')
     expect(c.linkedin.verifiedByName).toBe('Alexandra')

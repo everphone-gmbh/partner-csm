@@ -108,6 +108,16 @@ export interface Contact {
   company?: string
   team?: string
   email?: string
+  /** Dienstliche Festnetznummer — Geschäftsdatum, sichtbar wie die E-Mail. */
+  phoneWork?: string
+  /** Dienstliches Mobiltelefon — ebenfalls Geschäftsdatum. */
+  phoneMobile?: string
+  /**
+   * Private Nummer. Gehört in die sensible Stufe (siehe SENSITIVE_CONTACT_FIELDS)
+   * und wird für Account Manager serverseitig auf NULL gesetzt — anders als die
+   * beiden dienstlichen Nummern.
+   */
+  phonePrivate?: string
   birthday?: string // YYYY-MM-DD
   location?: string
   familyStatus?: string

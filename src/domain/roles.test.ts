@@ -27,6 +27,9 @@ const base: Contact = {
   sideFacts: [{ id: 'sf1', label: 'Segeln', category: 'sport' }],
   customers: [{ id: 'cu1', name: 'ACME', withUs: true }],
   gallery: [{ id: 'ph1', url: 'data:image/jpeg;x', caption: 'Messe' }],
+  phoneWork: '+49 40 123456-0',
+  phoneMobile: '+49 170 1234567',
+  phonePrivate: '+49 40 999999',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
@@ -42,6 +45,22 @@ describe('role-based field visibility', () => {
     expect(r.freeText).toBeUndefined()
     expect(r.activeDevices).toBeUndefined()
     expect(r.sideFacts).toHaveLength(0)
+  })
+
+  it('strips only the PRIVATE phone number, not the business ones', () => {
+    // Die Stufung ist der Kern: eine Dienstnummer ist Geschäftsdatum wie die
+    // E-Mail, die private Nummer gehört zur Privatsphäre. Serverseitig steht
+    // dasselbe im is_privileged()-Block der View contact_cards (Migration 0025) —
+    // weicht eine der beiden Ebenen ab, filtert nur noch die andere.
+    const r = redactContactForRole(base, 'account_manager')
+    expect(r.phonePrivate).toBeUndefined()
+    expect(r.phoneWork).toBe('+49 40 123456-0')
+    expect(r.phoneMobile).toBe('+49 170 1234567')
+    expect(r.email).toBe(base.email)
+  })
+
+  it('keeps the private phone number for privileged roles', () => {
+    expect(redactContactForRole(base, 'sub_admin').phonePrivate).toBe('+49 40 999999')
   })
 
   it('strips private photos (gallery) for the account-manager tier', () => {

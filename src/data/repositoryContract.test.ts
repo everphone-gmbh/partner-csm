@@ -241,6 +241,21 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect((await repo.getContact(c.id))?.cadenceDays).toBeUndefined()
     })
 
+    it('round-trips all three phone numbers through updateContact', async () => {
+      const c = await repo.createContact(BASE)
+
+      await repo.updateContact(c.id, {
+        phoneWork: '+49 40 123456-0',
+        phoneMobile: '+49 170 1234567',
+        phonePrivate: '+49 40 999999',
+      })
+
+      const after = await repo.getContact(c.id)
+      expect(after?.phoneWork).toBe('+49 40 123456-0')
+      expect(after?.phoneMobile).toBe('+49 170 1234567')
+      expect(after?.phonePrivate).toBe('+49 40 999999')
+    })
+
     it('round-trips the company through updateContact', async () => {
       const c = await repo.createContact({ ...BASE, company: 'Lenovo' })
       expect((await repo.getContact(c.id))?.company).toBe('Lenovo')

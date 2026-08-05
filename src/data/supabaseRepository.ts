@@ -60,6 +60,7 @@ const ACTIVITY_READ = 'activity_cards'
 
 const CONTACT_SELECT =
   'id, full_name, position, photo_url, region_id, relationship_manager_id, company, team, email, ' +
+  'phone_work, phone_mobile, phone_private, ' +
   'birthday, location, family_status, children, pets, linkedin_status, linkedin_url, ' +
   'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, cadence_days, buying_role, active_devices, ' +
   'won_customers_count, free_text, created_at, updated_at, ' +
@@ -77,6 +78,9 @@ export interface ContactRow {
   company: string | null
   team: string | null
   email: string | null
+  phone_work: string | null
+  phone_mobile: string | null
+  phone_private: string | null
   birthday: string | null
   location: string | null
   family_status: string | null
@@ -124,6 +128,9 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     company: row.company ?? undefined,
     team: row.team ?? undefined,
     email: row.email ?? undefined,
+    phoneWork: row.phone_work ?? undefined,
+    phoneMobile: row.phone_mobile ?? undefined,
+    phonePrivate: row.phone_private ?? undefined,
     birthday: row.birthday ?? undefined,
     location: row.location ?? undefined,
     familyStatus: row.family_status ?? undefined,
@@ -219,6 +226,15 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
         break
       case 'email':
         row.email = patch.email ?? null
+        break
+      case 'phoneWork':
+        row.phone_work = patch.phoneWork ?? null
+        break
+      case 'phoneMobile':
+        row.phone_mobile = patch.phoneMobile ?? null
+        break
+      case 'phonePrivate':
+        row.phone_private = patch.phonePrivate ?? null
         break
       case 'birthday':
         row.birthday = patch.birthday ?? null
@@ -529,6 +545,9 @@ export class SupabaseRepository implements Repository {
         company: input.company ?? null,
         team: input.team ?? null,
         email: input.email ?? null,
+        phone_work: input.phoneWork ?? null,
+        phone_mobile: input.phoneMobile ?? null,
+        phone_private: input.phonePrivate ?? null,
         birthday: input.birthday ?? null,
         location: input.location ?? null,
         family_status: input.familyStatus ?? null,
