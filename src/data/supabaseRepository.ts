@@ -22,6 +22,7 @@ import type {
   Role,
   SentimentEntry,
   SideFact,
+  SocialLink,
   TrafficLight,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
@@ -61,6 +62,7 @@ const ACTIVITY_READ = 'activity_cards'
 const CONTACT_SELECT =
   'id, full_name, position, photo_url, region_id, relationship_manager_id, company, team, email, ' +
   'phone_work, phone_mobile, phone_private, ' +
+  'phone_direct, email_private, business_address, assistant_name, assistant_contact, social_links, ' +
   'birthday, location, family_status, children, pets, linkedin_status, linkedin_url, ' +
   'linkedin_verified_by, linkedin_verified_at, sentiment, sentiment_history, cadence_days, buying_role, active_devices, ' +
   'won_customers_count, free_text, created_at, updated_at, ' +
@@ -81,6 +83,12 @@ export interface ContactRow {
   phone_work: string | null
   phone_mobile: string | null
   phone_private: string | null
+  phone_direct: string | null
+  email_private: string | null
+  business_address: string | null
+  assistant_name: string | null
+  assistant_contact: string | null
+  social_links: SocialLink[] | null
   birthday: string | null
   location: string | null
   family_status: string | null
@@ -131,6 +139,12 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     phoneWork: row.phone_work ?? undefined,
     phoneMobile: row.phone_mobile ?? undefined,
     phonePrivate: row.phone_private ?? undefined,
+    phoneDirect: row.phone_direct ?? undefined,
+    emailPrivate: row.email_private ?? undefined,
+    businessAddress: row.business_address ?? undefined,
+    assistantName: row.assistant_name ?? undefined,
+    assistantContact: row.assistant_contact ?? undefined,
+    socialLinks: row.social_links ?? [],
     birthday: row.birthday ?? undefined,
     location: row.location ?? undefined,
     familyStatus: row.family_status ?? undefined,
@@ -235,6 +249,25 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
         break
       case 'phonePrivate':
         row.phone_private = patch.phonePrivate ?? null
+        break
+      case 'phoneDirect':
+        row.phone_direct = patch.phoneDirect ?? null
+        break
+      case 'emailPrivate':
+        row.email_private = patch.emailPrivate ?? null
+        break
+      case 'businessAddress':
+        row.business_address = patch.businessAddress ?? null
+        break
+      case 'assistantName':
+        row.assistant_name = patch.assistantName ?? null
+        break
+      case 'assistantContact':
+        row.assistant_contact = patch.assistantContact ?? null
+        break
+      case 'socialLinks':
+        // jsonb-Spalte NOT NULL DEFAULT '[]' — nie NULL, leer = [].
+        row.social_links = patch.socialLinks ?? []
         break
       case 'birthday':
         row.birthday = patch.birthday ?? null

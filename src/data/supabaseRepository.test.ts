@@ -19,6 +19,12 @@ const contactRow: ContactRow = {
   phone_work: '+49 40 123456-0',
   phone_mobile: '+49 170 1234567',
   phone_private: '+49 40 999999',
+  phone_direct: '+49 40 123456-1',
+  email_private: 'anke.privat@example.com',
+  business_address: 'Überseering 2, 22297 Hamburg',
+  assistant_name: 'Petra Assistenz',
+  assistant_contact: 'assistenz@example.com',
+  social_links: [{ label: 'LinkedIn', url: 'https://linkedin.com/in/anke' }],
   birthday: '1979-07-03',
   location: 'Hamburg',
   family_status: 'verheiratet',
@@ -52,6 +58,12 @@ describe('mapRowToContact', () => {
     expect(c.phoneWork).toBe('+49 40 123456-0')
     expect(c.phoneMobile).toBe('+49 170 1234567')
     expect(c.phonePrivate).toBe('+49 40 999999')
+    expect(c.phoneDirect).toBe('+49 40 123456-1')
+    expect(c.emailPrivate).toBe('anke.privat@example.com')
+    expect(c.businessAddress).toBe('Überseering 2, 22297 Hamburg')
+    expect(c.assistantName).toBe('Petra Assistenz')
+    expect(c.assistantContact).toBe('assistenz@example.com')
+    expect(c.socialLinks).toEqual([{ label: 'LinkedIn', url: 'https://linkedin.com/in/anke' }])
     expect(c.regionId).toBe('r-nord')
     expect(c.linkedin.status).toBe('no_account')
     expect(c.linkedin.verifiedByName).toBe('Alexandra')

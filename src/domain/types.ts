@@ -78,6 +78,12 @@ export interface GalleryPhoto {
   caption?: string
 }
 
+/** Ein benannter Social-Media-Link (jsonb-Array auf contacts.social_links). */
+export interface SocialLink {
+  label: string
+  url: string
+}
+
 export interface Region {
   id: string
   name: string
@@ -118,6 +124,20 @@ export interface Contact {
    * beiden dienstlichen Nummern.
    */
   phonePrivate?: string
+  /** Durchwahl / zweite Dienstnummer — Geschäftsdatum wie phoneWork. */
+  phoneDirect?: string
+  /**
+   * Private E-Mail. Sensibel (siehe SENSITIVE_CONTACT_FIELDS) und für Account
+   * Manager serverseitig auf NULL gesetzt — anders als die dienstliche E-Mail.
+   */
+  emailPrivate?: string
+  /** Dienstanschrift (Büro/Post) — Geschäftsdatum, bewusst NICHT sensibel. */
+  businessAddress?: string
+  /** Assistenz als einfache Textfelder (kein eigener Personendatensatz). */
+  assistantName?: string
+  assistantContact?: string
+  /** Weitere Social-Media-Links (jsonb-Array). Geschäftsdatum. */
+  socialLinks?: SocialLink[]
   birthday?: string // YYYY-MM-DD
   location?: string
   familyStatus?: string

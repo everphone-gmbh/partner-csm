@@ -31,6 +31,12 @@ const base: Contact = {
   phoneWork: '+49 40 123456-0',
   phoneMobile: '+49 170 1234567',
   phonePrivate: '+49 40 999999',
+  phoneDirect: '+49 40 123456-1',
+  emailPrivate: 'privat@example.com',
+  businessAddress: 'Musterstraße 1, 10115 Berlin',
+  assistantName: 'Petra Assistenz',
+  assistantContact: 'assistenz@example.com',
+  socialLinks: [{ label: 'LinkedIn', url: 'https://x' }],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
@@ -77,6 +83,23 @@ describe('role-based field visibility', () => {
 
   it('keeps the private phone number for privileged roles', () => {
     expect(redactContactForRole(base, 'sub_admin').phonePrivate).toBe('+49 40 999999')
+  })
+
+  it('strips only the private email among the new fields; the business ones stay', () => {
+    // Entscheidung 2026-08-06: von den fünf neuen Feldern ist NUR die private
+    // E-Mail sensibel. Durchwahl, Dienstanschrift, Assistenz und Social-Links
+    // sind Geschäftsdaten und bleiben auch für den Account Manager sichtbar.
+    const r = redactContactForRole(base, 'account_manager')
+    expect(r.emailPrivate).toBeUndefined()
+    expect(r.phoneDirect).toBe(base.phoneDirect)
+    expect(r.businessAddress).toBe(base.businessAddress)
+    expect(r.assistantName).toBe(base.assistantName)
+    expect(r.assistantContact).toBe(base.assistantContact)
+    expect(r.socialLinks).toEqual(base.socialLinks)
+  })
+
+  it('keeps the private email for privileged roles', () => {
+    expect(redactContactForRole(base, 'sub_admin').emailPrivate).toBe('privat@example.com')
   })
 
   it('strips private photos (gallery) for the account-manager tier', () => {

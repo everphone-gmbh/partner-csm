@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { Briefcase, Building2, Cake, Home, Mail, MapPin, Heart, Phone, Users, PawPrint, Repeat, Smartphone, Trophy } from 'lucide-react'
-import type { AppUser, BuyingRole, Contact, Region } from '@/domain/types'
+import { AtSign, Briefcase, Building, Building2, Cake, Heart, Home, Link2, Mail, MapPin, PawPrint, Phone, PhoneCall, Plus, Repeat, Smartphone, Trophy, UserRound, Users, X } from 'lucide-react'
+import type { AppUser, BuyingRole, Contact, Region, SocialLink } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
 import { BUYING_ROLE_OPTIONS } from '@/domain/buyingCenter'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, daysUntilBirthday } from '@/lib/format'
 import { EditButton, EditField, FieldRow, selectCls, telHref } from './shared'
@@ -22,6 +23,12 @@ interface StammDraft {
   phoneWork: string
   phoneMobile: string
   phonePrivate: string
+  phoneDirect: string
+  emailPrivate: string
+  businessAddress: string
+  assistantName: string
+  assistantContact: string
+  socialLinks: SocialLink[]
   birthday: string
   location: string
   familyStatus: string
@@ -54,6 +61,12 @@ function toStammDraft(c: Contact): StammDraft {
     phoneWork: c.phoneWork ?? '',
     phoneMobile: c.phoneMobile ?? '',
     phonePrivate: c.phonePrivate ?? '',
+    phoneDirect: c.phoneDirect ?? '',
+    emailPrivate: c.emailPrivate ?? '',
+    businessAddress: c.businessAddress ?? '',
+    assistantName: c.assistantName ?? '',
+    assistantContact: c.assistantContact ?? '',
+    socialLinks: c.socialLinks ?? [],
     birthday: c.birthday ?? '',
     location: c.location ?? '',
     familyStatus: c.familyStatus ?? '',
@@ -107,6 +120,14 @@ export function StammdatenCard({
         phoneWork: draft.phoneWork.trim() || undefined,
         phoneMobile: draft.phoneMobile.trim() || undefined,
         phonePrivate: draft.phonePrivate.trim() || undefined,
+        phoneDirect: draft.phoneDirect.trim() || undefined,
+        emailPrivate: draft.emailPrivate.trim() || undefined,
+        businessAddress: draft.businessAddress.trim() || undefined,
+        assistantName: draft.assistantName.trim() || undefined,
+        assistantContact: draft.assistantContact.trim() || undefined,
+        socialLinks: draft.socialLinks
+          .map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
+          .filter((l) => l.url.length > 0),
         birthday: draft.birthday || undefined,
         location: draft.location.trim() || undefined,
         familyStatus: draft.familyStatus.trim() || undefined,
@@ -187,12 +208,48 @@ export function StammdatenCard({
                   placeholder="+49 170 0000000"
                 />
               </EditField>
+              <EditField label="Durchwahl / 2. Nummer">
+                <Input
+                  type="tel"
+                  value={draft.phoneDirect}
+                  onChange={(e) => set('phoneDirect', e.target.value)}
+                  placeholder="+49 30 000000-123"
+                />
+              </EditField>
               <EditField label="Telefon (privat)">
                 <Input
                   type="tel"
                   value={draft.phonePrivate}
                   onChange={(e) => set('phonePrivate', e.target.value)}
                   placeholder="nur mit Einverständnis"
+                />
+              </EditField>
+              <EditField label="E-Mail (privat)">
+                <Input
+                  type="email"
+                  value={draft.emailPrivate}
+                  onChange={(e) => set('emailPrivate', e.target.value)}
+                  placeholder="nur mit Einverständnis"
+                />
+              </EditField>
+              <EditField label="Dienstanschrift">
+                <Input
+                  value={draft.businessAddress}
+                  onChange={(e) => set('businessAddress', e.target.value)}
+                  placeholder="Straße, PLZ Ort"
+                />
+              </EditField>
+              <EditField label="Assistenz (Name)">
+                <Input
+                  value={draft.assistantName}
+                  onChange={(e) => set('assistantName', e.target.value)}
+                />
+              </EditField>
+              <EditField label="Assistenz (Kontakt)">
+                <Input
+                  value={draft.assistantContact}
+                  onChange={(e) => set('assistantContact', e.target.value)}
+                  placeholder="Telefon oder E-Mail"
                 />
               </EditField>
               <EditField label="Geburtstag">
@@ -248,6 +305,55 @@ export function StammdatenCard({
                 </select>
               </EditField>
             </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Social-Media-Links</Label>
+                <button
+                  type="button"
+                  onClick={() => set('socialLinks', [...draft.socialLinks, { label: '', url: '' }])}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="size-3.5" /> Link
+                </button>
+              </div>
+              {draft.socialLinks.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Noch keine Links.</p>
+              ) : (
+                draft.socialLinks.map((link, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      className="w-28 shrink-0"
+                      value={link.label}
+                      onChange={(e) =>
+                        set(
+                          'socialLinks',
+                          draft.socialLinks.map((l, j) => (j === i ? { ...l, label: e.target.value } : l)),
+                        )
+                      }
+                      placeholder="Label"
+                    />
+                    <Input
+                      value={link.url}
+                      onChange={(e) =>
+                        set(
+                          'socialLinks',
+                          draft.socialLinks.map((l, j) => (j === i ? { ...l, url: e.target.value } : l)),
+                        )
+                      }
+                      placeholder="https://…"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => set('socialLinks', draft.socialLinks.filter((_, j) => j !== i))}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="Link entfernen"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
                 Abbrechen
@@ -300,12 +406,58 @@ export function StammdatenCard({
                 '—'
               )}
             </FieldRow>
+            <FieldRow icon={PhoneCall} label="Durchwahl / 2. Nummer">
+              {contact.phoneDirect ? (
+                <a href={telHref(contact.phoneDirect)} className="text-primary hover:underline">
+                  {contact.phoneDirect}
+                </a>
+              ) : (
+                '—'
+              )}
+            </FieldRow>
             {/* Privatsphäre: gleiche Stufe wie Geburtstag, für Account Manager gesperrt. */}
             <FieldRow icon={Home} label="Telefon (privat)" locked={!canSensitive}>
               {contact.phonePrivate ? (
                 <a href={telHref(contact.phonePrivate)} className="text-primary hover:underline">
                   {contact.phonePrivate}
                 </a>
+              ) : (
+                '—'
+              )}
+            </FieldRow>
+            {/* Private E-Mail: sensibel wie die private Nummer. */}
+            <FieldRow icon={AtSign} label="E-Mail (privat)" locked={!canSensitive}>
+              {contact.emailPrivate ? (
+                <a href={`mailto:${contact.emailPrivate}`} className="text-primary hover:underline">
+                  {contact.emailPrivate}
+                </a>
+              ) : (
+                '—'
+              )}
+            </FieldRow>
+            <FieldRow icon={Building} label="Dienstanschrift">
+              {contact.businessAddress || '—'}
+            </FieldRow>
+            <FieldRow icon={UserRound} label="Assistenz">
+              {contact.assistantName || contact.assistantContact
+                ? [contact.assistantName, contact.assistantContact].filter(Boolean).join(' · ')
+                : '—'}
+            </FieldRow>
+            <FieldRow icon={Link2} label="Social Media">
+              {contact.socialLinks && contact.socialLinks.length > 0 ? (
+                <div className="flex flex-col gap-0.5">
+                  {contact.socialLinks.map((l, i) => (
+                    <a
+                      key={i}
+                      href={l.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      {l.label || l.url}
+                    </a>
+                  ))}
+                </div>
               ) : (
                 '—'
               )}

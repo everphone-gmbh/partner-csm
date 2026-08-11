@@ -256,6 +256,40 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(after?.phonePrivate).toBe('+49 40 999999')
     })
 
+    it('round-trips the additional Stammdaten fields through updateContact', async () => {
+      const c = await repo.createContact(BASE)
+
+      await repo.updateContact(c.id, {
+        phoneDirect: '+49 30 000000-123',
+        emailPrivate: 'privat@example.com',
+        businessAddress: 'Musterstraße 1, 10115 Berlin',
+        assistantName: 'Petra Assistenz',
+        assistantContact: 'assistenz@example.com',
+        socialLinks: [
+          { label: 'LinkedIn', url: 'https://www.linkedin.com/in/x' },
+          { label: 'Xing', url: 'https://www.xing.com/profile/x' },
+        ],
+      })
+
+      const after = await repo.getContact(c.id)
+      expect(after?.phoneDirect).toBe('+49 30 000000-123')
+      expect(after?.emailPrivate).toBe('privat@example.com')
+      expect(after?.businessAddress).toBe('Musterstraße 1, 10115 Berlin')
+      expect(after?.assistantName).toBe('Petra Assistenz')
+      expect(after?.assistantContact).toBe('assistenz@example.com')
+      expect(after?.socialLinks?.map((l) => [l.label, l.url]).sort()).toEqual([
+        ['LinkedIn', 'https://www.linkedin.com/in/x'],
+        ['Xing', 'https://www.xing.com/profile/x'],
+      ])
+
+      // Leeren: Skalare auf undefined, die Link-Liste auf [].
+      await repo.updateContact(c.id, { phoneDirect: undefined, emailPrivate: undefined, socialLinks: [] })
+      const cleared = await repo.getContact(c.id)
+      expect(cleared?.phoneDirect).toBeUndefined()
+      expect(cleared?.emailPrivate).toBeUndefined()
+      expect(cleared?.socialLinks ?? []).toEqual([])
+    })
+
     it('round-trips the company through updateContact', async () => {
       const c = await repo.createContact({ ...BASE, company: 'Lenovo' })
       expect((await repo.getContact(c.id))?.company).toBe('Lenovo')

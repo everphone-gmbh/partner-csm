@@ -21,6 +21,7 @@ import type {
   Reminder,
   SentimentEntry,
   SideFact,
+  SocialLink,
   TrafficLight,
 } from '@/domain/types'
 
@@ -92,6 +93,12 @@ export interface ContactPatch {
   familyStatus?: string
   children?: string
   pets?: string
+  phoneDirect?: string
+  emailPrivate?: string
+  businessAddress?: string
+  assistantName?: string
+  assistantContact?: string
+  socialLinks?: SocialLink[]
   linkedin?: LinkedInInfo
   sentiment?: TrafficLight
   sentimentHistory?: SentimentEntry[]

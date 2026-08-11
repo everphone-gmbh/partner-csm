@@ -25,6 +25,10 @@ export const SENSITIVE_CONTACT_FIELDS = [
   // Geschäftsdatum wie die E-Mail. Muss mit dem is_privileged()-Block der View
   // contact_cards übereinstimmen (Migration 0025), sonst filtert nur eine Ebene.
   'phonePrivate',
+  // Private E-Mail — dieselbe Stufe wie die private Nummer. Muss mit dem
+  // is_privileged()-Block der View contact_cards übereinstimmen (Migration 0027),
+  // sonst filtert nur eine der beiden Ebenen.
+  'emailPrivate',
   'familyStatus',
   'children',
   'pets',
