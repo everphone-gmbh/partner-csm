@@ -4,7 +4,7 @@ import { Target } from 'lucide-react'
 import type { Activity, Contact, OrgUnit } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
-import { canApprove } from '@/domain/roles'
+import { canViewAnalytics } from '@/domain/roles'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,7 +36,7 @@ const FILTERS: { value: CoverageStatus | 'all'; label: string }[] = [
  */
 export function CoveragePage() {
   const { user } = useSession()
-  const allowed = canApprove(user.role)
+  const allowed = canViewAnalytics(user.role)
   const [filter, setFilter] = useState<CoverageStatus | 'all'>('all')
 
   const { data, loading, error, retry } = useRepoQuery(
@@ -63,7 +63,7 @@ export function CoveragePage() {
   if (!allowed) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
-        Die Abdeckung ist für Relationship Manager und Admins verfügbar.
+        Die Abdeckung ist nur für den Overall Admin sichtbar.
       </p>
     )
   }

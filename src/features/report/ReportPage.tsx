@@ -3,7 +3,7 @@ import { AlarmClock, Cake, Printer } from 'lucide-react'
 import type { Activity, AppUser, Contact, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
-import { canApprove } from '@/domain/roles'
+import { canViewAnalytics } from '@/domain/roles'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,7 +21,7 @@ import { selectCls } from '@/features/contacts/profile/shared'
  */
 export function ReportPage() {
   const { user } = useSession()
-  const allowed = canApprove(user.role)
+  const allowed = canViewAnalytics(user.role)
   const [regionId, setRegionId] = useState<string>(user.regionId ?? '')
   const [managerId, setManagerId] = useState<string>('')
 
@@ -52,7 +52,7 @@ export function ReportPage() {
   if (!allowed) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
-        Berichte sind für Relationship Manager und Admins verfügbar.
+        Berichte sind nur für den Overall Admin sichtbar.
       </p>
     )
   }

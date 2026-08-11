@@ -50,6 +50,16 @@ export function canApprove(role: Role): boolean {
 }
 
 /**
+ * Portfolio-Auswertungen (Bericht, Abdeckung, Monitoring) sind nur für den Head
+ * (Overall Admin) — Entscheidung Lennart 2026-08-06: RMs pflegen und bearbeiten,
+ * sehen aber nicht die Team-übergreifenden Auswertungen. Bewusst getrennt von
+ * `canApprove` (= Bearbeiten, bleibt bei RM+), damit RMs weiter voll editieren.
+ */
+export function canViewAnalytics(role: Role): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK.overall_admin
+}
+
+/**
  * Returns a copy of the contact with personal fields stripped for roles that
  * may not see them. Privileged roles get the contact unchanged.
  */

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   canApprove,
   canViewActivityBody,
+  canViewAnalytics,
   canViewSensitiveFields,
   redactContactForRole,
 } from './roles'
@@ -33,6 +34,21 @@ const base: Contact = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
+
+describe('canViewAnalytics — Bericht/Abdeckung/Monitoring nur für den Head', () => {
+  it('lässt nur den Overall Admin durch', () => {
+    expect(canViewAnalytics('overall_admin')).toBe(true)
+    expect(canViewAnalytics('sub_admin')).toBe(false)
+    expect(canViewAnalytics('account_manager')).toBe(false)
+  })
+
+  it('nimmt dem RM NICHT das Bearbeiten (canApprove bleibt getrennt)', () => {
+    // Kernpunkt der Trennung: RM verliert die Auswertungen, behält aber die
+    // Bearbeitungsrechte.
+    expect(canApprove('sub_admin')).toBe(true)
+    expect(canViewAnalytics('sub_admin')).toBe(false)
+  })
+})
 
 describe('role-based field visibility', () => {
   it('strips personal fields for the account-manager tier', () => {

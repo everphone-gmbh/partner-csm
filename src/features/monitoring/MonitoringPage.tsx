@@ -4,6 +4,7 @@ import { Activity as ActivityIcon, AlarmClock, TrendingUp, Users } from 'lucide-
 import type { Activity, AppUser, AuditEntry, Contact, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
+import { canViewAnalytics } from '@/domain/roles'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
@@ -41,7 +42,7 @@ const AUDIT_ENTITY_LABEL: Record<string, string> = {
 export function MonitoringPage() {
   const { user } = useSession()
   const { toast } = useToast()
-  const isAdmin = user.role === 'overall_admin'
+  const isAdmin = canViewAnalytics(user.role)
   const [reassigning, setReassigning] = useState(false)
 
   const { data, loading, error, retry } = useRepoQuery(

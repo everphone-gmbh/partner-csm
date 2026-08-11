@@ -4,7 +4,7 @@ import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Sea
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
 import { useDueReminderCount } from '@/app/useDueReminders'
-import { canApprove, ROLE_LABEL } from '@/domain/roles'
+import { canViewAnalytics, ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -17,12 +17,13 @@ const NAV = [
 function useNavItems() {
   const { user } = useSession()
   const items = [...NAV]
-  if (canApprove(user.role)) {
+  // Auswertungen (Abdeckung, Bericht, Monitoring) nur für den Head — RMs
+  // pflegen und bearbeiten, sehen aber keine Team-Auswertungen (Lennart).
+  if (canViewAnalytics(user.role)) {
     items.push({ to: '/coverage', label: 'Abdeckung', icon: Target })
     items.push({ to: '/report', label: 'Bericht', icon: FileText })
-  }
-  if (user.role === 'overall_admin')
     items.push({ to: '/monitoring', label: 'Monitoring', icon: BarChart3 })
+  }
   return items
 }
 
