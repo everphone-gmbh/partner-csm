@@ -3,6 +3,7 @@ import type {
   AuditEntry,
   Contact,
   ContactLink,
+  EventGuest,
   EventItem,
   EventNote,
   IntroRequest,
@@ -20,10 +21,12 @@ import type {
   AttendeePatch,
   BulkAssignPatch,
   ContactPatch,
+  EventGuestPatch,
   NewActivity,
   NewContact,
   NewContactLink,
   NewEvent,
+  NewEventGuest,
   NewEventNote,
   NewIntroRequest,
   NewReminder,
@@ -59,6 +62,7 @@ class MockRepository implements Repository {
   private events = clone(seedEvents)
   private attendees = clone(seedEventAttendees)
   private eventNotes = clone(seedEventNotes)
+  private guests: EventGuest[] = []
   private reminders = clone(seedReminders)
   private links = clone(seedContactLinks)
   private introRequests = clone(seedIntroRequests)
@@ -153,6 +157,11 @@ class MockRepository implements Repository {
     this.attendees = this.attendees.filter((a) => a.contactId !== id)
     this.links = this.links.filter((l) => l.fromContactId !== id && l.toContactId !== id)
     this.eventNotes = this.eventNotes.filter((n) => n.contactId !== id)
+    // event_guests.promoted_contact_id ist ON DELETE SET NULL: der Gast bleibt als
+    // Messe-Historie erhalten, verliert aber den Verweis auf den gelöschten Kontakt.
+    this.guests = this.guests.map((g) =>
+      g.promotedContactId === id ? { ...g, promotedContactId: undefined } : g,
+    )
   }
 
   async reassignContacts(fromUserId: string, toUserId: string) {
@@ -424,9 +433,67 @@ class MockRepository implements Repository {
       createdAt: nowIso(),
       attachments: input.attachments,
       contactId: input.contactId,
+      guestId: input.guestId,
     }
     this.eventNotes.push(note)
     return clone(note)
+  }
+
+  async listEventGuests(eventId: string) {
+    return clone(this.guests.filter((g) => g.eventId === eventId))
+  }
+
+  async addEventGuest(input: NewEventGuest) {
+    const guest: EventGuest = {
+      id: `eg-local-${this.seq++}`,
+      eventId: input.eventId,
+      name: input.name,
+      company: input.company,
+      note: input.note,
+    }
+    this.guests.push(guest)
+    return clone(guest)
+  }
+
+  async updateEventGuest(id: string, patch: EventGuestPatch) {
+    const idx = this.guests.findIndex((g) => g.id === id)
+    if (idx < 0) throw new Error(`event guest ${id} not found`)
+    // Feldweises Update wie setAttendee: nur übergebene Schlüssel schreiben.
+    const next = { ...this.guests[idx] }
+    if (patch.name !== undefined) next.name = patch.name
+    if (patch.company !== undefined) next.company = patch.company
+    if (patch.note !== undefined) next.note = patch.note
+    this.guests[idx] = next
+    return clone(next)
+  }
+
+  async removeEventGuest(id: string) {
+    // Spiegelt event_notes.guest_id ON DELETE CASCADE (Migration 0028).
+    this.guests = this.guests.filter((g) => g.id !== id)
+    this.eventNotes = this.eventNotes.filter((n) => n.guestId !== id)
+  }
+
+  async promoteGuestToContact(
+    guestId: string,
+    input: { regionId: string; relationshipManagerId: string },
+  ) {
+    const guest = this.guests.find((g) => g.id === guestId)
+    if (!guest) throw new Error(`event guest ${guestId} not found`)
+    // Bestehende createContact-Logik wiederverwenden (Audit inklusive).
+    const contact = await this.createContact({
+      fullName: guest.name,
+      position: '',
+      regionId: input.regionId,
+      relationshipManagerId: input.relationshipManagerId,
+      company: guest.company,
+    })
+    const idx = this.guests.findIndex((g) => g.id === guestId)
+    this.guests[idx] = { ...this.guests[idx], promotedContactId: contact.id }
+    // Notizen über den Gast an den neuen Kontakt umhängen (guest_id → contact_id).
+    this.eventNotes = this.eventNotes.map((n) =>
+      n.guestId === guestId ? { ...n, contactId: contact.id, guestId: undefined } : n,
+    )
+    return contact
   }
 }
 

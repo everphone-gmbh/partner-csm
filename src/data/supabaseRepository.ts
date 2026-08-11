@@ -10,6 +10,7 @@ import type {
   ContactLink,
   ContactLinkKind,
   EventAttendee,
+  EventGuest,
   EventItem,
   EventNote,
   IntroRequest,
@@ -35,10 +36,12 @@ import type {
   AttendeePatch,
   BulkAssignPatch,
   ContactPatch,
+  EventGuestPatch,
   NewActivity,
   NewContact,
   NewContactLink,
   NewEvent,
+  NewEventGuest,
   NewEventNote,
   NewIntroRequest,
   NewReminder,
@@ -426,6 +429,30 @@ export interface EventNoteRow {
   attachments: NoteAttachment[] | null
   created_at: string
   contact_id: string | null
+  guest_id: string | null
+}
+
+const GUEST_SELECT = 'id, event_id, name, company, note, promoted_contact_id, created_at'
+
+export interface EventGuestRow {
+  id: string
+  event_id: string
+  name: string
+  company: string | null
+  note: string | null
+  promoted_contact_id: string | null
+  created_at: string
+}
+
+export function mapRowToEventGuest(row: EventGuestRow): EventGuest {
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    name: row.name,
+    company: row.company ?? undefined,
+    note: row.note ?? undefined,
+    promotedContactId: row.promoted_contact_id ?? undefined,
+  }
 }
 
 export interface OrgUnitRow {
@@ -500,6 +527,7 @@ export function mapRowToEventNote(row: EventNoteRow): EventNote {
     createdAt: row.created_at,
     attachments: row.attachments ?? [],
     contactId: row.contact_id ?? undefined,
+    guestId: row.guest_id ?? undefined,
   }
 }
 
@@ -1119,7 +1147,7 @@ export class SupabaseRepository implements Repository {
   async listEventNotes(eventId: string): Promise<EventNote[]> {
     const { data, error } = await this.client
       .from('event_notes')
-      .select('id, event_id, text, author_name, attachments, created_at, contact_id')
+      .select('id, event_id, text, author_name, attachments, created_at, contact_id, guest_id')
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -1135,10 +1163,100 @@ export class SupabaseRepository implements Repository {
         author_name: input.authorName,
         attachments: input.attachments,
         contact_id: input.contactId ?? null,
+        guest_id: input.guestId ?? null,
       })
-      .select('id, event_id, text, author_name, attachments, created_at, contact_id')
+      .select('id, event_id, text, author_name, attachments, created_at, contact_id, guest_id')
       .single()
     if (error) throw new Error(error.message)
     return mapRowToEventNote(data as unknown as EventNoteRow)
+  }
+
+  async listEventGuests(eventId: string): Promise<EventGuest[]> {
+    const { data, error } = await this.client
+      .from('event_guests')
+      .select(GUEST_SELECT)
+      .eq('event_id', eventId)
+      .order('created_at')
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as EventGuestRow[]).map(mapRowToEventGuest)
+  }
+
+  async addEventGuest(input: NewEventGuest): Promise<EventGuest> {
+    const { data, error } = await this.client
+      .from('event_guests')
+      .insert({
+        event_id: input.eventId,
+        name: input.name,
+        company: input.company ?? null,
+        note: input.note ?? null,
+      })
+      .select(GUEST_SELECT)
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToEventGuest(data as unknown as EventGuestRow)
+  }
+
+  async updateEventGuest(id: string, patch: EventGuestPatch): Promise<EventGuest> {
+    // Teil-Update wie setAttendee: nur übergebene Spalten, KEIN upsert (der
+    // schriebe die ganze Zeile und nullte alles Nichtübergebene).
+    const row: Record<string, unknown> = {}
+    if (patch.name !== undefined) row.name = patch.name
+    if (patch.company !== undefined) row.company = patch.company
+    if (patch.note !== undefined) row.note = patch.note
+    if (Object.keys(row).length > 0) {
+      const { error } = await this.client.from('event_guests').update(row).eq('id', id)
+      if (error) throw new Error(error.message)
+    }
+    const { data, error } = await this.client
+      .from('event_guests')
+      .select(GUEST_SELECT)
+      .eq('id', id)
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToEventGuest(data as unknown as EventGuestRow)
+  }
+
+  async removeEventGuest(id: string): Promise<void> {
+    // event_notes.guest_id ON DELETE CASCADE (0028) räumt die Notizen mit ab.
+    const { error } = await this.client.from('event_guests').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+  }
+
+  async promoteGuestToContact(
+    guestId: string,
+    input: { regionId: string; relationshipManagerId: string },
+  ): Promise<Contact> {
+    const { data: guestData, error: guestErr } = await this.client
+      .from('event_guests')
+      .select(GUEST_SELECT)
+      .eq('id', guestId)
+      .single()
+    if (guestErr) throw new Error(guestErr.message)
+    const guest = mapRowToEventGuest(guestData as unknown as EventGuestRow)
+
+    // Bestehende createContact-Logik wiederverwenden.
+    const contact = await this.createContact({
+      fullName: guest.name,
+      position: '',
+      regionId: input.regionId,
+      relationshipManagerId: input.relationshipManagerId,
+      company: guest.company,
+    })
+
+    const { error: markErr } = await this.client
+      .from('event_guests')
+      .update({ promoted_contact_id: contact.id })
+      .eq('id', guestId)
+    if (markErr) throw new Error(markErr.message)
+
+    // Notizen über den Gast an den neuen Kontakt umhängen. Braucht die
+    // UPDATE-Policy aus 0028 — sonst greift die Umpflege unter RLS ins Leere.
+    const { error: noteErr } = await this.client
+      .from('event_notes')
+      .update({ contact_id: contact.id, guest_id: null })
+      .eq('guest_id', guestId)
+    if (noteErr) throw new Error(noteErr.message)
+
+    return contact
   }
 }

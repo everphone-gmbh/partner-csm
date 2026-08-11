@@ -10,6 +10,7 @@ import type {
   ContactLinkKind,
   CustomerLink,
   EventAttendee,
+  EventGuest,
   EventItem,
   EventNote,
   GalleryPhoto,
@@ -157,7 +158,24 @@ export interface NewEventNote {
   text: string
   authorName: string
   attachments: NoteAttachment[]
+  /** Ziel der Notiz: entweder ein bestehender Kontakt … */
   contactId?: string
+  /** … oder ein unbekannter Gast (Migration 0028). */
+  guestId?: string
+}
+
+export interface NewEventGuest {
+  eventId: string
+  name: string
+  company?: string
+  note?: string
+}
+
+/** Feldweise Änderung eines Gastes; fehlende Schlüssel bleiben unberührt. */
+export interface EventGuestPatch {
+  name?: string
+  company?: string
+  note?: string
 }
 
 /**
@@ -217,6 +235,22 @@ export interface Repository {
   removeAttendee(eventId: string, contactId: string): Promise<void>
   listEventNotes(eventId: string): Promise<EventNote[]>
   addEventNote(input: NewEventNote): Promise<EventNote>
+  /** Unbekannte Gäste eines Events (Migration 0028). */
+  listEventGuests(eventId: string): Promise<EventGuest[]>
+  addEventGuest(input: NewEventGuest): Promise<EventGuest>
+  updateEventGuest(id: string, patch: EventGuestPatch): Promise<EventGuest>
+  /** Entfernt den Gast und (per Kaskade) die Notizen über ihn. */
+  removeEventGuest(id: string): Promise<void>
+  /**
+   * Macht aus einem Gast einen echten Kontakt: legt den Contact an
+   * (fullName = Gastname, company = Gastfirma, position = ''), vermerkt ihn am
+   * Gast (promotedContactId) und pflegt dessen Event-Notizen um
+   * (guest_id → contact_id). Gibt den neuen Kontakt zurück.
+   */
+  promoteGuestToContact(
+    guestId: string,
+    input: { regionId: string; relationshipManagerId: string },
+  ): Promise<Contact>
   /** All reminders, or just those for one contact when contactId is given. */
   listReminders(contactId?: string): Promise<Reminder[]>
   addReminder(input: NewReminder): Promise<Reminder>

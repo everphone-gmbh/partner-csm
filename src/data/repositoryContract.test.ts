@@ -600,6 +600,106 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       })
     })
 
+    describe('Event-Gäste', () => {
+      it('legt einen Gast an und liest ihn mit Name und Firma zurück', async () => {
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+        const guest = await repo.addEventGuest({
+          eventId: ev.id,
+          name: 'Dr. Unbekannt',
+          company: 'Fremdfirma AG',
+          note: 'Am Stand kennengelernt',
+        })
+        expect(guest.name).toBe('Dr. Unbekannt')
+
+        const list = await repo.listEventGuests(ev.id)
+        expect(list).toHaveLength(1)
+        expect(list[0]).toMatchObject({ name: 'Dr. Unbekannt', company: 'Fremdfirma AG' })
+        expect(list[0].promotedContactId).toBeUndefined()
+      })
+
+      it('ändert die Felder eines Gastes', async () => {
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+        const guest = await repo.addEventGuest({ eventId: ev.id, name: 'Vorher' })
+
+        const updated = await repo.updateEventGuest(guest.id, {
+          name: 'Nachher',
+          company: 'Neue GmbH',
+        })
+        expect(updated.name).toBe('Nachher')
+        expect(updated.company).toBe('Neue GmbH')
+
+        const [read] = await repo.listEventGuests(ev.id)
+        expect(read.name).toBe('Nachher')
+        expect(read.company).toBe('Neue GmbH')
+      })
+
+      it('hängt eine Event-Notiz an einen Gast', async () => {
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+        const guest = await repo.addEventGuest({ eventId: ev.id, name: 'Gast mit Notiz' })
+        await repo.addEventNote({
+          eventId: ev.id,
+          text: 'Interessant für Rahmenvertrag',
+          authorName: VERIFIER.full_name,
+          attachments: [],
+          guestId: guest.id,
+        })
+
+        const notes = await repo.listEventNotes(ev.id)
+        expect(notes).toHaveLength(1)
+        expect(notes[0].guestId).toBe(guest.id)
+        expect(notes[0].contactId).toBeUndefined()
+      })
+
+      it('macht aus einem Gast einen Kontakt und pflegt die Notiz um', async () => {
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+        const guest = await repo.addEventGuest({
+          eventId: ev.id,
+          name: 'Beförderungskandidat',
+          company: 'Zielfirma AG',
+        })
+        await repo.addEventNote({
+          eventId: ev.id,
+          text: 'Sollte echter Kontakt werden',
+          authorName: VERIFIER.full_name,
+          attachments: [],
+          guestId: guest.id,
+        })
+
+        const contact = await repo.promoteGuestToContact(guest.id, {
+          regionId: 'r-1',
+          relationshipManagerId: VERIFIER.id,
+        })
+        expect(contact.fullName).toBe('Beförderungskandidat')
+        expect(contact.company).toBe('Zielfirma AG')
+        expect(contact.position).toBe('')
+
+        // Der Gast trägt jetzt den Verweis auf den neuen Kontakt.
+        const [guestAfter] = await repo.listEventGuests(ev.id)
+        expect(guestAfter.promotedContactId).toBe(contact.id)
+
+        // Die Notiz hängt jetzt am Kontakt, nicht mehr am Gast.
+        const [note] = await repo.listEventNotes(ev.id)
+        expect(note.contactId).toBe(contact.id)
+        expect(note.guestId).toBeUndefined()
+      })
+
+      it('entfernt einen Gast samt seiner Notizen', async () => {
+        const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+        const guest = await repo.addEventGuest({ eventId: ev.id, name: 'Temporär' })
+        await repo.addEventNote({
+          eventId: ev.id,
+          text: 'Notiz zum Gast',
+          authorName: VERIFIER.full_name,
+          attachments: [],
+          guestId: guest.id,
+        })
+
+        await repo.removeEventGuest(guest.id)
+        expect(await repo.listEventGuests(ev.id)).toEqual([])
+        expect(await repo.listEventNotes(ev.id)).toEqual([])
+      })
+    })
+
     describe('Everphone-Bestandskunden-Abgleich', () => {
       it('trifft über Rechtsform-Unterschiede hinweg und liefert den Status', async () => {
         const hits = await repo.matchEverphoneAccounts(['Nordmetall AG'])

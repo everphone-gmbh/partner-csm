@@ -48,6 +48,7 @@ const TABLES = [
   'events',
   'event_attendees',
   'event_notes',
+  'event_guests',
   'reminders',
   'intro_requests',
   'everphone_accounts',
@@ -340,11 +341,22 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
             (l) => !ids.has(l.from_contact_id) && !ids.has(l.to_contact_id),
           )
           tables.event_notes = tables.event_notes.filter((n) => !ids.has(n.contact_id))
+          // event_guests.promoted_contact_id ON DELETE SET NULL (0028): der Gast
+          // bleibt, verliert aber den Verweis auf den gelöschten Kontakt.
+          tables.event_guests = tables.event_guests.map((g) =>
+            ids.has(g.promoted_contact_id) ? { ...g, promoted_contact_id: null } : g,
+          )
           const removedActivityIds = new Set(
             tables.activities.filter((a) => ids.has(a.contact_id)).map((a) => a.id),
           )
           tables.activities = tables.activities.filter((a) => !ids.has(a.contact_id))
           tables.attachments = tables.attachments.filter((a) => !removedActivityIds.has(a.activity_id))
+        }
+        // event_notes.guest_id ON DELETE CASCADE (0028): Notizen über den Gast
+        // verschwinden mit ihm.
+        if (this.table === 'event_guests') {
+          const gids = new Set(removed.map((r) => r.id))
+          tables.event_notes = tables.event_notes.filter((n) => !gids.has(n.guest_id))
         }
         return { data: null, error: null }
       }

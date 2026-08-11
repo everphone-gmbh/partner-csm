@@ -217,6 +217,21 @@ export interface EventAttendee {
   meetingPoint?: string
 }
 
+/**
+ * Ein unbekannter Gast eines Events — jemand, den man am Stand trifft, der (noch)
+ * kein Kontakt ist. Nur mit Namen erfasst; per promoteGuestToContact später zu
+ * einem echten Contact befördert (Migration 0028).
+ */
+export interface EventGuest {
+  id: string
+  eventId: string
+  name: string
+  company?: string
+  note?: string
+  /** Gesetzt, sobald der Gast zu einem Kontakt gemacht wurde. */
+  promotedContactId?: string
+}
+
 // --- Reminders (self-set) ---
 
 export interface Reminder {
@@ -286,4 +301,6 @@ export interface EventNote {
   attachments: NoteAttachment[]
   /** Optional: the attendee this note is about (feeds their timeline). */
   contactId?: string
+  /** Optional: der unbekannte Gast, um den es geht (Alternative zu contactId). */
+  guestId?: string
 }
