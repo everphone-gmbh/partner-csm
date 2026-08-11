@@ -25,6 +25,7 @@ import { IntroPathCard } from './profile/IntroPathCard'
 import { KundenCard } from './profile/KundenCard'
 import { FotogalerieCard } from './profile/FotogalerieCard'
 import { NotizCard } from './profile/NotizCard'
+import { TranscriptImportCard } from './TranscriptImportCard'
 
 export function ContactProfile() {
   const { id } = useParams()
@@ -186,6 +187,8 @@ export function ContactProfile() {
           {/* Private photos are sensitive-tier data — hidden from Account Managers. */}
           {canSensitive && <FotogalerieCard contact={view} canEdit={canEdit} onSave={save} />}
           <NotizCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
+          {/* Aus Jamie-Transkript strukturierte Fakten übernehmen — nur RM+ (Bearbeiten). */}
+          {canEdit && <TranscriptImportCard contact={view} onApply={save} />}
           {/* Beziehungsverlauf auf einer Achse — ergänzt die Timeline rechts. */}
           <RelationshipTimelineCard history={historyEntries} createdAt={view.createdAt} />
         </div>

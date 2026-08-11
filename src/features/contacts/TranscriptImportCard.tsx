@@ -1,0 +1,251 @@
+import { useState } from 'react'
+import { Check, ClipboardCopy, ShieldAlert, Sparkles } from 'lucide-react'
+import type { Contact } from '@/domain/types'
+import type { ContactPatch } from '@/data/repository'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  buildExtractionPrompt,
+  parseSuggestions,
+  planApply,
+  type ExtractionSuggestion,
+  type ExtractionTarget,
+} from './transcript/extraction'
+
+const TARGET_LABEL: Record<ExtractionTarget, string> = {
+  birthday: 'Geburtstag',
+  location: 'Wohnort',
+  familyStatus: 'Familienstand',
+  children: 'Kinder',
+  pets: 'Haustiere',
+  sideFact: 'Anknüpfungspunkt',
+  customer: 'Kunde',
+}
+
+const areaCls =
+  'w-full rounded-[10px] border border-transparent bg-secondary px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
+/**
+ * Wertet ein Gesprächstranskript (z. B. aus Jamie) aus — ohne eigenen
+ * KI-Endpoint: der Nutzer führt den erzeugten Prompt manuell in Gemini
+ * (Workspace) aus und fügt die JSON-Antwort zurück ein. Übernommen wird nur, was
+ * er einzeln bestätigt; das Transkript wird nie gespeichert. Sichtbar nur für
+ * RM+ (in ContactProfile per canEdit gegated).
+ */
+export function TranscriptImportCard({
+  contact,
+  onApply,
+}: {
+  contact: Contact
+  onApply: (patch: ContactPatch) => Promise<void>
+}) {
+  const [transcript, setTranscript] = useState('')
+  const [prompt, setPrompt] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [response, setResponse] = useState('')
+  const [suggestions, setSuggestions] = useState<ExtractionSuggestion[] | null>(null)
+  const [parseError, setParseError] = useState<string | null>(null)
+  const [approved, setApproved] = useState<Set<string>>(new Set())
+  const [applying, setApplying] = useState(false)
+  const [result, setResult] = useState<{ applied: number; skipped: string[] } | null>(null)
+
+  const makePrompt = () => {
+    setPrompt(buildExtractionPrompt(transcript.trim(), contact.fullName))
+    setCopied(false)
+  }
+  const copyPrompt = async () => {
+    if (!prompt) return
+    try {
+      await navigator.clipboard?.writeText(prompt)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+  const check = () => {
+    const r = parseSuggestions(response)
+    if (!r.ok) {
+      setParseError(r.error ?? 'Die Antwort konnte nicht gelesen werden.')
+      setSuggestions(null)
+      return
+    }
+    setParseError(null)
+    setSuggestions(r.suggestions)
+    setApproved(new Set(r.suggestions.filter((s) => !s.blocked).map((s) => s.id)))
+    setResult(null)
+  }
+  const toggle = (id: string) =>
+    setApproved((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const apply = async () => {
+    if (!suggestions) return
+    const chosen = suggestions.filter((s) => approved.has(s.id) && !s.blocked)
+    const plan = planApply(contact, chosen)
+    setApplying(true)
+    try {
+      if (Object.keys(plan.patch).length > 0) await onApply(plan.patch)
+      setResult({ applied: plan.applied, skipped: plan.skipped })
+      setSuggestions(null)
+    } catch {
+      // onApply (ContactProfile.save) zeigt bereits einen Toast — Karte offen lassen.
+    } finally {
+      setApplying(false)
+    }
+  }
+  const reset = () => {
+    setTranscript('')
+    setPrompt(null)
+    setResponse('')
+    setSuggestions(null)
+    setParseError(null)
+    setResult(null)
+  }
+
+  const approvedCount = suggestions
+    ? suggestions.filter((s) => approved.has(s.id) && !s.blocked).length
+    : 0
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Sparkles className="size-4 text-primary" /> Aus Transkript importieren
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Gesprächstranskript (z. B. aus Jamie) auswerten. Das Transkript wird nicht gespeichert —
+          nur die von dir bestätigten Fakten.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {result ? (
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-status-green">{result.applied} Fakt(en) übernommen.</p>
+            {result.skipped.length > 0 && (
+              <div className="text-muted-foreground">
+                <p>Übersprungen:</p>
+                <ul className="list-disc pl-5">
+                  {result.skipped.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <Button size="sm" variant="outline" onClick={reset}>
+              Weiteres Transkript
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">1. Transkript einfügen</label>
+              <textarea
+                className={areaCls}
+                rows={4}
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                placeholder="Transkript aus Jamie hier einfügen…"
+              />
+              <Button size="sm" onClick={makePrompt} disabled={!transcript.trim()}>
+                Prompt für Gemini erzeugen
+              </Button>
+            </div>
+
+            {prompt && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  2. Diesen Prompt in Gemini (Workspace) ausführen
+                </label>
+                <textarea className={areaCls} rows={5} readOnly value={prompt} />
+                <Button size="sm" variant="outline" onClick={copyPrompt}>
+                  {copied ? (
+                    <>
+                      <Check className="size-4" /> Kopiert
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardCopy className="size-4" /> Prompt kopieren
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {prompt && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  3. Antwort von Gemini einfügen
+                </label>
+                <textarea
+                  className={areaCls}
+                  rows={4}
+                  value={response}
+                  onChange={(e) => setResponse(e.target.value)}
+                  placeholder='[ { "target": "sideFact", … } ]'
+                />
+                <Button size="sm" onClick={check} disabled={!response.trim()}>
+                  Vorschläge prüfen
+                </Button>
+                {parseError && <p className="text-sm text-destructive">{parseError}</p>}
+              </div>
+            )}
+
+            {suggestions && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  4. Vorschläge prüfen und übernehmen
+                </p>
+                {suggestions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Keine belegbaren Fakten gefunden.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {suggestions.map((s) => (
+                      <li key={s.id} className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={approved.has(s.id) && !s.blocked}
+                          disabled={s.blocked}
+                          onChange={() => toggle(s.id)}
+                          aria-label={`${s.value} übernehmen`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{TARGET_LABEL[s.target]}</Badge>
+                            <span className="text-sm font-medium">{s.value}</span>
+                            {s.target === 'customer' && (
+                              <span className="text-xs text-muted-foreground">
+                                {s.withUs ? 'mit uns' : 'Potenzial'}
+                              </span>
+                            )}
+                          </div>
+                          {s.evidence && (
+                            <p className="text-xs italic text-muted-foreground">„{s.evidence}"</p>
+                          )}
+                          {s.blocked && (
+                            <p className="flex items-center gap-1 text-xs text-destructive">
+                              <ShieldAlert className="size-3.5" /> Art. 9 ({s.blockReason}) — nicht übernehmbar
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {suggestions.length > 0 && (
+                  <Button size="sm" onClick={apply} disabled={applying || approvedCount === 0}>
+                    {applying ? 'Übernehme…' : `Übernehmen (${approvedCount})`}
+                  </Button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
