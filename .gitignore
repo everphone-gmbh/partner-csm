@@ -36,3 +36,6 @@ DSGVO-Paket.md
 *.njsproj
 *.sln
 *.sw?
+
+# Workspace-Doku (im Gehirn-Repo versioniert)
+/stand.md
