@@ -567,6 +567,39 @@ export class SupabaseRepository implements Repository {
     return rows.map((r) => ({ id: r.id, name: r.name, isPlaceholder: Boolean(r.is_placeholder) }))
   }
 
+  async createRegion(name: string): Promise<Region> {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Regionsname darf nicht leer sein')
+    // Neue Gebiete sind nie Platzhalter — das Kennzeichen ist dem Import-Rest
+    // „Unbekannt" vorbehalten (0024). RLS `regions_insert` (0029) lässt nur RM+ zu.
+    const { data, error } = await this.client
+      .from('regions')
+      .insert({ name: trimmed, is_placeholder: false })
+      .select('id, name, is_placeholder')
+      .single()
+    if (error) throw new Error(error.message)
+    const r = data as unknown as { id: string; name: string; is_placeholder: boolean }
+    return { id: r.id, name: r.name, isPlaceholder: Boolean(r.is_placeholder) }
+  }
+
+  async renameRegion(id: string, name: string): Promise<Region> {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Regionsname darf nicht leer sein')
+    // KEIN upsert (der schriebe die ganze Zeile und nullte is_placeholder /
+    // created_at): erst gezielt den Namen aktualisieren, dann neu lesen — wie
+    // setAttendee / updateEventGuest. RLS `regions_update` (0029) beschränkt auf RM+.
+    const { error } = await this.client.from('regions').update({ name: trimmed }).eq('id', id)
+    if (error) throw new Error(error.message)
+    const { data, error: selError } = await this.client
+      .from('regions')
+      .select('id, name, is_placeholder')
+      .eq('id', id)
+      .single()
+    if (selError) throw new Error(selError.message)
+    const r = data as unknown as { id: string; name: string; is_placeholder: boolean }
+    return { id: r.id, name: r.name, isPlaceholder: Boolean(r.is_placeholder) }
+  }
+
   async listUsers(): Promise<AppUser[]> {
     const { data, error } = await this.client.from('profiles').select('id, full_name, role, region_id')
     if (error) throw new Error(error.message)

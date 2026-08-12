@@ -412,6 +412,38 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.sideFacts.map((f) => f.label)).toEqual(['Golf'])
     })
 
+    describe('Regionen-Selbstverwaltung', () => {
+      it('legt eine Region an — taucht in listRegions auf, kein Platzhalter', async () => {
+        const created = await repo.createRegion('  Südwest  ')
+        // Name getrimmt, echtes Gebiet (kein Platzhalter).
+        expect(created.name).toBe('Südwest')
+        expect(created.isPlaceholder).toBe(false)
+
+        const found = (await repo.listRegions()).find((r) => r.id === created.id)
+        expect(found).toBeDefined()
+        expect(found?.name).toBe('Südwest')
+        expect(found?.isPlaceholder).toBe(false)
+      })
+
+      it('benennt eine Region um — der neue Name bleibt bestehen', async () => {
+        const created = await repo.createRegion('Alt')
+        const renamed = await repo.renameRegion(created.id, '  Neu  ')
+        expect(renamed.id).toBe(created.id)
+        expect(renamed.name).toBe('Neu')
+
+        const found = (await repo.listRegions()).find((r) => r.id === created.id)
+        expect(found?.name).toBe('Neu')
+      })
+
+      it('behandelt leere Namen in beiden Backends als Fehler', async () => {
+        await expect(repo.createRegion('   ')).rejects.toThrow()
+        const created = await repo.createRegion('Bestand')
+        await expect(repo.renameRegion(created.id, '  ')).rejects.toThrow()
+        // Der ursprüngliche Name bleibt nach dem abgelehnten Umbenennen erhalten.
+        expect((await repo.listRegions()).find((r) => r.id === created.id)?.name).toBe('Bestand')
+      })
+    })
+
     describe('Soll-Organisationsstruktur', () => {
       it('liefert Einheiten mit Firma, Abteilung und Team', async () => {
         const units = await repo.listOrgUnits()

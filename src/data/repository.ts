@@ -184,6 +184,19 @@ export interface EventGuestPatch {
  */
 export interface Repository {
   listRegions(): Promise<Region[]>
+  /**
+   * Legt ein neues Vertriebsgebiet an (immer als echte Region, nie als
+   * Platzhalter). Der Name wird getrimmt; ein leerer Name ist ein Fehler.
+   * Schreibrecht haben serverseitig nur RM+ (RLS `regions_insert`, 0029).
+   */
+  createRegion(name: string): Promise<Region>
+  /**
+   * Benennt ein bestehendes Gebiet um (UPDATE-dann-Neulesen, kein upsert). Der
+   * Name wird getrimmt; ein leerer Name ist ein Fehler. Das Platzhalter-Kennzeichen
+   * bleibt unberührt — die Oberfläche verhindert das Umbenennen des Platzhalters,
+   * die RLS (`regions_update`, 0029) beschränkt den Schreibzugriff auf RM+.
+   */
+  renameRegion(id: string, name: string): Promise<Region>
   listUsers(): Promise<AppUser[]>
   listContacts(): Promise<Contact[]>
   getContact(id: string): Promise<Contact | undefined>

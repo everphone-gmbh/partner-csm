@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AtSign, Briefcase, Building, Building2, Cake, Heart, Home, Link2, Mail, MapPin, PawPrint, Phone, PhoneCall, Plus, Repeat, Smartphone, Trophy, UserRound, Users, X } from 'lucide-react'
 import type { AppUser, BuyingRole, Contact, Region, SocialLink } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
@@ -86,6 +86,7 @@ export function StammdatenCard({
   regions,
   users,
   onSave,
+  onCreateRegion,
 }: {
   contact: Contact
   canEdit: boolean
@@ -93,14 +94,51 @@ export function StammdatenCard({
   regions: Region[]
   users: AppUser[]
   onSave: (patch: ContactPatch) => Promise<void>
+  /**
+   * Optional: eine Region direkt beim Bearbeiten anlegen (nur RM+, weil das
+   * Bearbeiten selbst schon canApprove verlangt). Gibt die neue Region zurück,
+   * die sofort auswählbar wird. Wird von ContactProfile bereitgestellt.
+   */
+  onCreateRegion?: (name: string) => Promise<Region>
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<StammDraft>(() => toStammDraft(contact))
   const [saving, setSaving] = useState(false)
   const bdayDays = canSensitive ? daysUntilBirthday(contact.birthday) : null
 
+  // Frisch angelegte Regionen sofort auswählbar machen, auch bevor die
+  // Elternabfrage (ContactProfile) die aktualisierte Liste nachgeliefert hat.
+  // Sobald sie in `regions` auftaucht, greift die Entdopplung.
+  const [createdRegions, setCreatedRegions] = useState<Region[]>([])
+  const [showNewRegion, setShowNewRegion] = useState(false)
+  const [newRegionName, setNewRegionName] = useState('')
+  const [creatingRegion, setCreatingRegion] = useState(false)
+
+  const regionOptions = useMemo(() => {
+    const known = new Set(regions.map((r) => r.id))
+    return [...regions, ...createdRegions.filter((r) => !known.has(r.id))]
+  }, [regions, createdRegions])
+
   const set = <K extends keyof StammDraft,>(k: K, v: StammDraft[K]) =>
     setDraft((d) => ({ ...d, [k]: v }))
+
+  const createRegion = async () => {
+    if (!onCreateRegion) return
+    const name = newRegionName.trim()
+    if (!name) return
+    setCreatingRegion(true)
+    try {
+      const created = await onCreateRegion(name)
+      setCreatedRegions((prev) => [...prev, created])
+      set('regionId', created.id)
+      setNewRegionName('')
+      setShowNewRegion(false)
+    } catch {
+      // Fehler meldet der Aufrufer (ContactProfile) als Toast; Eingabe bleibt stehen.
+    } finally {
+      setCreatingRegion(false)
+    }
+  }
 
   const start = () => {
     setDraft(toStammDraft(contact))
@@ -162,13 +200,58 @@ export function StammdatenCard({
               </EditField>
               <EditField label="Region">
                 <select className={selectCls} value={draft.regionId} onChange={(e) => set('regionId', e.target.value)}>
-                  {regions.map((r) => (
+                  {regionOptions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
                       {r.isPlaceholder ? ' (Platzhalter)' : ''}
                     </option>
                   ))}
                 </select>
+                {onCreateRegion &&
+                  (showNewRegion ? (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <Input
+                        value={newRegionName}
+                        onChange={(e) => setNewRegionName(e.target.value)}
+                        placeholder="Name der neuen Region"
+                        aria-label="Name der neuen Region"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void createRegion()
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={createRegion}
+                        disabled={creatingRegion || !newRegionName.trim()}
+                      >
+                        {creatingRegion ? 'Anlegen…' : 'Anlegen'}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setShowNewRegion(false)
+                          setNewRegionName('')
+                        }}
+                      >
+                        Abbrechen
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewRegion(true)}
+                      className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <Plus className="size-3.5" /> Neue Region
+                    </button>
+                  ))}
               </EditField>
               <EditField label="Relationship Manager">
                 <select

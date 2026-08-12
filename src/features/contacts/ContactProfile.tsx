@@ -89,6 +89,21 @@ export function ContactProfile() {
     }
   }
 
+  // Region direkt aus der Stammdaten-Bearbeitung heraus anlegen (nur RM+, weil
+  // Bearbeiten canApprove verlangt). Danach die Regionsliste neu laden, damit die
+  // neue Region überall — auch in anderen Karten — auftaucht; StammdatenCard macht
+  // sie zusätzlich sofort lokal auswählbar. Gibt die neue Region zurück.
+  const createRegion = async (name: string): Promise<Region> => {
+    try {
+      const created = await repository.createRegion(name)
+      retry()
+      return created
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      throw err
+    }
+  }
+
   // DSGVO-Löschung — nur Overall-Admin. Die Datenbank erzwingt das seit 0023
   // selbst; zuvor stand die Policy auf is_privileged(), die Beschränkung
   // existierte also NUR hier in der Oberfläche und war über die API umgehbar.
@@ -179,6 +194,7 @@ export function ContactProfile() {
             regions={regions}
             users={users}
             onSave={save}
+            onCreateRegion={createRegion}
           />
           <FactsCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
           <NetworkCard contact={view} canEdit={canEdit} />

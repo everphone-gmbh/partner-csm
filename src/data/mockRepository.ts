@@ -8,6 +8,7 @@ import type {
   EventNote,
   IntroRequest,
   OrgUnit,
+  Region,
   Reminder,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
@@ -86,6 +87,28 @@ class MockRepository implements Repository {
 
   async listRegions() {
     return clone(this.regions)
+  }
+
+  async createRegion(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Regionsname darf nicht leer sein')
+    const region: Region = {
+      id: `region-local-${this.seq++}`,
+      name: trimmed,
+      isPlaceholder: false,
+    }
+    this.regions.push(region)
+    return clone(region)
+  }
+
+  async renameRegion(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Regionsname darf nicht leer sein')
+    const idx = this.regions.findIndex((r) => r.id === id)
+    if (idx < 0) throw new Error(`region ${id} not found`)
+    // Nur den Namen ändern; das Platzhalter-Kennzeichen bleibt, wie es ist.
+    this.regions[idx] = { ...this.regions[idx], name: trimmed }
+    return clone(this.regions[idx])
   }
 
   async listUsers() {
