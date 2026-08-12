@@ -47,6 +47,7 @@ export function BriefingPage() {
         repository.listUsers(),
         repository.listAllActivities(),
         repository.listEventNotes(id ?? ''),
+        repository.listEventGuests(id ?? ''),
       ]),
     [id],
   )
@@ -56,6 +57,7 @@ export function BriefingPage() {
   const users = data?.[4] ?? []
   const activities = useMemo(() => data?.[5] ?? [], [data])
   const eventNotes = useMemo(() => data?.[6] ?? [], [data])
+  const guests = useMemo(() => data?.[7] ?? [], [data])
   useEffect(() => {
     setAttendees(data?.[1] ?? [])
   }, [data])
@@ -139,7 +141,7 @@ export function BriefingPage() {
         </div>
       </div>
 
-      {cards.length === 0 && (
+      {cards.length === 0 && guests.length === 0 && (
         <p className="py-8 text-center text-sm text-muted-foreground">
           Keine Teilnehmer in deinem Sichtbereich.
         </p>
@@ -256,6 +258,42 @@ export function BriefingPage() {
           </Card>
         )
       })}
+
+      {guests.length > 0 && (
+        <div className="space-y-2 pt-1">
+          <h2 className="px-1 text-sm font-semibold text-muted-foreground">
+            Gäste ({guests.length})
+          </h2>
+          {guests.map((g) => {
+            const meta = [g.company, g.note].filter(Boolean).join(' · ')
+            return (
+              <Card key={g.id} className="overflow-hidden">
+                <CardContent className="flex items-center gap-3 pt-5 sm:pt-5">
+                  <Avatar name={g.name} className="size-10" />
+                  <div className="min-w-0 flex-1">
+                    {g.promotedContactId ? (
+                      <Link
+                        to={`/contacts/${g.promotedContactId}`}
+                        className="block truncate text-sm font-semibold hover:underline"
+                      >
+                        {g.name}
+                      </Link>
+                    ) : (
+                      <div className="truncate text-sm font-semibold">{g.name}</div>
+                    )}
+                    {meta && <p className="truncate text-xs text-muted-foreground">{meta}</p>}
+                  </div>
+                  {g.promotedContactId && (
+                    <Badge variant="success" className="shrink-0">
+                      Kontakt
+                    </Badge>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

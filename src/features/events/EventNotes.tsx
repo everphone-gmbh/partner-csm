@@ -83,21 +83,28 @@ export function EventNotes({
   eventId,
   eventName,
   attendeeContacts = [],
+  guests = [],
 }: {
   eventId: string
   eventName?: string
   /** Attendees offered for the optional note→person assignment. */
   attendeeContacts?: { id: string; fullName: string }[]
+  /** Unbekannte Gäste, ebenfalls als Notiz-Ziel wählbar (noch keine Kontakte). */
+  guests?: { id: string; name: string }[]
 }) {
   const { user } = useSession()
   const { toast } = useToast()
-  const [noteContactId, setNoteContactId] = useState('')
+  // Ein Ziel-Wert für beide Arten: '' | `contact:<id>` | `guest:<id>`.
+  const [noteTarget, setNoteTarget] = useState('')
   const [toTimeline, setToTimeline] = useState(false)
   const [notes, setNotes] = useState<EventNote[]>([])
   const [text, setText] = useState('')
   const [pending, setPending] = useState<NoteAttachment[]>([])
   const [saving, setSaving] = useState(false)
   const imgRef = useRef<HTMLInputElement>(null)
+
+  const selectedContactId = noteTarget.startsWith('contact:') ? noteTarget.slice(8) : ''
+  const selectedGuestId = noteTarget.startsWith('guest:') ? noteTarget.slice(6) : ''
 
   const refresh = () => {
     void repository
@@ -141,13 +148,15 @@ export function EventNotes({
         text: text.trim(),
         authorName: user.name,
         attachments: pending,
-        contactId: noteContactId || undefined,
+        contactId: selectedContactId || undefined,
+        guestId: selectedGuestId || undefined,
       })
-      // Optional: the note also lands in the contact's activity timeline,
-      // so the event feeds the relationship history directly.
-      if (noteContactId && toTimeline && text.trim()) {
+      // Optional: the note also lands in the contact's activity timeline, so the
+      // event feeds the relationship history directly. Gäste haben (noch) keine
+      // Timeline — die Option erscheint deshalb nur für Kontakte.
+      if (selectedContactId && toTimeline && text.trim()) {
         await repository.addActivity({
-          contactId: noteContactId,
+          contactId: selectedContactId,
           type: 'meeting',
           occurredAt: new Date().toISOString(),
           authorId: user.id,
@@ -157,7 +166,7 @@ export function EventNotes({
       }
       setText('')
       setPending([])
-      setNoteContactId('')
+      setNoteTarget('')
       setToTimeline(false)
       refresh()
     } catch (err) {
@@ -169,6 +178,7 @@ export function EventNotes({
 
   const contactName = (cid: string) =>
     attendeeContacts.find((c) => c.id === cid)?.fullName ?? 'Kontakt'
+  const guestName = (gid: string) => guests.find((g) => g.id === gid)?.name ?? 'Gast'
 
   return (
     <Card>
@@ -182,24 +192,31 @@ export function EventNotes({
           rows={2}
           placeholder="Was passiert gerade? Schnell festhalten…"
         />
-        {attendeeContacts.length > 0 && (
+        {(attendeeContacts.length > 0 || guests.length > 0) && (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               className="h-9 rounded-[10px] border border-transparent bg-secondary px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-56"
-              value={noteContactId}
+              aria-label="Notiz zuordnen"
+              value={noteTarget}
               onChange={(e) => {
-                setNoteContactId(e.target.value)
-                if (!e.target.value) setToTimeline(false)
+                setNoteTarget(e.target.value)
+                // Timeline gibt es nur für Kontakte — bei Gast/„ohne“ abwählen.
+                if (!e.target.value.startsWith('contact:')) setToTimeline(false)
               }}
             >
               <option value="">Ohne Personenbezug</option>
               {attendeeContacts.map((c) => (
-                <option key={c.id} value={c.id}>
+                <option key={`contact:${c.id}`} value={`contact:${c.id}`}>
                   {c.fullName}
                 </option>
               ))}
+              {guests.map((g) => (
+                <option key={`guest:${g.id}`} value={`guest:${g.id}`}>
+                  Gast: {g.name}
+                </option>
+              ))}
             </select>
-            {noteContactId && (
+            {selectedContactId && (
               <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                 <input
                   type="checkbox"
@@ -207,7 +224,7 @@ export function EventNotes({
                   onChange={(e) => setToTimeline(e.target.checked)}
                   className="size-4 accent-primary"
                 />
-                auch in die Timeline von {contactName(noteContactId).split(' ')[0]} übernehmen
+                auch in die Timeline von {contactName(selectedContactId).split(' ')[0]} übernehmen
               </label>
             )}
           </div>
@@ -286,6 +303,11 @@ export function EventNotes({
                   {n.contactId && (
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
                       {contactName(n.contactId)}
+                    </span>
+                  )}
+                  {n.guestId && (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                      Gast: {guestName(n.guestId)}
                     </span>
                   )}
                 </div>

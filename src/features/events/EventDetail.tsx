@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, BellPlus, CalendarDays, ClipboardList, Clock, MapPin, Plus, Trash2 } from 'lucide-react'
-import type { AttendanceStatus, Contact, EventAttendee } from '@/domain/types'
+import { AlertTriangle, ArrowLeft, BellPlus, CalendarDays, ClipboardList, Clock, MapPin, Plus, Trash2, UserCheck, UserPlus } from 'lucide-react'
+import type { AppUser, AttendanceStatus, Contact, EventAttendee, EventGuest, Region } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canApprove } from '@/domain/roles'
@@ -36,6 +36,7 @@ export function EventDetail() {
   const { user } = useSession()
   const { toast } = useToast()
   const [attendees, setAttendees] = useState<EventAttendee[]>([])
+  const [guests, setGuests] = useState<EventGuest[]>([])
   const [addId, setAddId] = useState('')
   const [generatingFollowUps, setGeneratingFollowUps] = useState(false)
 
@@ -45,13 +46,19 @@ export function EventDetail() {
         repository.getEvent(id ?? ''),
         repository.listEventAttendees(id ?? ''),
         repository.listContacts(),
+        repository.listRegions(),
+        repository.listUsers(),
+        repository.listEventGuests(id ?? ''),
       ]),
     [id],
   )
   const event = data?.[0]
   const contacts: Contact[] = data?.[2] ?? []
+  const regions = data?.[3] ?? []
+  const users = data?.[4] ?? []
   useEffect(() => {
     setAttendees(data?.[1] ?? [])
+    setGuests(data?.[5] ?? [])
   }, [data])
 
   const loadAttendees = () => {
@@ -59,6 +66,13 @@ export function EventDetail() {
       void repository
         .listEventAttendees(id)
         .then(setAttendees)
+        .catch((err: unknown) => toast(saveErrorMessage(err)))
+  }
+  const loadGuests = () => {
+    if (id)
+      void repository
+        .listEventGuests(id)
+        .then(setGuests)
         .catch((err: unknown) => toast(saveErrorMessage(err)))
   }
 
@@ -170,6 +184,44 @@ export function EventDetail() {
     loadAttendees()
   }
 
+  // --- Gäste: unbekannte Personen am Stand, später zu echten Kontakten befördert ---
+  const addGuest = async (input: { name: string; company: string; note: string }) => {
+    if (!id) return
+    const name = input.name.trim()
+    if (!name) return
+    try {
+      await repository.addEventGuest({
+        eventId: id,
+        name,
+        company: input.company.trim() || undefined,
+        note: input.note.trim() || undefined,
+      })
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
+    loadGuests()
+  }
+  const removeGuest = async (guestId: string) => {
+    if (!window.confirm('Diesen Gast entfernen? Notizen über ihn werden mit gelöscht.')) return
+    try {
+      await repository.removeEventGuest(guestId)
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
+    loadGuests()
+  }
+  const promoteGuest = async (guestId: string, regionId: string, relationshipManagerId: string) => {
+    try {
+      await repository.promoteGuestToContact(guestId, { regionId, relationshipManagerId })
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
+    loadGuests()
+  }
+
   // Ein Klick nach dem Event: Follow-up-Reminder für alle Getroffenen.
   // Dedupe über buildFollowUpReminders — der Button ist gefahrlos mehrfach klickbar.
   const generateFollowUps = async () => {
@@ -206,6 +258,11 @@ export function EventDetail() {
   }
 
   const hasAttended = attendees.some((a) => a.status === 'attended')
+  const canEditGuests = canApprove(user.role)
+  // Vorgabe für „Zu Kontakt machen": eigene Region, sonst der Platzhalter
+  // („Unbekannt") — contacts.region_id ist NOT NULL, es braucht immer ein Ziel.
+  const placeholderRegionId = regions.find((r) => r.isPlaceholder)?.id
+  const defaultRegionId = user.regionId ?? placeholderRegionId ?? regions[0]?.id ?? ''
 
   return (
     <div className="space-y-4">
@@ -260,6 +317,9 @@ export function EventDetail() {
           .map((a) => contactById.get(a.contactId))
           .filter((c): c is Contact => Boolean(c))
           .map((c) => ({ id: c.id, fullName: c.fullName }))}
+        guests={guests
+          .filter((g) => !g.promotedContactId)
+          .map((g) => ({ id: g.id, name: g.name }))}
       />
 
       <Card>
@@ -370,6 +430,37 @@ export function EventDetail() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Gäste</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Unbekannte am Stand — mit „Zu Kontakt machen“ werden sie zu echten Kontakten.
+          </p>
+          {guests.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Noch keine Gäste erfasst.</p>
+          ) : (
+            <ul className="space-y-2">
+              {guests.map((g) => (
+                <GuestRow
+                  key={g.id}
+                  guest={g}
+                  regions={regions}
+                  users={users}
+                  defaultRegionId={defaultRegionId}
+                  defaultManagerId={user.id}
+                  canEdit={canEditGuests}
+                  onPromote={promoteGuest}
+                  onRemove={removeGuest}
+                />
+              ))}
+            </ul>
+          )}
+          {canEditGuests && <AddGuestForm onAdd={addGuest} />}
         </CardContent>
       </Card>
     </div>
@@ -491,6 +582,183 @@ function SlotEditor({
           )}
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Eine Gastzeile. Ist der Gast bereits befördert (`promotedContactId`), zeigt sie
+ * nur den Verweis auf den Kontakt und blendet die Bearbeitungsknöpfe aus. Sonst
+ * (nur RM+) „Zu Kontakt machen“ mit einem inline Region-/RM-Wähler und Entfernen.
+ */
+function GuestRow({
+  guest,
+  regions,
+  users,
+  defaultRegionId,
+  defaultManagerId,
+  canEdit,
+  onPromote,
+  onRemove,
+}: {
+  guest: EventGuest
+  regions: Region[]
+  users: AppUser[]
+  defaultRegionId: string
+  defaultManagerId: string
+  canEdit: boolean
+  onPromote: (guestId: string, regionId: string, relationshipManagerId: string) => Promise<void>
+  onRemove: (guestId: string) => void
+}) {
+  const [promoting, setPromoting] = useState(false)
+  const [regionId, setRegionId] = useState(defaultRegionId)
+  const [managerId, setManagerId] = useState(defaultManagerId)
+  const [busy, setBusy] = useState(false)
+
+  const promoted = Boolean(guest.promotedContactId)
+  const meta = [guest.company, guest.note].filter(Boolean).join(' · ')
+
+  const confirmPromote = async () => {
+    if (!regionId || !managerId) return
+    setBusy(true)
+    try {
+      await onPromote(guest.id, regionId, managerId)
+      setPromoting(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <li className="space-y-2 rounded-lg border border-border p-3">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {promoted ? (
+              <Link
+                to={`/contacts/${guest.promotedContactId}`}
+                className="truncate text-sm font-medium hover:underline"
+              >
+                {guest.name}
+              </Link>
+            ) : (
+              <span className="truncate text-sm font-medium">{guest.name}</span>
+            )}
+            {promoted && (
+              <Badge variant="success" className="shrink-0">
+                <UserCheck className="size-3" /> Kontakt
+              </Badge>
+            )}
+          </div>
+          {meta && <div className="truncate text-xs text-muted-foreground">{meta}</div>}
+        </div>
+        {canEdit && !promoted && (
+          <div className="flex shrink-0 items-center gap-1">
+            <Button size="sm" variant="outline" onClick={() => setPromoting((v) => !v)}>
+              <UserPlus className="size-4" /> Zu Kontakt machen
+            </Button>
+            <button
+              type="button"
+              onClick={() => onRemove(guest.id)}
+              aria-label="Gast entfernen"
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        )}
+      </div>
+      {canEdit && !promoted && promoting && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-secondary/50 p-2">
+          <span className="text-xs text-muted-foreground">Als Kontakt anlegen:</span>
+          <select
+            className={selectCls}
+            aria-label="Region"
+            value={regionId}
+            onChange={(e) => setRegionId(e.target.value)}
+          >
+            {regions.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+                {r.isPlaceholder ? ' (Platzhalter)' : ''}
+              </option>
+            ))}
+          </select>
+          <select
+            className={selectCls}
+            aria-label="Relationship Manager"
+            value={managerId}
+            onChange={(e) => setManagerId(e.target.value)}
+          >
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" onClick={confirmPromote} disabled={busy || !regionId || !managerId}>
+            {busy ? 'Übernehme…' : 'Übernehmen'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setPromoting(false)}>
+            Abbrechen
+          </Button>
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** Inline-Formular (kein Modal — es gibt keine Dialog-Primitive) zum Erfassen eines Gastes. */
+function AddGuestForm({
+  onAdd,
+}: {
+  onAdd: (input: { name: string; company: string; note: string }) => Promise<void>
+}) {
+  const [name, setName] = useState('')
+  const [company, setCompany] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const submit = async () => {
+    if (!name.trim()) return
+    setBusy(true)
+    try {
+      await onAdd({ name, company, note })
+      setName('')
+      setCompany('')
+      setNote('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-label="Name des Gastes"
+          placeholder="Name"
+          className="sm:flex-1"
+        />
+        <Input
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          aria-label="Firma des Gastes"
+          placeholder="Firma (optional)"
+          className="sm:flex-1"
+        />
+      </div>
+      <Input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        aria-label="Notiz zum Gast"
+        placeholder="Notiz (optional), z. B. wo getroffen"
+      />
+      <Button size="sm" variant="outline" onClick={submit} disabled={busy || !name.trim()}>
+        <Plus className="size-4" /> Gast hinzufügen
+      </Button>
     </div>
   )
 }
