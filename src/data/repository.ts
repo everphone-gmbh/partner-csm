@@ -197,6 +197,15 @@ export interface Repository {
    * die RLS (`regions_update`, 0029) beschränkt den Schreibzugriff auf RM+.
    */
   renameRegion(id: string, name: string): Promise<Region>
+  /**
+   * Löscht ein LEERES Vertriebsgebiet. Benutzte Gebiete verweigert die
+   * Datenbank selbst — contacts.region_id und profiles.region_id sind FKs ohne
+   * ON DELETE-Klausel (23503, wird als lesbare Meldung gereicht). Der
+   * Platzhalter „Unbekannt" ist über die Delete-Policy geschützt (0030), weil
+   * er Ziel von „Zu Kontakt machen" und Default beim Import ist. Zusammenlegen
+   * bleibt zweistufig: erst per Massenzuordnung umziehen, dann löschen.
+   */
+  deleteRegion(id: string): Promise<void>
   listUsers(): Promise<AppUser[]>
   listContacts(): Promise<Contact[]>
   getContact(id: string): Promise<Contact | undefined>

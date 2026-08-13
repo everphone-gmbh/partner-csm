@@ -328,9 +328,29 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       }
 
       if (this.op === 'delete') {
-        const removed = rows.filter((r) => this.matches(r))
+        let removed = rows.filter((r) => this.matches(r))
+        if (this.table === 'regions') {
+          // Delete-Policy regions_delete (0030): Platzhalter-Zeilen matcht die
+          // Policy nie — sie bleiben ohne Fehler stehen (0 Zeilen gelöscht).
+          removed = removed.filter((r) => !r.is_placeholder)
+          // FK-Schutz wie in Postgres: contacts.region_id / profiles.region_id
+          // haben keine ON DELETE-Klausel — benutzte Gebiete lösen 23503 aus.
+          const ids = new Set(removed.map((r) => r.id))
+          const used =
+            tables.contacts.some((c) => ids.has(c.region_id)) ||
+            tables.profiles.some((p) => ids.has(p.region_id))
+          if (used) {
+            return {
+              data: null,
+              error: {
+                message:
+                  'update or delete on table "regions" violates foreign key constraint',
+              },
+            }
+          }
+        }
         for (const r of removed) writeAudit(this.table, 'delete', r)
-        tables[this.table] = rows.filter((r) => !this.matches(r))
+        tables[this.table] = rows.filter((r) => !removed.includes(r))
         // Emulate the schema's ON DELETE CASCADE from contacts.
         if (this.table === 'contacts') {
           const ids = new Set(removed.map((r) => r.id))

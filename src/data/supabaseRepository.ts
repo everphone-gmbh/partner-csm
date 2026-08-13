@@ -600,6 +600,30 @@ export class SupabaseRepository implements Repository {
     return { id: r.id, name: r.name, isPlaceholder: Boolean(r.is_placeholder) }
   }
 
+  async deleteRegion(id: string): Promise<void> {
+    // Benutzte Gebiete stoppt die Datenbank selbst: contacts.region_id und
+    // profiles.region_id sind FKs ohne ON DELETE — hier wird nur der
+    // 23503-Fehler lesbar gemacht.
+    const { error } = await this.client.from('regions').delete().eq('id', id)
+    if (error) {
+      throw new Error(
+        error.message.includes('foreign key')
+          ? 'Region wird noch verwendet — erst Kontakte/Nutzer umziehen, dann löschen.'
+          : error.message,
+      )
+    }
+    // Die Delete-Policy (0030) lässt den Platzhalter nie los: das DELETE trifft
+    // dann 0 Zeilen und meldet KEINEN Fehler — deshalb nachprüfen, ob die Zeile
+    // wirklich weg ist, statt still „Erfolg" zu melden.
+    const { data, error: selError } = await this.client
+      .from('regions')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+    if (selError) throw new Error(selError.message)
+    if (data) throw new Error('Region ist geschützt und wurde nicht gelöscht.')
+  }
+
   async listUsers(): Promise<AppUser[]> {
     const { data, error } = await this.client.from('profiles').select('id, full_name, role, region_id')
     if (error) throw new Error(error.message)

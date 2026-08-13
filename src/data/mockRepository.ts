@@ -111,6 +111,23 @@ class MockRepository implements Repository {
     return clone(this.regions[idx])
   }
 
+  async deleteRegion(id: string) {
+    const idx = this.regions.findIndex((r) => r.id === id)
+    if (idx < 0) throw new Error(`region ${id} not found`)
+    // Gleiche Schutzregeln wie die echte Datenbank: der Platzhalter ist über
+    // die Delete-Policy (0030) unantastbar, benutzte Gebiete blocken die FKs
+    // auf contacts.region_id / profiles.region_id.
+    if (this.regions[idx].isPlaceholder) {
+      throw new Error('Region ist geschützt und wurde nicht gelöscht.')
+    }
+    const used =
+      this.contacts.some((c) => c.regionId === id) || this.users.some((u) => u.regionId === id)
+    if (used) {
+      throw new Error('Region wird noch verwendet — erst Kontakte/Nutzer umziehen, dann löschen.')
+    }
+    this.regions.splice(idx, 1)
+  }
+
   async listUsers() {
     return clone(this.users)
   }

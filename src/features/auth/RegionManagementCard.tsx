@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { MapPin, Pencil, Plus } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
 import { repository } from '@/data/repositoryProvider'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
@@ -10,18 +10,39 @@ import { Input } from '@/components/ui/input'
 
 /**
  * Selbstverwaltung der Vertriebsgebiete — nur für RM+ (in AccountPage über
- * canApprove gegated, serverseitig über RLS `regions_insert`/`regions_update`,
- * Migration 0029).
+ * canApprove gegated, serverseitig über RLS `regions_insert`/`regions_update`
+ * (0029) und `regions_delete` (0030)).
  *
  * Zeigt bewusst die vollständige Liste, damit niemand ein Gebiet doppelt anlegt.
  * Der Platzhalter „Unbekannt" (is_placeholder aus der Datenbank, 0024) wird
- * angezeigt, aber nicht zum Umbenennen angeboten — sonst hebelt eine Umbenennung
- * die Platzhalter-Logik aus (siehe Fallstrick 11).
+ * angezeigt, aber weder zum Umbenennen noch zum Löschen angeboten — er ist Ziel
+ * von „Zu Kontakt machen" und Default beim Import (siehe Fallstrick 11).
+ *
+ * Löschen erscheint nur bei LEEREN Gebieten (keine Kontakte, kein Nutzerprofil
+ * gebunden) — benutzte Gebiete lehnt die Datenbank per FK ohnehin ab, der Knopf
+ * würde also nur eine Fehlermeldung produzieren. Zusammenlegen = erst per
+ * Massenzuordnung umziehen, dann die leere Hülle löschen.
  */
 export function RegionManagementCard() {
   const { toast } = useToast()
-  const { data, loading, error, retry } = useRepoQuery(() => repository.listRegions(), [])
-  const regions = data ?? []
+  const { data, loading, error, retry } = useRepoQuery(
+    () => Promise.all([repository.listRegions(), repository.listContacts(), repository.listUsers()]),
+    [],
+  )
+  const regions = data?.[0] ?? []
+  const contacts = data?.[1]
+  const users = data?.[2]
+
+  // Wie oft ein Gebiet verwendet wird (Kontakte + gebundene Nutzerprofile) —
+  // entscheidet, ob Löschen überhaupt angeboten wird.
+  const usedBy = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of contacts ?? []) m.set(c.regionId, (m.get(c.regionId) ?? 0) + 1)
+    for (const u of users ?? []) {
+      if (u.regionId) m.set(u.regionId, (m.get(u.regionId) ?? 0) + 1)
+    }
+    return m
+  }, [contacts, users])
 
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -66,6 +87,20 @@ export function RegionManagementCard() {
     }
   }
 
+  const remove = async (id: string, name: string) => {
+    if (!window.confirm(`Region „${name}“ löschen?`)) return
+    setSavingId(id)
+    try {
+      await repository.deleteRegion(id)
+      retry()
+      toast('Region gelöscht.', 'success')
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -73,9 +108,11 @@ export function RegionManagementCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Vertriebsgebiete umbenennen oder neue anlegen. Die Liste zeigt alle
-          bestehenden Gebiete, damit nichts doppelt entsteht. Der Platzhalter lässt
-          sich nicht umbenennen.
+          Vertriebsgebiete umbenennen, neue anlegen oder leere löschen. Die Liste
+          zeigt alle bestehenden Gebiete, damit nichts doppelt entsteht. Löschen
+          ist nur möglich, solange weder Kontakte noch Nutzer zugeordnet sind —
+          zum Zusammenlegen die Kontakte erst per Massenzuordnung umziehen. Der
+          Platzhalter lässt sich weder umbenennen noch löschen.
         </p>
 
         {error ? (
@@ -120,14 +157,27 @@ export function RegionManagementCard() {
                         Platzhalter · nicht umbenennbar
                       </span>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => startEdit(r.id, r.name)}
-                        aria-label={`${r.name} umbenennen`}
-                        className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        <Pencil className="size-3.5" /> Umbenennen
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(r.id, r.name)}
+                          aria-label={`${r.name} umbenennen`}
+                          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <Pencil className="size-3.5" /> Umbenennen
+                        </button>
+                        {(usedBy.get(r.id) ?? 0) === 0 && (
+                          <button
+                            type="button"
+                            onClick={() => remove(r.id, r.name)}
+                            disabled={savingId === r.id}
+                            aria-label={`${r.name} löschen`}
+                            className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="size-3.5" /> Löschen
+                          </button>
+                        )}
+                      </>
                     )}
                   </>
                 )}

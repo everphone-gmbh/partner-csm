@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Muss vor den Importen stehen (vi.mock wird hochgezogen): die Seite bekommt ein
@@ -46,6 +46,35 @@ describe('AccountPage — Regionen verwalten', () => {
     expect(await screen.findByText('Unbekannt')).toBeInTheDocument()
     expect(screen.getByText(/Platzhalter · nicht umbenennbar/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Unbekannt umbenennen' })).toBeNull()
+  })
+
+  it('löscht als RM+ eine leere Region (deleteRegion wird gerufen)', async () => {
+    const { repo } = renderPage(<AccountPage />, { route: '/account', as: 'sub_admin' })
+
+    // Leere Region entsteht im Test selbst — die Seed-Regionen sind belegt.
+    const input = await screen.findByLabelText('Name der neuen Region')
+    await userEvent.type(input, 'Wegwerf')
+    await userEvent.click(screen.getByRole('button', { name: /Anlegen/ }))
+    await screen.findByText('Wegwerf')
+
+    const deleteSpy = vi.spyOn(repo, 'deleteRegion')
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await userEvent.click(screen.getByRole('button', { name: 'Wegwerf löschen' }))
+
+    await waitFor(() => expect(screen.queryByText('Wegwerf')).toBeNull())
+    expect(deleteSpy).toHaveBeenCalledTimes(1)
+    confirmSpy.mockRestore()
+  })
+
+  it('bietet Löschen weder für benutzte Regionen noch für den Platzhalter an', async () => {
+    renderPage(<AccountPage />, { route: '/account', as: 'sub_admin' })
+
+    await screen.findByText('Unbekannt')
+    // Nord ist im Seed belegt (Kontakte zugeordnet), Unbekannt ist Platzhalter —
+    // beide dürfen keinen Löschen-Knopf zeigen; Umbenennen bleibt für Nord da.
+    expect(screen.getByRole('button', { name: 'Nord umbenennen' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Nord löschen' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Unbekannt löschen' })).toBeNull()
   })
 
   it('blendet die Verwaltungskarte für Account Manager aus', async () => {

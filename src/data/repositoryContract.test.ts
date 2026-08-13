@@ -49,6 +49,10 @@ const IMPLEMENTATIONS: [string, () => Repository][] = [
       new SupabaseRepository(
         createFakeSupabase({
           profiles: [VERIFIER],
+          // Der Platzhalter muss auch im Fake existieren, damit der Contract
+          // seinen Löschschutz in beiden Backends prüfen kann (Mock hat ihn
+          // aus seed.ts).
+          regions: [{ id: 'r-unbekannt', name: 'Unbekannt', is_placeholder: true }],
           everphone_accounts: EVERPHONE_ROWS,
           // Gleiche Quelle wie der Mock, damit der Contract identische Daten prüft.
           org_units: seedOrgUnits.map((u) => ({ ...u, note: null })),
@@ -441,6 +445,27 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         await expect(repo.renameRegion(created.id, '  ')).rejects.toThrow()
         // Der ursprüngliche Name bleibt nach dem abgelehnten Umbenennen erhalten.
         expect((await repo.listRegions()).find((r) => r.id === created.id)?.name).toBe('Bestand')
+      })
+
+      it('löscht eine leere Region', async () => {
+        const created = await repo.createRegion('Wegwerf')
+        await repo.deleteRegion(created.id)
+        expect((await repo.listRegions()).some((r) => r.id === created.id)).toBe(false)
+      })
+
+      it('weigert sich, eine benutzte Region zu löschen (FK-Schutz)', async () => {
+        const created = await repo.createRegion('Belegt')
+        await repo.createContact({ ...BASE, regionId: created.id })
+        await expect(repo.deleteRegion(created.id)).rejects.toThrow()
+        // Die Region übersteht den abgelehnten Löschversuch unverändert.
+        expect((await repo.listRegions()).some((r) => r.id === created.id)).toBe(true)
+      })
+
+      it('löscht den Platzhalter nicht (Delete-Policy 0030)', async () => {
+        const placeholder = (await repo.listRegions()).find((r) => r.isPlaceholder)
+        expect(placeholder).toBeDefined()
+        await expect(repo.deleteRegion(placeholder!.id)).rejects.toThrow()
+        expect((await repo.listRegions()).some((r) => r.id === placeholder!.id)).toBe(true)
       })
     })
 
