@@ -258,7 +258,10 @@ export function EventDetail() {
   }
 
   const hasAttended = attendees.some((a) => a.status === 'attended')
-  const canEditGuests = canApprove(user.role)
+  // Teilnehmer- UND Gast-Bearbeitung nur RM+; Account Manager lesen nur.
+  // Das ist UI-Konsistenz: serverseitig erlaubt event_attendees_rw einem AM
+  // weiterhin Schreiben in der eigenen Region (RLS-Nachzug ist Track-2-TODO).
+  const canEdit = canApprove(user.role)
   // Vorgabe für „Zu Kontakt machen": eigene Region, sonst der Platzhalter
   // („Unbekannt") — contacts.region_id ist NOT NULL, es braucht immer ein Ziel.
   const placeholderRegionId = regions.find((r) => r.isPlaceholder)?.id
@@ -373,45 +376,64 @@ export function EventDetail() {
                         </Link>
                         <div className="truncate text-xs text-muted-foreground">{c?.position}</div>
                       </div>
-                      <select
-                        className={selectCls}
-                        value={a.status}
-                        onChange={(e) => setStatus(a.contactId, e.target.value as AttendanceStatus)}
-                      >
-                        {ATTENDANCE_ORDER.map((s) => (
-                          <option key={s} value={s}>
-                            {ATTENDANCE_LABEL[s]}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => removeAttendee(a.contactId)}
-                        aria-label="Teilnehmer entfernen"
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
+                      {canEdit ? (
+                        <select
+                          className={selectCls}
+                          value={a.status}
+                          aria-label="Teilnahme-Status"
+                          onChange={(e) => setStatus(a.contactId, e.target.value as AttendanceStatus)}
+                        >
+                          {ATTENDANCE_ORDER.map((s) => (
+                            <option key={s} value={s}>
+                              {ATTENDANCE_LABEL[s]}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Badge variant={ATTENDANCE_VARIANT[a.status]}>
+                          {ATTENDANCE_LABEL[a.status]}
+                        </Badge>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => removeAttendee(a.contactId)}
+                          aria-label="Teilnehmer entfernen"
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
                     </div>
-                    <Input
-                      value={a.purpose ?? ''}
-                      onChange={(e) => editPurpose(a.contactId, e.target.value)}
-                      onBlur={(e) => savePurpose(a.contactId, e.target.value)}
-                      placeholder="Wofür? (Ziel / Gesprächsaufhänger)"
-                    />
-                    <SlotEditor
-                      attendee={a}
-                      days={days}
-                      hasConflict={conflicts.has(a.contactId)}
-                      onSave={(patch) => void saveSlot(a.contactId, patch)}
-                    />
+                    {canEdit ? (
+                      <Input
+                        value={a.purpose ?? ''}
+                        onChange={(e) => editPurpose(a.contactId, e.target.value)}
+                        onBlur={(e) => savePurpose(a.contactId, e.target.value)}
+                        placeholder="Wofür? (Ziel / Gesprächsaufhänger)"
+                      />
+                    ) : (
+                      a.purpose && (
+                        <p className="text-sm text-muted-foreground">Wofür: {a.purpose}</p>
+                      )
+                    )}
+                    {canEdit ? (
+                      <SlotEditor
+                        attendee={a}
+                        days={days}
+                        hasConflict={conflicts.has(a.contactId)}
+                        onSave={(patch) => void saveSlot(a.contactId, patch)}
+                      />
+                    ) : (
+                      <SlotSummary attendee={a} hasConflict={conflicts.has(a.contactId)} />
+                    )}
                   </li>
                 )
               })}
             </ul>
           )}
 
-          {notAttending.length > 0 && (
+          {notAttending.length > 0 && canEdit && (
             <div className="flex gap-2 pt-1">
               <select
                 className={`${selectCls} flex-1`}
@@ -453,14 +475,14 @@ export function EventDetail() {
                   users={users}
                   defaultRegionId={defaultRegionId}
                   defaultManagerId={user.id}
-                  canEdit={canEditGuests}
+                  canEdit={canEdit}
                   onPromote={promoteGuest}
                   onRemove={removeGuest}
                 />
               ))}
             </ul>
           )}
-          {canEditGuests && <AddGuestForm onAdd={addGuest} />}
+          {canEdit && <AddGuestForm onAdd={addGuest} />}
         </CardContent>
       </Card>
     </div>
@@ -581,6 +603,32 @@ function SlotEditor({
             </Badge>
           )}
         </>
+      )}
+    </div>
+  )
+}
+
+/** Nur-Lese-Zeile des Standtermins für Rollen ohne Bearbeitungsrecht. */
+export function SlotSummary({
+  attendee,
+  hasConflict,
+}: {
+  attendee: EventAttendee
+  hasConflict: boolean
+}) {
+  if (!attendee.slotAt) return null
+  const { day, time } = slotToInputs(attendee.slotAt)
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <span className="inline-flex items-center gap-1">
+        <Clock className="size-3.5" />
+        {formatDate(day)} {time} · {attendee.slotMinutes ?? DEFAULT_SLOT_MINUTES} Min.
+      </span>
+      {attendee.meetingPoint && <span>{attendee.meetingPoint}</span>}
+      {hasConflict && (
+        <Badge variant="warning" className="shrink-0">
+          <AlertTriangle className="size-3" /> Überschneidung
+        </Badge>
       )}
     </div>
   )
