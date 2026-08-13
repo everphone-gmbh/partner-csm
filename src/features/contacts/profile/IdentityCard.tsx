@@ -6,8 +6,8 @@ import { buildLinkedInInfo } from '@/domain/linkedin'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { isBlank } from '@/domain/placeholders'
 import { EditableAvatar } from '@/components/EditableAvatar'
 import { telHref } from './shared'
 import { TrafficLightBadge, TrafficLightDot, TrafficLightPicker } from '@/components/TrafficLight'
@@ -86,14 +86,27 @@ export function IdentityCard({
               className="rounded-full ring-4 ring-card"
             />
           </div>
+          {/*
+            4-Zeilen-Kopf (Lennart-Feedback, Track 2.4):
+            Name/LinkedIn · Position/Firma/Team · Region/Betreuer/Status · Kontaktwege
+          */}
           <div className="min-w-0 flex-1 space-y-2">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-2xl font-semibold tracking-tight leading-tight">{contact.fullName}</h1>
-                <LinkedInButton url={contact.linkedin.url} contactName={contact.fullName} />
-              </div>
-              <p className="text-sm text-muted-foreground">{contact.position || '—'}</p>
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight leading-tight">{contact.fullName}</h1>
+              <LinkedInButton url={contact.linkedin.url} contactName={contact.fullName} />
+              <LinkedInInline
+                info={contact.linkedin}
+                canEdit={canEdit}
+                verifierId={viewerId}
+                verifierName={viewerName}
+                onSave={onSave}
+              />
             </div>
+            <p className="text-sm text-muted-foreground">
+              {[contact.position, contact.company, contact.team]
+                .filter((v) => !isBlank(v))
+                .join(' · ') || '—'}
+            </p>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <Badge
                 variant={regionIsPlaceholder ? 'warning' : 'secondary'}
@@ -108,6 +121,21 @@ export function IdentityCard({
                 </Badge>
               )}
               <span>RM: {managerName ?? '—'}</span>
+              {canEdit ? (
+                <span className="inline-flex items-center gap-2">
+                  <span>Beziehung:</span>
+                  <TrafficLightPicker value={contact.sentiment} onChange={rateSentiment} />
+                </span>
+              ) : (
+                <TrafficLightBadge value={contact.sentiment} />
+              )}
+              {(contact.sentimentHistory?.length ?? 0) > 1 ? (
+                <SentimentSparkline entries={contact.sentimentHistory ?? []} />
+              ) : (
+                (contact.sentimentHistory?.length ?? 0) > 0 && (
+                  <SentimentHistory entries={contact.sentimentHistory ?? []} />
+                )
+              )}
             </div>
             {/*
               Direktkontakt: anklickbar, damit ein Anruf vom Handy aus einem Tipp
@@ -133,32 +161,6 @@ export function IdentityCard({
                   </a>
                 )}
               </div>
-            )}
-            <LinkedInInline
-              info={contact.linkedin}
-              canEdit={canEdit}
-              verifierId={viewerId}
-              verifierName={viewerName}
-              onSave={onSave}
-            />
-          </div>
-          <div className="shrink-0 space-y-1">
-            {canEdit ? (
-              <>
-                <Label>Beziehung</Label>
-                <TrafficLightPicker value={contact.sentiment} onChange={rateSentiment} />
-              </>
-            ) : (
-              <TrafficLightBadge value={contact.sentiment} />
-            )}
-            {(contact.sentimentHistory?.length ?? 0) > 1 ? (
-              <div className="mt-1">
-                <SentimentSparkline entries={contact.sentimentHistory ?? []} />
-              </div>
-            ) : (
-              (contact.sentimentHistory?.length ?? 0) > 0 && (
-                <SentimentHistory entries={contact.sentimentHistory ?? []} />
-              )
             )}
           </div>
         </div>
@@ -234,7 +236,9 @@ function LinkedInInline({
   }
 
   return (
-    <div className="space-y-2">
+    // basis-full: der Editor sitzt in der Namenszeile (flex-wrap) und soll beim
+    // Aufklappen auf eine eigene, volle Zeile umbrechen statt neben dem Namen zu klemmen.
+    <div className="basis-full space-y-2">
       <LinkedInPicker status={status} onChange={setStatus} />
       {status === 'has_account' && (
         <Input
