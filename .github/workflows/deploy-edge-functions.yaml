@@ -1,0 +1,70 @@
+name: Deploy Edge Functions
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+
+env:
+  GCP_PROJECT_ID: "sov-de-hari-playground"
+  GCP_PROJECT_NUMBER: "587452887533"
+  GCP_REGION: "europe-west3"
+  GCP_ARTIFACT_REPOSITORY: "supabase-functions"
+  GCP_SERVICE_NAME: "${{ github.event.repository.name }}-functions"
+  GCP_CMEK: "projects/cmek-2c9fa6fe-3f9a-48f1-bf86-4/locations/europe-west3/keyRings/sovereign-cloud-tsystems/cryptoKeys/hari-test"
+  GCP_SERVICE_ACCOUNT: "terraform-deployer@sov-de-hari-playground.iam.gserviceaccount.com"
+  TENANT_NAME: "partner-csm"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for Workload Identity Federation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/${{ env.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/gh-pool/providers/gh-provider'
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REPOSITORY }}/${{ env.GCP_SERVICE_NAME }}:${{ github.sha }}"
+          docker build -f Dockerfile.edge-functions -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.GCP_SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.IMAGE }}
+          flags: |
+            --allow-unauthenticated
+            --port=9000
+            --cpu=1
+            --memory=512Mi
+            --min-instances=0
+            --max-instances=10
+            --execution-environment=gen2
+            --key=${{ env.GCP_CMEK }}
+            --service-account=${{ env.GCP_SERVICE_ACCOUNT }}
+          secrets: |
+            /secrets/.env=${{ env.TENANT_NAME }}-env:latest
+          env_vars: |
+            SUPABASE_URL=https://supabase-${{ env.TENANT_NAME }}.everphone.app
+            DOTENV_PATH=/secrets/.env
