@@ -54,6 +54,48 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
+/**
+ * Auth gegen den Modell-Endpoint, in dieser Reihenfolge:
+ * 1. TRANSCRIPT_AI_KEY gesetzt → `x-goog-api-key` (AI-Studio-/Express-Keys).
+ * 2. sonst OAuth-Token vom Cloud-Run-Metadata-Server (Ambient-SA des
+ *    Functions-Dienstes). Ist zusätzlich TRANSCRIPT_AI_SA gesetzt (z. B.
+ *    partner-csm-vertex@…), wird dieser Service Account impersonat — der
+ *    Runtime-SA braucht dafür roles/iam.serviceAccountTokenCreator auf ihm.
+ *    Vertex akzeptiert keine API-Keys, deshalb ist das der Produktionspfad.
+ */
+async function buildAuthHeader(): Promise<Record<string, string>> {
+  const key = Deno.env.get('TRANSCRIPT_AI_KEY')
+  if (key) return { 'x-goog-api-key': key }
+
+  const meta = await fetch(
+    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token?scopes=' +
+      encodeURIComponent('https://www.googleapis.com/auth/cloud-platform'),
+    { headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(5_000) },
+  )
+  if (!meta.ok) throw new Error(`Metadata-Server antwortete ${meta.status}`)
+  const baseToken = (await meta.json()).access_token as string
+
+  const sa = Deno.env.get('TRANSCRIPT_AI_SA')
+  if (!sa) return { Authorization: `Bearer ${baseToken}` }
+
+  const imp = await fetch(
+    `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(sa)}:generateAccessToken`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${baseToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scope: ['https://www.googleapis.com/auth/cloud-platform'],
+        lifetime: '300s',
+      }),
+      signal: AbortSignal.timeout(10_000),
+    },
+  )
+  if (!imp.ok) {
+    throw new Error(`Impersonation von ${sa} fehlgeschlagen (${imp.status}): ${(await imp.text()).slice(0, 200)}`)
+  }
+  return { Authorization: `Bearer ${(await imp.json()).accessToken}` }
+}
+
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -97,9 +139,10 @@ Deno.serve(async (req) => {
     return json({ error: 'forbidden' }, 403)
   }
 
+  // Nur die URL ist Pflicht — die Auth kommt aus Key ODER Service Account
+  // (siehe buildAuthHeader). Ohne URL bleibt die Karte im manuellen Modus.
   const aiUrl = Deno.env.get('TRANSCRIPT_AI_URL')
-  const aiKey = Deno.env.get('TRANSCRIPT_AI_KEY')
-  if (!aiUrl || !aiKey) return json({ error: 'not_configured' })
+  if (!aiUrl) return json({ error: 'not_configured' })
 
   let body: { transcript?: string; contactName?: string }
   try {
@@ -126,11 +169,18 @@ TRANSKRIPT:
 ${redacted}
 """`
 
+  let authHeader: Record<string, string>
+  try {
+    authHeader = await buildAuthHeader()
+  } catch (err) {
+    return json({ error: `KI-Auth fehlgeschlagen: ${String(err)}` })
+  }
+
   let aiResp: Response
   try {
     aiResp = await fetch(aiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': aiKey },
+      headers: { 'Content-Type': 'application/json', ...authHeader },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         // Deterministisch: gleiches Transkript → gleiche Vorschläge.

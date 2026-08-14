@@ -125,11 +125,15 @@ erhalten) — danach einmal neu deployen, damit sie greifen.
 
 Aktuell gibt es `extract-transcript` (Auto-Weg des Transkript-Imports): prüft
 Login + RM+-Rolle, redigiert den Kontaktnamen vor dem Modellaufruf und ruft den
-Gemini-Endpoint aus den Secrets `TRANSCRIPT_AI_URL`/`TRANSCRIPT_AI_KEY`. Sind
-die nicht gesetzt, antwortet sie `not_configured` und die Karte fällt auf den
-manuellen Gemini-Workspace-Weg zurück — der Code kann also vor dem Schlüssel
-live sein. **Der REGELN-Block des Prompts existiert doppelt** (Function +
-`extraction.ts`); `promptParity.test.ts` erzwingt Wortgleichheit.
+Gemini-Endpoint aus dem Secret `TRANSCRIPT_AI_URL`. Auth wahlweise per Secret
+`TRANSCRIPT_AI_KEY` (API-Key) oder — Produktionspfad, Vertex nimmt keine Keys —
+per OAuth-Token vom Cloud-Run-Metadata-Server, optional mit Impersonation des
+Service Accounts aus `TRANSCRIPT_AI_SA` (der Runtime-SA braucht dann
+`serviceAccountTokenCreator` darauf). Ohne `TRANSCRIPT_AI_URL` antwortet sie
+`not_configured` und die Karte fällt auf den manuellen Gemini-Workspace-Weg
+zurück — der Code kann also vor dem Schlüssel live sein. **Der REGELN-Block
+des Prompts existiert doppelt** (Function + `extraction.ts`);
+`promptParity.test.ts` erzwingt Wortgleichheit.
 
 ## Zugangsdaten
 
