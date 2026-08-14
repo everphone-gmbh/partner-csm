@@ -52,6 +52,10 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Repo-Variable (kein Secret — die URL ist öffentlich unkritisch,
+          # Auth erzwingt die Edge Function selbst). Fehlt sie, bleibt der
+          # Transkript-Import auf dem manuellen Gemini-Weg.
+          VITE_FUNCTIONS_URL: ${{ vars.VITE_FUNCTIONS_URL }}
           VITE_DATA_BACKEND: supabase
       - name: SPA fallback
         run: cp dist/index.html dist/404.html

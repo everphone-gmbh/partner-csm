@@ -2,38 +2,62 @@
  * Serverseitige Auto-Extraktion über die Edge Function `extract-transcript` —
  * der KI-Schlüssel bleibt dort als Secret, der Client sieht ihn nie.
  *
+ * Bewusst KEIN `supabase.functions.invoke`: in der Sovereign Cloud laufen die
+ * Edge Functions auf einem eigenen Cloud-Run-Host (`VITE_FUNCTIONS_URL`, aus
+ * `deploy_edge_function`), nicht unter `<supabase-url>/functions/v1` — invoke
+ * liefe gegen das falsche Gateway (dort kommt 401 vom Kong). Die URL ist
+ * öffentlich unkritisch; Login + RM+-Rolle erzwingt die Function selbst.
+ *
  * Verfügbar nur im Supabase-Modus (der Mock hat keine Edge Functions). Solange
- * auf der Function kein Schlüssel gesetzt ist, meldet sie `not_configured` —
+ * auf der Function kein KI-Schlüssel gesetzt ist, meldet sie `not_configured` —
  * die Karte fällt dann auf den manuellen Gemini-Workspace-Weg zurück. Dadurch
  * kann dieser Code live sein, bevor der DSGVO-taugliche (Vertex-)Schlüssel
  * existiert.
  */
 import { activeBackend } from '@/data/repositoryProvider'
 
+const env = import.meta.env as unknown as Record<string, string | undefined>
+const FUNCTIONS_URL = env.VITE_FUNCTIONS_URL?.replace(/\/$/, '')
+
 export interface AutoExtractResult {
   ok: boolean
   /** Roher Antworttext des Modells (JSON-Array) — liest parseSuggestions ein. */
   raw?: string
   error?: string
-  /** true: Function erreichbar, aber kein KI-Schlüssel gesetzt → manueller Weg. */
+  /** true: kein KI-Schlüssel gesetzt bzw. keine Functions-URL → manueller Weg. */
   notConfigured?: boolean
 }
 
 export function autoExtractAvailable(): boolean {
-  return activeBackend === 'supabase'
+  return activeBackend === 'supabase' && Boolean(FUNCTIONS_URL)
 }
 
 export async function extractViaServer(
   transcript: string,
   contactName: string,
 ): Promise<AutoExtractResult> {
+  if (!FUNCTIONS_URL) {
+    return { ok: false, notConfigured: true, error: 'Keine Functions-URL konfiguriert.' }
+  }
   const { supabase } = await import('@/lib/supabase')
   if (!supabase) return { ok: false, error: 'Kein Supabase-Client verfügbar.' }
-  const { data, error } = await supabase.functions.invoke('extract-transcript', {
-    body: { transcript, contactName },
-  })
-  if (error) return { ok: false, error: `KI-Aufruf fehlgeschlagen: ${error.message}` }
-  const d = data as { raw?: string; error?: string } | null
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) return { ok: false, error: 'Keine aktive Sitzung — bitte neu anmelden.' }
+
+  let resp: Response
+  try {
+    resp = await fetch(`${FUNCTIONS_URL}/extract-transcript`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ transcript, contactName }),
+    })
+  } catch (err) {
+    return { ok: false, error: `KI-Aufruf fehlgeschlagen: ${String(err)}` }
+  }
+  if (!resp.ok) return { ok: false, error: `KI-Aufruf fehlgeschlagen (HTTP ${resp.status}).` }
+
+  const d = (await resp.json()) as { raw?: string; error?: string } | null
   if (d?.error === 'not_configured') {
     return { ok: false, notConfigured: true, error: 'KI-Endpoint ist noch nicht freigeschaltet.' }
   }
