@@ -1,6 +1,19 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+
+// Steuerbarer Ersatz für den Auto-Weg: Standard ist „nicht verfügbar" (wie im
+// Mock-Backend), einzelne Tests schalten ihn gezielt frei.
+const autoMock = vi.hoisted(() => ({
+  available: false,
+  extract: vi.fn<(transcript: string, contactName: string) => Promise<unknown>>(),
+}))
+vi.mock('./transcript/autoExtract', () => ({
+  autoExtractAvailable: () => autoMock.available,
+  extractViaServer: (transcript: string, contactName: string) =>
+    autoMock.extract(transcript, contactName),
+}))
+
 import { TranscriptImportCard } from './TranscriptImportCard'
 import type { Contact } from '@/domain/types'
 
@@ -23,6 +36,11 @@ const RESPONSE = JSON.stringify([
   { target: 'sideFact', value: 'Tennis', evidence: 'spielt Tennis', category: 'sport' },
   { target: 'sideFact', value: 'ist evangelisch', evidence: 'geht in die Kirche' },
 ])
+
+beforeEach(() => {
+  autoMock.available = false
+  autoMock.extract.mockReset()
+})
 
 describe('TranscriptImportCard', () => {
   it('führt durch Prompt → Antwort → Freigabe und übernimmt nur Bestätigtes', async () => {
@@ -68,5 +86,57 @@ describe('TranscriptImportCard', () => {
 
     expect(screen.getByText(/kein gültiges JSON/i)).toBeInTheDocument()
     expect(onApply).not.toHaveBeenCalled()
+  })
+})
+
+describe('TranscriptImportCard — Auto-Extraktion (Edge Function)', () => {
+  it('extrahiert automatisch und zeigt die Vorschläge ohne manuellen Umweg', async () => {
+    autoMock.available = true
+    autoMock.extract.mockResolvedValue({
+      ok: true,
+      raw: JSON.stringify([
+        { target: 'sideFact', value: 'Tennis', evidence: 'spielt Tennis', category: 'sport' },
+      ]),
+    })
+    const onApply = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(<TranscriptImportCard contact={contact} onApply={onApply} />)
+
+    fireEvent.change(screen.getByPlaceholderText(/Transkript aus Jamie/), {
+      target: { value: 'Spielt Tennis.' },
+    })
+    await user.click(screen.getByRole('button', { name: /Vorschläge erzeugen/ }))
+
+    // Vorschlag da, Server wurde mit Transkript + Kontaktname gerufen,
+    // die manuellen Schritte (Prompt/Antwort) tauchen nie auf.
+    expect(await screen.findByText('Tennis')).toBeInTheDocument()
+    expect(autoMock.extract).toHaveBeenCalledWith('Spielt Tennis.', 'Anke Richter')
+    expect(screen.queryByRole('button', { name: 'Prompt für Gemini erzeugen' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /Übernehmen/ }))
+    expect(onApply).toHaveBeenCalledTimes(1)
+  })
+
+  it('fällt auf den manuellen Weg zurück, wenn kein KI-Schlüssel gesetzt ist', async () => {
+    autoMock.available = true
+    autoMock.extract.mockResolvedValue({ ok: false, notConfigured: true, error: 'nicht konfiguriert' })
+    const user = userEvent.setup()
+    render(<TranscriptImportCard contact={contact} onApply={vi.fn()} />)
+
+    fireEvent.change(screen.getByPlaceholderText(/Transkript aus Jamie/), {
+      target: { value: 'irgendwas' },
+    })
+    await user.click(screen.getByRole('button', { name: /Vorschläge erzeugen/ }))
+
+    // Hinweis + manueller Weg; der Auto-Knopf ist weg.
+    expect(await screen.findByText(/noch nicht freigeschaltet/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Prompt für Gemini erzeugen' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Vorschläge erzeugen/ })).toBeNull()
+  })
+
+  it('zeigt im Mock-Modus weiterhin nur den manuellen Weg', () => {
+    render(<TranscriptImportCard contact={contact} onApply={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Prompt für Gemini erzeugen' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Vorschläge erzeugen/ })).toBeNull()
   })
 })

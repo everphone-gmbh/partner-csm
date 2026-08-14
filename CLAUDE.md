@@ -115,6 +115,22 @@ oder für den Redaktionsstand
 `select viewname from pg_views where schemaname='public'`.
 Ein Migrations-Ledger führt die Instanz nicht.
 
+## Edge Functions
+
+Liegen in `supabase/functions/<name>/index.ts` (Deno) und werden beim **Push**
+automatisch von GitHub aus deployt; Status und URL liefert das MCP-Werkzeug
+`deploy_edge_function` (gleiches `project_id` wie Migrationen). Secrets setzt
+`set_edge_function_secret` (GCP Secret Manager, bestehende Schlüssel bleiben
+erhalten) — danach einmal neu deployen, damit sie greifen.
+
+Aktuell gibt es `extract-transcript` (Auto-Weg des Transkript-Imports): prüft
+Login + RM+-Rolle, redigiert den Kontaktnamen vor dem Modellaufruf und ruft den
+Gemini-Endpoint aus den Secrets `TRANSCRIPT_AI_URL`/`TRANSCRIPT_AI_KEY`. Sind
+die nicht gesetzt, antwortet sie `not_configured` und die Karte fällt auf den
+manuellen Gemini-Workspace-Weg zurück — der Code kann also vor dem Schlüssel
+live sein. **Der REGELN-Block des Prompts existiert doppelt** (Function +
+`extraction.ts`); `promptParity.test.ts` erzwingt Wortgleichheit.
+
 ## Zugangsdaten
 
 Anon- und Service-Role-Key kommen aus dem MCP-Werkzeug

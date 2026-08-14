@@ -12,6 +12,7 @@ import {
   type ExtractionSuggestion,
   type ExtractionTarget,
 } from './transcript/extraction'
+import { autoExtractAvailable, extractViaServer } from './transcript/autoExtract'
 
 const TARGET_LABEL: Record<ExtractionTarget, string> = {
   birthday: 'Geburtstag',
@@ -27,11 +28,17 @@ const areaCls =
   'w-full rounded-[10px] border border-transparent bg-secondary px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /**
- * Wertet ein Gesprächstranskript (z. B. aus Jamie) aus — ohne eigenen
- * KI-Endpoint: der Nutzer führt den erzeugten Prompt manuell in Gemini
- * (Workspace) aus und fügt die JSON-Antwort zurück ein. Übernommen wird nur, was
- * er einzeln bestätigt; das Transkript wird nie gespeichert. Sichtbar nur für
- * RM+ (in ContactProfile per canEdit gegated).
+ * Wertet ein Gesprächstranskript (z. B. aus Jamie) aus. Zwei Wege:
+ *
+ * - **Auto** (Supabase-Modus): die Edge Function `extract-transcript` ruft das
+ *   Modell serverseitig auf (Schlüssel bleibt Secret, Name wird vorab
+ *   redigiert). Meldet sie `not_configured`, wechselt die Karte selbst auf …
+ * - **Manuell**: der Nutzer führt den erzeugten Prompt in Gemini (Workspace)
+ *   aus und fügt die JSON-Antwort zurück ein.
+ *
+ * In beiden Fällen wird nur übernommen, was der Nutzer einzeln bestätigt; das
+ * Transkript wird nie gespeichert. Sichtbar nur für RM+ (canEdit-Gate in
+ * ContactProfile).
  */
 export function TranscriptImportCard({
   contact,
@@ -41,6 +48,9 @@ export function TranscriptImportCard({
   onApply: (patch: ContactPatch) => Promise<void>
 }) {
   const [transcript, setTranscript] = useState('')
+  const [mode, setMode] = useState<'auto' | 'manual'>(autoExtractAvailable() ? 'auto' : 'manual')
+  const [autoBusy, setAutoBusy] = useState(false)
+  const [autoError, setAutoError] = useState<string | null>(null)
   const [prompt, setPrompt] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [response, setResponse] = useState('')
@@ -49,6 +59,41 @@ export function TranscriptImportCard({
   const [approved, setApproved] = useState<Set<string>>(new Set())
   const [applying, setApplying] = useState(false)
   const [result, setResult] = useState<{ applied: number; skipped: string[] } | null>(null)
+
+  const showSuggestions = (items: ExtractionSuggestion[]) => {
+    setParseError(null)
+    setSuggestions(items)
+    setApproved(new Set(items.filter((s) => !s.blocked).map((s) => s.id)))
+    setResult(null)
+  }
+
+  const autoRun = async () => {
+    setAutoBusy(true)
+    setAutoError(null)
+    try {
+      const r = await extractViaServer(transcript.trim(), contact.fullName)
+      if (!r.ok) {
+        if (r.notConfigured) {
+          // Kein KI-Schlüssel auf der Function → dauerhaft auf manuell umschalten.
+          setMode('manual')
+          setAutoError(
+            'Der KI-Endpoint ist noch nicht freigeschaltet — unten der manuelle Weg über Gemini (Workspace).',
+          )
+        } else {
+          setAutoError(r.error ?? 'KI-Aufruf fehlgeschlagen.')
+        }
+        return
+      }
+      const parsed = parseSuggestions(r.raw ?? '')
+      if (!parsed.ok) {
+        setAutoError(parsed.error ?? 'Die Antwort konnte nicht gelesen werden.')
+        return
+      }
+      showSuggestions(parsed.suggestions)
+    } finally {
+      setAutoBusy(false)
+    }
+  }
 
   const makePrompt = () => {
     setPrompt(buildExtractionPrompt(transcript.trim(), contact.fullName))
@@ -70,10 +115,7 @@ export function TranscriptImportCard({
       setSuggestions(null)
       return
     }
-    setParseError(null)
-    setSuggestions(r.suggestions)
-    setApproved(new Set(r.suggestions.filter((s) => !s.blocked).map((s) => s.id)))
-    setResult(null)
+    showSuggestions(r.suggestions)
   }
   const toggle = (id: string) =>
     setApproved((prev) => {
@@ -98,7 +140,10 @@ export function TranscriptImportCard({
     }
   }
   const reset = () => {
+    // mode bleibt bewusst stehen: wer wegen not_configured auf manuell
+    // gewechselt ist, soll nicht bei jedem Transkript neu dagegen laufen.
     setTranscript('')
+    setAutoError(null)
     setPrompt(null)
     setResponse('')
     setSuggestions(null)
@@ -150,9 +195,26 @@ export function TranscriptImportCard({
                 onChange={(e) => setTranscript(e.target.value)}
                 placeholder="Transkript aus Jamie hier einfügen…"
               />
-              <Button size="sm" onClick={makePrompt} disabled={!transcript.trim()}>
-                Prompt für Gemini erzeugen
-              </Button>
+              {mode === 'auto' ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button size="sm" onClick={autoRun} disabled={!transcript.trim() || autoBusy}>
+                    <Sparkles className="size-4" />
+                    {autoBusy ? 'Extrahiere…' : 'Vorschläge erzeugen'}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('manual')}
+                    className="text-xs text-muted-foreground underline hover:text-foreground"
+                  >
+                    Manuell mit Gemini (Workspace)
+                  </button>
+                </div>
+              ) : (
+                <Button size="sm" onClick={makePrompt} disabled={!transcript.trim()}>
+                  Prompt für Gemini erzeugen
+                </Button>
+              )}
+              {autoError && <p className="text-sm text-destructive">{autoError}</p>}
             </div>
 
             {prompt && (

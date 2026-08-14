@@ -90,11 +90,13 @@ function art9Block(text: string): string | undefined {
   return undefined
 }
 
-/** Baut den Extraktions-Prompt zum manuellen Ausführen in Gemini (Workspace). */
-export function buildExtractionPrompt(transcript: string, contactName: string): string {
-  return `Du extrahierst strukturierte Fakten über ${contactName} aus dem folgenden Gesprächstranskript für ein Vertriebs-Beziehungs-CRM.
-
-REGELN:
+/**
+ * Der REGELN-Block des Extraktions-Prompts. Wird wortgleich auch von der Edge
+ * Function `supabase/functions/extract-transcript/index.ts` (Auto-Weg)
+ * verwendet — bei Änderungen BEIDE Stellen anpassen; `promptParity.test.ts`
+ * schlägt Alarm, wenn sie auseinanderlaufen.
+ */
+export const EXTRACTION_RULES = `REGELN:
 - Extrahiere NUR Fakten, die wörtlich im Transkript stehen. Rate nichts, ergänze nichts.
 - Antworte AUSSCHLIESSLICH mit einem JSON-Array. Kein weiterer Text, keine Markdown-Codeblöcke.
 - Jedes Element hat die Form:
@@ -109,7 +111,13 @@ REGELN:
   - "customer"     – erwähnte Firma/Kunde; "withUs" ist true, wenn eine bestehende Zusammenarbeit genannt wird, sonst false
 - "evidence" ist ein wörtliches, kurzes Zitat aus dem Transkript, das den Fakt belegt.
 - NIEMALS extrahieren (DSGVO Art. 9): Gesundheit, Religion/Weltanschauung, politische Meinung, Gewerkschaftszugehörigkeit, Sexualleben, ethnische Herkunft.
-- Gibt es nichts Belegbares, antworte mit: []
+- Gibt es nichts Belegbares, antworte mit: []`
+
+/** Baut den Extraktions-Prompt zum manuellen Ausführen in Gemini (Workspace). */
+export function buildExtractionPrompt(transcript: string, contactName: string): string {
+  return `Du extrahierst strukturierte Fakten über ${contactName} aus dem folgenden Gesprächstranskript für ein Vertriebs-Beziehungs-CRM.
+
+${EXTRACTION_RULES}
 
 TRANSKRIPT:
 """
