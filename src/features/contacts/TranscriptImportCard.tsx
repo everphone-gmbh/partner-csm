@@ -12,7 +12,8 @@ import {
   type ExtractionSuggestion,
   type ExtractionTarget,
 } from './transcript/extraction'
-import { autoExtractAvailable, extractViaServer } from './transcript/autoExtract'
+import { autoExtractAvailable, extractViaServer, transcribeViaServer } from './transcript/autoExtract'
+import { VoiceRecorder } from '@/components/VoiceRecorder'
 
 const TARGET_LABEL: Record<ExtractionTarget, string> = {
   birthday: 'Geburtstag',
@@ -36,6 +37,10 @@ const areaCls =
  * - **Manuell**: der Nutzer führt den erzeugten Prompt in Gemini (Workspace)
  *   aus und fügt die JSON-Antwort zurück ein.
  *
+ * Statt Einfügen geht im Auto-Modus auch eine **Sprachnotiz nach dem Gespräch**
+ * (VoiceRecorder → transcribe-memo → Text ins Feld) — bewusst kein
+ * Anruf-Mitschnitt, und das Audio wird nie gespeichert.
+ *
  * In beiden Fällen wird nur übernommen, was der Nutzer einzeln bestätigt; das
  * Transkript wird nie gespeichert. Sichtbar nur für RM+ (canEdit-Gate in
  * ContactProfile).
@@ -50,6 +55,7 @@ export function TranscriptImportCard({
   const [transcript, setTranscript] = useState('')
   const [mode, setMode] = useState<'auto' | 'manual'>(autoExtractAvailable() ? 'auto' : 'manual')
   const [autoBusy, setAutoBusy] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
   const [autoError, setAutoError] = useState<string | null>(null)
   const [prompt, setPrompt] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -92,6 +98,31 @@ export function TranscriptImportCard({
       showSuggestions(parsed.suggestions)
     } finally {
       setAutoBusy(false)
+    }
+  }
+
+  // Sprachnotiz NACH dem Gespräch (kein Mitschnitt): Audio → transcribe-memo →
+  // Text landet im Transkript-Feld, wo der Nutzer ihn prüfen/korrigieren kann,
+  // bevor die normale Extraktion läuft. Das Audio wird nicht gespeichert.
+  const transcribeMemo = async (audio: Blob) => {
+    setTranscribing(true)
+    setAutoError(null)
+    try {
+      const r = await transcribeViaServer(audio)
+      if (!r.ok) {
+        if (r.notConfigured) {
+          setMode('manual')
+          setAutoError(
+            'Der KI-Endpoint ist noch nicht freigeschaltet — Sprachnotizen brauchen ihn; unten der manuelle Weg über Gemini (Workspace).',
+          )
+        } else {
+          setAutoError(r.error ?? 'Transkription fehlgeschlagen.')
+        }
+        return
+      }
+      setTranscript((prev) => (prev.trim() ? `${prev}\n${r.transcript}` : (r.transcript ?? '')))
+    } finally {
+      setTranscribing(false)
     }
   }
 
@@ -162,8 +193,9 @@ export function TranscriptImportCard({
           <Sparkles className="size-4 text-primary" /> Aus Transkript importieren
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Gesprächstranskript (z. B. aus Jamie) auswerten. Das Transkript wird nicht gespeichert —
-          nur die von dir bestätigten Fakten.
+          Gesprächstranskript (z. B. aus Jamie) einfügen — oder nach dem Gespräch eine
+          Sprachnotiz einsprechen (kein Mitschnitt). Transkript und Audio werden nicht
+          gespeichert, nur die von dir bestätigten Fakten.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -201,6 +233,14 @@ export function TranscriptImportCard({
                     <Sparkles className="size-4" />
                     {autoBusy ? 'Extrahiere…' : 'Vorschläge erzeugen'}
                   </Button>
+                  {/* Alternative zum Einfügen: Notiz nach dem Gespräch einsprechen. */}
+                  <VoiceRecorder
+                    label="Sprachnotiz einsprechen"
+                    onRecorded={(audio) => void transcribeMemo(audio)}
+                  />
+                  {transcribing && (
+                    <span className="text-xs text-muted-foreground">Transkribiere…</span>
+                  )}
                   <button
                     type="button"
                     onClick={() => setMode('manual')}

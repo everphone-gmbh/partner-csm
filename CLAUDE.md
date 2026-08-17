@@ -135,6 +135,13 @@ zurück — der Code kann also vor dem Schlüssel live sein. **Der REGELN-Block
 des Prompts existiert doppelt** (Function + `extraction.ts`);
 `promptParity.test.ts` erzwingt Wortgleichheit.
 
+Daneben `transcribe-memo` (Sprachnotiz → Text, gleiche Secrets und gleiche
+Auth): nimmt Base64-Audio entgegen (Chrome webm und Safari mp4 sind gegen
+Gemini verifiziert), transkribiert über dasselbe Modell und speichert das
+Audio nirgends. Bewusst eine Notiz NACH dem Gespräch, kein Anruf-Mitschnitt.
+Auth-Block/`buildAuthHeader` sind eine dokumentierte Kopie aus
+`extract-transcript` — Änderungen dort mitziehen.
+
 ## Zugangsdaten
 
 Anon- und Service-Role-Key kommen aus dem MCP-Werkzeug

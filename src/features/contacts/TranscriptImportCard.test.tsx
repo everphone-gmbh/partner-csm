@@ -7,11 +7,29 @@ import userEvent from '@testing-library/user-event'
 const autoMock = vi.hoisted(() => ({
   available: false,
   extract: vi.fn<(transcript: string, contactName: string) => Promise<unknown>>(),
+  transcribe: vi.fn<(audio: Blob) => Promise<unknown>>(),
 }))
 vi.mock('./transcript/autoExtract', () => ({
   autoExtractAvailable: () => autoMock.available,
   extractViaServer: (transcript: string, contactName: string) =>
     autoMock.extract(transcript, contactName),
+  transcribeViaServer: (audio: Blob) => autoMock.transcribe(audio),
+}))
+
+// MediaRecorder existiert in jsdom nicht — der Recorder wird durch einen Knopf
+// ersetzt, der sofort einen kleinen webm-Blob „aufnimmt".
+vi.mock('@/components/VoiceRecorder', () => ({
+  VoiceRecorder: ({
+    onRecorded,
+    label = 'Sprachmemo',
+  }: {
+    onRecorded: (audio: Blob) => void
+    label?: string
+  }) => (
+    <button type="button" onClick={() => onRecorded(new Blob(['x'], { type: 'audio/webm' }))}>
+      {label}
+    </button>
+  ),
 }))
 
 import { TranscriptImportCard } from './TranscriptImportCard'
@@ -40,6 +58,7 @@ const RESPONSE = JSON.stringify([
 beforeEach(() => {
   autoMock.available = false
   autoMock.extract.mockReset()
+  autoMock.transcribe.mockReset()
 })
 
 describe('TranscriptImportCard', () => {
@@ -142,5 +161,39 @@ describe('TranscriptImportCard — Auto-Extraktion (Edge Function)', () => {
     render(<TranscriptImportCard contact={contact} onApply={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Prompt für Gemini erzeugen' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Vorschläge erzeugen/ })).toBeNull()
+    // Ohne Server auch keine Sprachnotiz — die Transkription braucht den Endpoint.
+    expect(screen.queryByRole('button', { name: 'Sprachnotiz einsprechen' })).toBeNull()
+  })
+
+  it('transkribiert eine Sprachnotiz ins Transkript-Feld', async () => {
+    autoMock.available = true
+    autoMock.transcribe.mockResolvedValue({ ok: true, transcript: 'Notiz vom Telefonat mit Max.' })
+    const user = userEvent.setup()
+    render(<TranscriptImportCard contact={contact} onApply={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Sprachnotiz einsprechen' }))
+
+    // Der transkribierte Text landet im Transkript-Feld — von dort läuft der
+    // normale Extraktions-Flow (der Nutzer kann vorher korrigieren).
+    const area = await screen.findByPlaceholderText(/Transkript aus Jamie/)
+    expect(area).toHaveValue('Notiz vom Telefonat mit Max.')
+    expect(autoMock.transcribe).toHaveBeenCalledTimes(1)
+
+    // Eine zweite Notiz wird angehängt, nicht überschrieben.
+    autoMock.transcribe.mockResolvedValue({ ok: true, transcript: 'Nachtrag: Angebot folgt.' })
+    await user.click(screen.getByRole('button', { name: 'Sprachnotiz einsprechen' }))
+    expect(area).toHaveValue('Notiz vom Telefonat mit Max.\nNachtrag: Angebot folgt.')
+  })
+
+  it('meldet einen Transkriptionsfehler, ohne das Feld anzufassen', async () => {
+    autoMock.available = true
+    autoMock.transcribe.mockResolvedValue({ ok: false, error: 'Aufnahme ist zu groß (max. ~18 MB).' })
+    const user = userEvent.setup()
+    render(<TranscriptImportCard contact={contact} onApply={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Sprachnotiz einsprechen' }))
+
+    expect(await screen.findByText(/zu groß/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Transkript aus Jamie/)).toHaveValue('')
   })
 })

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Mic, Send, Square, X } from 'lucide-react'
+import { ImagePlus, Send, X } from 'lucide-react'
+import { VoiceRecorder } from '@/components/VoiceRecorder'
 import type { EventNote, NoteAttachment } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -12,51 +13,6 @@ import { fileToResizedBlob } from '@/lib/image'
 import { fileStore } from '@/lib/fileStore'
 import { useFileUrl } from '@/lib/useFileUrl'
 import { formatDateTime } from '@/lib/format'
-
-/** Records a voice memo via MediaRecorder and returns it as a data URL. */
-function VoiceRecorder({ onRecorded }: { onRecorded: (audio: Blob) => void }) {
-  const [recording, setRecording] = useState(false)
-  const [error, setError] = useState(false)
-  const recRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-
-  const start = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const rec = new MediaRecorder(stream)
-      chunksRef.current = []
-      rec.ondataavailable = (e) => {
-        if (e.data.size) chunksRef.current.push(e.data)
-      }
-      rec.onstop = () => {
-        // Blob weitergeben, nicht base64: der Upload braucht die Rohdaten.
-        onRecorded(new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' }))
-        stream.getTracks().forEach((t) => t.stop())
-      }
-      recRef.current = rec
-      rec.start()
-      setRecording(true)
-      setError(false)
-    } catch {
-      setError(true)
-    }
-  }
-  const stop = () => {
-    recRef.current?.stop()
-    setRecording(false)
-  }
-
-  if (error) return <span className="text-xs text-muted-foreground">Kein Mikrofon</span>
-  return recording ? (
-    <Button type="button" variant="destructive" size="sm" onClick={stop}>
-      <Square className="size-4" /> Stop
-    </Button>
-  ) : (
-    <Button type="button" variant="outline" size="sm" onClick={start}>
-      <Mic className="size-4" /> Sprachmemo
-    </Button>
-  )
-}
 
 function AttachmentView({ attachment, size }: { attachment: NoteAttachment; size: string }) {
   const resolved = useFileUrl(attachment.url)
