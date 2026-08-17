@@ -60,7 +60,11 @@ describe('TranscriptImportCard', () => {
     await user.click(screen.getByRole('button', { name: 'Vorschläge prüfen' }))
 
     // Beide Vorschläge sichtbar; der Art.-9-Treffer ist markiert und nicht wählbar.
+    // Zusätzlich steht der ständige Hinweis, dass Art.-9-Kategorien bewusst
+    // ausgeschlossen werden — Transparenz gegenüber dem prüfenden RM.
     expect(screen.getByText('Tennis')).toBeInTheDocument()
+    expect(screen.getByText(/Art\. 9 DSGVO/)).toBeInTheDocument()
+    expect(screen.getByText(/bewusst nicht\s+extrahiert/)).toBeInTheDocument()
     expect(screen.getByText(/nicht übernehmbar/)).toBeInTheDocument()
     expect(screen.getByLabelText('ist evangelisch übernehmen')).toBeDisabled()
     expect(screen.getByLabelText('Tennis übernehmen')).toBeChecked()

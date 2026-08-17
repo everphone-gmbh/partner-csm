@@ -261,6 +261,20 @@ export function TranscriptImportCard({
                 <p className="text-xs font-medium text-muted-foreground">
                   4. Vorschläge prüfen und übernehmen
                 </p>
+                {/*
+                  Transparenz statt stillem Weglassen: der RM soll wissen, WARUM
+                  z. B. eine erwähnte Krankheit nicht auftaucht — sonst wirkt die
+                  Extraktion lückenhaft. Der Ausschluss selbst passiert zweistufig
+                  (Prompt-Verbot + Client-Filter, siehe extraction.ts).
+                */}
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
+                  <span>
+                    Besondere Kategorien nach Art. 9 DSGVO (Gesundheit, Religion, politische
+                    Meinung, Gewerkschaft, Sexualleben, Herkunft) werden bewusst nicht
+                    extrahiert und nie übernommen — auch wenn das Transkript sie erwähnt.
+                  </span>
+                </p>
                 {suggestions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Keine belegbaren Fakten gefunden.</p>
                 ) : (
