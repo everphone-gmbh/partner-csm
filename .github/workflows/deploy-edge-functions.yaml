@@ -14,7 +14,13 @@ env:
   GCP_ARTIFACT_REPOSITORY: "supabase-functions"
   GCP_SERVICE_NAME: "${{ github.event.repository.name }}-functions"
   GCP_CMEK: "projects/cmek-2c9fa6fe-3f9a-48f1-bf86-4/locations/europe-west3/keyRings/sovereign-cloud-tsystems/cryptoKeys/hari-test"
+  # WIF-Deploy-Identität (Google-Auth-Step) — NICHT als Runtime verwenden:
+  # der terraform-deployer ist Runtime-SA von ~10 anderen Diensten und hat
+  # Projekt-Admin-Rechte (Trennung eingerichtet von Andre, 2026-08-17).
   GCP_SERVICE_ACCOUNT: "terraform-deployer@sov-de-hari-playground.iam.gserviceaccount.com"
+  # Dedizierter Runtime-SA nur für diesen Dienst: hat tokenCreator auf den
+  # Vertex-SA (partner-csm-vertex@…) und secretAccessor auf partner-csm-env.
+  GCP_RUNTIME_SERVICE_ACCOUNT: "partner-csm-run@sov-de-hari-playground.iam.gserviceaccount.com"
   TENANT_NAME: "partner-csm"
 
 jobs:
@@ -62,7 +68,7 @@ jobs:
             --max-instances=10
             --execution-environment=gen2
             --key=${{ env.GCP_CMEK }}
-            --service-account=${{ env.GCP_SERVICE_ACCOUNT }}
+            --service-account=${{ env.GCP_RUNTIME_SERVICE_ACCOUNT }}
           secrets: |
             /secrets/.env=${{ env.TENANT_NAME }}-env:latest
           env_vars: |
