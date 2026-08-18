@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { installChunkReloadHandler } from './lib/reloadOnChunkError'
+
+// Veralteter Tab nach einem Deploy → einmal automatisch neu laden.
+installChunkReloadHandler()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
