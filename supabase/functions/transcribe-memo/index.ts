@@ -154,7 +154,11 @@ Deno.serve(async (req) => {
         ],
         generationConfig: { temperature: 0 },
       }),
-      signal: AbortSignal.timeout(90_000),
+      // Lange Notizen brauchen lange: 13 Min. Audio überschritten die
+      // ursprünglichen 90 s. Obergrenze der Kette ist ohnehin ~300 s
+      // (Worker-Timeout im Router, Cloud-Run-Default, Browser-Fetch) —
+      // 270 s lässt Puffer, darüber kommt die lesbare Timeout-Meldung.
+      signal: AbortSignal.timeout(270_000),
     })
   } catch (err) {
     return json({ error: `KI-Endpoint nicht erreichbar: ${String(err)}` })

@@ -239,7 +239,9 @@ export function TranscriptImportCard({
                     onRecorded={(audio) => void transcribeMemo(audio)}
                   />
                   {transcribing && (
-                    <span className="text-xs text-muted-foreground">Transkribiere…</span>
+                    <span className="text-xs text-muted-foreground">
+                      Transkribiere… (bei langen Notizen kann das einige Minuten dauern)
+                    </span>
                   )}
                   <button
                     type="button"
