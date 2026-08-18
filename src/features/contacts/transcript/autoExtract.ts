@@ -44,7 +44,20 @@ export interface TranscribeResult {
  * Sprachnotiz (Blob aus dem VoiceRecorder) → Text über die Edge Function
  * `transcribe-memo`. Das Audio wird nur durchgereicht, nie gespeichert.
  */
+/**
+ * Obergrenze fürs Audio: schützt den 150-MB-Function-Worker (Base64 liegt dort
+ * mehrfach kopiert im Speicher) und bleibt unter dem 20-MB-Request-Limit von
+ * Vertex. Mit 32 kbps (VoiceRecorder) entspricht das über einer Stunde Notiz.
+ */
+const MAX_AUDIO_BYTES = 15 * 1024 * 1024
+
 export async function transcribeViaServer(audio: Blob): Promise<TranscribeResult> {
+  if (audio.size > MAX_AUDIO_BYTES) {
+    return {
+      ok: false,
+      error: 'Aufnahme ist zu groß (über 15 MB) — bitte in mehreren kürzeren Notizen einsprechen.',
+    }
+  }
   if (!FUNCTIONS_URL) {
     return { ok: false, notConfigured: true, error: 'Keine Functions-URL konfiguriert.' }
   }
@@ -65,7 +78,13 @@ export async function transcribeViaServer(audio: Blob): Promise<TranscribeResult
       }),
     })
   } catch (err) {
-    return { ok: false, error: `Transkription fehlgeschlagen: ${String(err)}` }
+    // Nacktes „Failed to fetch" heißt meist: der Worker ist an einer zu großen
+    // Aufnahme gestorben (die 500-Antwort des Routers trägt keine CORS-Header,
+    // der Browser zeigt dann nur den Netzwerkfehler).
+    return {
+      ok: false,
+      error: `Transkription fehlgeschlagen — bei langen Aufnahmen bitte in mehreren kürzeren Notizen einsprechen. (${String(err)})`,
+    }
   }
   if (!resp.ok) return { ok: false, error: `Transkription fehlgeschlagen (HTTP ${resp.status}).` }
 

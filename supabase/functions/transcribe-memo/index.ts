@@ -122,9 +122,12 @@ Deno.serve(async (req) => {
   if (!ALLOWED_AUDIO.has(mimeType)) {
     return json({ error: `Nicht unterstütztes Audioformat: ${mimeType || '(leer)'}.` })
   }
-  // ~24 MB Base64 ≈ 18 MB Audio ≈ deutlich über 10 Minuten Opus-Sprachnotiz.
-  if (audio.length > 24_000_000) {
-    return json({ error: 'Aufnahme ist zu groß (max. ~18 MB).' })
+  // ~20 MB Base64 ≈ 15 MB Audio — deckt sich mit dem Client-Limit und bleibt
+  // unter dem 20-MB-Request-Limit von Vertex. Größere Payloads sterben ohnehin
+  // schon am 150-MB-Speicherlimit des Workers, bevor dieser Check greift —
+  // die eigentliche Begrenzung passiert deshalb clientseitig VOR dem Upload.
+  if (audio.length > 20_000_000) {
+    return json({ error: 'Aufnahme ist zu groß (max. ~15 MB).' })
   }
 
   let authHeader: Record<string, string>

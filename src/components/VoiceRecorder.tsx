@@ -26,7 +26,10 @@ export function VoiceRecorder({
   const start = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const rec = new MediaRecorder(stream)
+      // 32 kbps reicht für Diktat-Qualität. Der Browser-Default (Chrome:
+      // ~128 kbps) machte lange Notizen so groß, dass der Function-Worker
+      // beim Transkribieren am Speicherlimit starb („Failed to fetch").
+      const rec = new MediaRecorder(stream, { audioBitsPerSecond: 32_000 })
       chunksRef.current = []
       rec.ondataavailable = (e) => {
         if (e.data.size) chunksRef.current.push(e.data)
