@@ -61,7 +61,9 @@ export function EditableAvatar({
         onClick={() => inputRef.current?.click()}
         disabled={busy}
         aria-label="Foto aufnehmen oder hochladen"
-        className="absolute -bottom-1 -right-1 flex size-7 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
+        // z-10: sits above an optional photo-zoom overlay placed on the avatar
+        // by callers (IdentityCard), so the camera stays clickable.
+        className="absolute -bottom-1 -right-1 z-10 flex size-7 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
       >
         <Camera className="size-3.5" />
       </button>
