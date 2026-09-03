@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { IdentityCard } from './IdentityCard'
 import type { Contact } from '@/domain/types'
+
+const PHOTO = 'data:image/png;base64,iVBORw0KGgo='
 
 const contact: Contact = {
   id: 'c1',
@@ -57,5 +59,33 @@ describe('IdentityCard — 4-Zeilen-Kopf', () => {
     renderCard({ canEdit: false })
     expect(screen.queryByRole('button', { name: 'Positiv' })).not.toBeInTheDocument()
     expect(screen.getByText('Positiv')).toBeInTheDocument()
+  })
+})
+
+describe('IdentityCard — Foto-Lightbox (Tier 3)', () => {
+  it('bietet keinen Foto-Zoom an, wenn kein Foto vorhanden ist', () => {
+    renderCard()
+    expect(screen.queryByRole('button', { name: /Foto von .* vergrößern/ })).not.toBeInTheDocument()
+  })
+
+  it('öffnet die Lightbox per Klick und schließt sie über den Button', () => {
+    renderCard({ contact: { ...contact, photoUrl: PHOTO } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Foto von Test Person vergrößern' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(within(dialog).getByRole('button', { name: 'Schließen' })).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Schließen' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('schließt die Lightbox mit Escape', () => {
+    renderCard({ contact: { ...contact, photoUrl: PHOTO } })
+    fireEvent.click(screen.getByRole('button', { name: 'Foto von Test Person vergrößern' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

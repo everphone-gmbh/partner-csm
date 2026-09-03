@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildHistory, filterHistory } from './timelineHistory'
+import { buildHistory, filterHistory, groupHistory } from './timelineHistory'
 import type { Activity, SentimentEntry } from '@/domain/types'
 
 function activity(id: string, occurredAt: string, type: Activity['type'] = 'note'): Activity {
@@ -75,5 +75,46 @@ describe('filterHistory', () => {
 
   it('filters to sentiment changes only', () => {
     expect(filterHistory(history, 'sentiment')).toHaveLength(1)
+  })
+})
+
+describe('groupHistory', () => {
+  // Fixed "now" in LOCAL time; the fixtures are local-noon timestamps so the
+  // calendar-day maths is timezone-independent.
+  const now = new Date(2026, 7, 26, 12, 0, 0) // 2026-08-26
+  const at = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0).toISOString()
+
+  it('buckets into Heute / Gestern / Diese Woche / month, newest-first', () => {
+    const groups = groupHistory(
+      buildHistory([
+        activity('today', at(2026, 8, 26)),
+        activity('yesterday', at(2026, 8, 25)),
+        activity('thisWeek', at(2026, 8, 22)),
+        activity('sameMonth', at(2026, 8, 1)),
+        activity('lastMonth', at(2026, 7, 15)),
+      ]),
+      now,
+    )
+    expect(groups.map((g) => g.label)).toEqual([
+      'Heute',
+      'Gestern',
+      'Diese Woche',
+      'August 2026',
+      'Juli 2026',
+    ])
+  })
+
+  it('keeps entries of the same day in one group', () => {
+    const groups = groupHistory(
+      buildHistory([activity('a', at(2026, 8, 26)), activity('b', at(2026, 8, 26))]),
+      now,
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0].key).toBe('today')
+    expect(groups[0].entries).toHaveLength(2)
+  })
+
+  it('returns no groups for an empty history', () => {
+    expect(groupHistory([], now)).toEqual([])
   })
 })

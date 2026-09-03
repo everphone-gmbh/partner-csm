@@ -1,9 +1,40 @@
 import { describe, it, expect } from 'vitest'
-import { daysUntil, daysUntilBirthday } from './format'
+import { daysUntil, daysUntilBirthday, formatDate, formatRelative } from './format'
 
 // Fixed "today" values constructed in LOCAL time so the tests are
 // timezone-independent (date-only strings must not be parsed as UTC).
 const local = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0)
+
+// Full timestamp at local noon: round-trips through UTC without shifting the
+// calendar day for any real timezone, so the relative-day maths is stable.
+const at = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0).toISOString()
+
+describe('formatRelative', () => {
+  const now = local(2026, 8, 26)
+
+  it('says "heute" for the same calendar day', () => {
+    expect(formatRelative(at(2026, 8, 26), now)).toBe('heute')
+  })
+
+  it('says "gestern" for the previous day', () => {
+    expect(formatRelative(at(2026, 8, 25), now)).toBe('gestern')
+  })
+
+  it('counts days within the week', () => {
+    expect(formatRelative(at(2026, 8, 23), now)).toBe('vor 3 Tagen')
+    expect(formatRelative(at(2026, 8, 20), now)).toBe('vor 6 Tagen')
+  })
+
+  it('falls back to the absolute date from a week out', () => {
+    expect(formatRelative(at(2026, 8, 19), now)).toBe(formatDate(at(2026, 8, 19)))
+    expect(formatRelative(at(2026, 8, 1), now)).toBe(formatDate(at(2026, 8, 1)))
+  })
+
+  it('is tolerant of empty and bad input', () => {
+    expect(formatRelative(undefined, now)).toBe('—')
+    expect(formatRelative('nonsense', now)).toBe('nonsense')
+  })
+})
 
 describe('daysUntilBirthday', () => {
   it('counts days to a birthday later this year', () => {

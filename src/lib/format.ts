@@ -32,6 +32,27 @@ export function formatDateTime(iso?: string): string {
   return `${date}, ${time}`
 }
 
+/**
+ * At-a-glance relative day label for the activity timeline meta line:
+ * "heute" / "gestern" / "vor N Tagen", falling back to the absolute date from a
+ * week out. The precise timestamp belongs in a `title` attribute — this is only
+ * the quick-scan form. Days are counted as LOCAL calendar days, so an evening
+ * entry still reads "heute" until midnight rather than flipping after 24h.
+ */
+export function formatRelative(iso?: string, now: Date = new Date()): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const that = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diffDays = Math.round((start.getTime() - that.getTime()) / 86_400_000)
+  if (diffDays < 0) return formatDate(iso) // future — defensive; history is past
+  if (diffDays === 0) return 'heute'
+  if (diffDays === 1) return 'gestern'
+  if (diffDays < 7) return `vor ${diffDays} Tagen`
+  return formatDate(iso)
+}
+
 /** Whole days until a calendar date (negative = in the past). */
 export function daysUntil(dateStr: string | undefined, today: Date = new Date()): number | null {
   if (!dateStr) return null

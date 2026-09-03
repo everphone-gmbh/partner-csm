@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { ChevronDown, Paperclip, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, History, Paperclip, Plus, Trash2 } from 'lucide-react'
 import type { Activity, ActivityType, Contact, Reminder, SentimentEntry } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -14,10 +14,10 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { TrafficLightDot, TRAFFIC_LABEL } from '@/components/TrafficLight'
-import { formatDate, formatDateTime, daysUntil } from '@/lib/format'
+import { formatDate, formatDateTime, formatRelative, daysUntil } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ACTIVITY_META } from './activityMeta'
-import { filterHistory, type TimelineEntry, type TimelineFilter } from './timelineHistory'
+import { filterHistory, groupHistory, type TimelineEntry, type TimelineFilter } from './timelineHistory'
 
 const ADD_TYPES: ActivityType[] = ['note', 'call', 'email', 'meeting']
 
@@ -29,6 +29,28 @@ const FILTERS: { value: TimelineFilter; label: string }[] = [
   { value: 'note', label: 'Notizen' },
   { value: 'sentiment', label: 'Status' },
 ]
+
+/** Coloured type-chip per history kind, using the app's own tokens. */
+const TYPE_CHIP_CLASS: Record<ActivityType | 'sentiment', string> = {
+  note: 'bg-primary/10 text-primary',
+  call: 'bg-status-green/15 text-status-green',
+  email: 'bg-accent text-accent-foreground',
+  meeting: 'bg-teal/15 text-teal',
+  social: 'bg-secondary text-secondary-foreground',
+  sentiment: 'bg-secondary text-secondary-foreground',
+}
+
+/** Stable identity for a history entry — used for React keys AND add-detection. */
+function entryId(entry: TimelineEntry): string {
+  return entry.kind === 'activity'
+    ? `a-${entry.activity.id}`
+    : `s-${entry.entry.at}-${entry.entry.value}`
+}
+
+/** Length + newest-id fingerprint: cheap, and stable across a fresh `[]`. */
+function signature(entries: TimelineEntry[]): string {
+  return `${entries.length}|${entries[0] ? entryId(entries[0]) : ''}`
+}
 
 /**
  * The unified activity timeline: replaces the separate Logbook and
@@ -60,8 +82,34 @@ export function Timeline({
   const reminders = remindersQ.data ?? []
 
   const history = useMemo(() => filterHistory(entries, filter), [entries, filter])
+  const groups = useMemo(() => groupHistory(history), [history])
   const openReminders = reminders.filter((r) => !r.done)
   const queryError = error ?? remindersQ.error
+
+  // Tier 4: spot a freshly-added entry so the newest row can slide in and glow.
+  // This is the supported "adjust state during render" pattern (store previous
+  // props): React re-renders before painting, so the new row's very first paint
+  // already carries `tl-new` — no flicker. It's gated on a length+top signature
+  // so a fresh `[]` during loading can't loop, and it only fires on an
+  // incremental growth of an already-populated list, so the initial load and
+  // reloads never glow.
+  const [prevEntries, setPrevEntries] = useState<TimelineEntry[]>(entries)
+  const [prevSig, setPrevSig] = useState(() => signature(entries))
+  const [newId, setNewId] = useState<string | null>(null)
+  const sig = signature(entries)
+  if (sig !== prevSig) {
+    const before = new Set(prevEntries.map(entryId))
+    const added = entries.find((e) => !before.has(entryId(e)))
+    const grewByOne = entries.length === prevEntries.length + 1 && prevEntries.length > 0
+    setNewId(grewByOne && added ? entryId(added) : null)
+    setPrevEntries(entries)
+    setPrevSig(sig)
+  }
+  useEffect(() => {
+    if (!newId) return
+    const t = setTimeout(() => setNewId(null), 1300)
+    return () => clearTimeout(t)
+  }, [newId])
 
   return (
     <Card className="lg:sticky lg:top-[4.5rem]">
@@ -90,37 +138,74 @@ export function Timeline({
 
         <Separator />
 
-        <div className="flex flex-wrap gap-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setFilter(f.value)}
-              className={cn(
-                'rounded-full border px-2.5 py-0.5 text-xs transition-colors',
-                filter === f.value
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/*
+          Filter as a single horizontal scroll row instead of the old
+          flex-wrap: this card is only ~320–380px wide, so wrapping stacked the
+          chips into several lines. The right-edge mask hints at more to scroll.
+        */}
+        <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-mask-image:linear-gradient(to_right,#000_88%,transparent)] [-webkit-overflow-scrolling:touch] [mask-image:linear-gradient(to_right,#000_88%,transparent)]">
+          {FILTERS.map((f) => {
+            const active = filter === f.value
+            return (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setFilter(f.value)}
+                aria-current={active ? 'true' : undefined}
+                className={cn(
+                  'inline-flex min-h-9 flex-none items-center whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  active
+                    ? 'border-transparent bg-primary text-primary-foreground'
+                    : 'border-border text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {f.label}
+              </button>
+            )
+          })}
         </div>
 
-        {history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Keine Einträge.</p>
-        ) : (
-          <ul className="space-y-4">
-            {history.map((entry, i) =>
-              entry.kind === 'activity' ? (
-                <ActivityItem key={entry.activity.id} activity={entry.activity} canBody={canBody} />
-              ) : (
-                <SentimentItem key={`s-${entry.at}-${i}`} entry={entry.entry} />
-              ),
-            )}
-          </ul>
-        )}
+        {/* Keyed by filter so a change cross-fades the list (Tier 4). */}
+        <div key={filter} className="tl-fade">
+          {history.length === 0 ? (
+            <EmptyState hasAny={entries.length > 0} />
+          ) : (
+            <div className="space-y-5">
+              {groups.map((group) => (
+                <section key={group.key}>
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </h3>
+                  <div className="relative">
+                    {/* Rail connector — a hairline down the left of the nodes. */}
+                    <span
+                      aria-hidden
+                      className="absolute bottom-2 left-[13px] top-2 w-px bg-border"
+                    />
+                    <ul className="space-y-4">
+                      {group.entries.map((entry) =>
+                        entry.kind === 'activity' ? (
+                          <ActivityItem
+                            key={entryId(entry)}
+                            activity={entry.activity}
+                            canBody={canBody}
+                            isNew={newId === entryId(entry)}
+                          />
+                        ) : (
+                          <SentimentItem
+                            key={entryId(entry)}
+                            entry={entry.entry}
+                            isNew={newId === entryId(entry)}
+                          />
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   )
@@ -157,7 +242,11 @@ function AddActivityForm({ contactId, onAdded }: { contactId: string; onAdded: (
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
-      <div className="flex flex-wrap gap-1">
+      {/*
+        Segmented control instead of a wrapping pill row: four equal cells that
+        never break onto a second line at this card's width.
+      */}
+      <div className="grid grid-cols-4 gap-1 rounded-lg bg-secondary p-1">
         {ADD_TYPES.map((t) => {
           const { label, icon: Icon } = ACTIVITY_META[t]
           const active = type === t
@@ -168,13 +257,12 @@ function AddActivityForm({ contactId, onAdded }: { contactId: string; onAdded: (
               onClick={() => setType(t)}
               aria-pressed={active}
               className={cn(
-                'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors',
-                active
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-border bg-background text-muted-foreground hover:text-foreground',
+                'flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <Icon className="size-3" /> {label}
+              <Icon className={cn('size-4', active && 'text-primary')} />
+              <span className="w-full truncate text-center leading-none">{label}</span>
             </button>
           )
         })}
@@ -292,22 +380,43 @@ function UpcomingReminders({
           })}
         </ul>
       )}
-      <div className="flex flex-col gap-2 sm:flex-row">
+      {/*
+        Container-safe add form. `sm:` is a viewport breakpoint, not a container
+        one, so the old single row cramped inside this ~320–380px card: the text
+        field takes its own full-width row, then date + time share the next row,
+        and the button gets a full-width tap target of its own — all usable down
+        to ~320px without horizontal overflow.
+      */}
+      <div className="space-y-2">
         <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Woran erinnern?"
-          className="flex-1"
         />
-        <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="sm:w-36" />
-        <Input
-          type="time"
-          value={dueTime}
-          onChange={(e) => setDueTime(e.target.value)}
-          aria-label="Uhrzeit (optional)"
-          className="sm:w-28"
-        />
-        <Button type="button" size="sm" variant="outline" onClick={add} disabled={!text.trim() || !due}>
+        <div className="flex gap-2">
+          <Input
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            aria-label="Fällig am"
+            className="min-w-0 flex-1"
+          />
+          <Input
+            type="time"
+            value={dueTime}
+            onChange={(e) => setDueTime(e.target.value)}
+            aria-label="Uhrzeit (optional)"
+            className="w-24 shrink-0"
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={add}
+          disabled={!text.trim() || !due}
+          className="w-full"
+        >
           <Plus className="size-4" /> Reminder
         </Button>
       </div>
@@ -315,7 +424,68 @@ function UpcomingReminders({
   )
 }
 
-function ActivityItem({ activity, canBody }: { activity: Activity; canBody: boolean }) {
+/** Small initials disc standing in for the "von …" attribution (Tier 3). */
+function MiniAvatar({ name }: { name?: string }) {
+  if (!name) return null
+  const initials =
+    name
+      .split(' ')
+      .map((p) => p[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || '?'
+  return (
+    <span
+      title={name}
+      aria-label={`Erfasst von ${name}`}
+      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary"
+    >
+      {initials}
+    </span>
+  )
+}
+
+function TypeChip({ kind, label }: { kind: ActivityType | 'sentiment'; label: string }) {
+  return (
+    <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', TYPE_CHIP_CLASS[kind])}>
+      {label}
+    </span>
+  )
+}
+
+/** Meta line shared by both row kinds: who · what type · when. */
+function MetaLine({
+  kind,
+  label,
+  at,
+  author,
+}: {
+  kind: ActivityType | 'sentiment'
+  label: string
+  at: string
+  author?: string
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+      <MiniAvatar name={author} />
+      <TypeChip kind={kind} label={label} />
+      <time dateTime={at} title={formatDateTime(at)}>
+        {formatRelative(at)}
+      </time>
+    </div>
+  )
+}
+
+function ActivityItem({
+  activity,
+  canBody,
+  isNew,
+}: {
+  activity: Activity
+  canBody: boolean
+  isNew?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const { label, icon: Icon } = ACTIVITY_META[activity.type]
   // Redacted tier must NEVER see the raw body — when no AI summary exists,
@@ -326,74 +496,84 @@ function ActivityItem({ activity, canBody }: { activity: Activity; canBody: bool
   const hasMore = Boolean(activity.body && activity.aiSummary && activity.body !== activity.aiSummary)
 
   return (
-    <li className="relative pl-6">
-      <span className="absolute left-0 top-1 text-muted-foreground">
-        <Icon className="size-3.5" />
+    <li className={cn('relative pl-9', isNew && 'tl-new')}>
+      <span className="absolute left-[5px] top-0.5 flex size-[18px] items-center justify-center rounded-full border-2 border-border bg-card text-muted-foreground">
+        <Icon className="size-3" />
       </span>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{label}</span>
-        <span>·</span>
-        <span>{formatDateTime(activity.occurredAt)}</span>
-        <span>·</span>
-        <span>von {activity.authorName}</span>
+      <div className="min-w-0">
+        <MetaLine kind={activity.type} label={label} at={activity.occurredAt} author={activity.authorName} />
+        <p className="mt-1 text-sm text-foreground">{summary}</p>
+
+        {canBody
+          ? hasMore && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setOpen((o) => !o)}
+                  className="mt-1 inline-flex items-center gap-1 rounded text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ChevronDown className={cn('size-3 transition-transform', open && 'rotate-180')} />
+                  {open ? 'Weniger' : 'Mehr Details'}
+                </button>
+                {open && (
+                  <p className="mt-1 whitespace-pre-wrap rounded-md bg-secondary/50 p-2 text-sm text-foreground">
+                    {activity.body}
+                  </p>
+                )}
+              </>
+            )
+          : hasMore && (
+              <p className="mt-1 text-xs italic text-muted-foreground">
+                Volltext für Ihre Rolle nicht sichtbar
+              </p>
+            )}
+
+        {activity.attachments.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {activity.attachments.map((a) => (
+              <Badge key={a.id} variant="secondary">
+                <Paperclip className="size-3" /> {a.name}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
-      <p className="mt-0.5 text-sm text-foreground">{summary}</p>
-
-      {canBody
-        ? hasMore && (
-            <>
-              <button
-                type="button"
-                onClick={() => setOpen((o) => !o)}
-                className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-              >
-                <ChevronDown className={cn('size-3 transition-transform', open && 'rotate-180')} />
-                {open ? 'Weniger' : 'Mehr Details'}
-              </button>
-              {open && (
-                <p className="mt-1 whitespace-pre-wrap rounded-md bg-secondary/50 p-2 text-sm text-foreground">
-                  {activity.body}
-                </p>
-              )}
-            </>
-          )
-        : hasMore && (
-            <p className="mt-1 text-xs italic text-muted-foreground">
-              Volltext für Ihre Rolle nicht sichtbar
-            </p>
-          )}
-
-      {activity.attachments.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {activity.attachments.map((a) => (
-            <Badge key={a.id} variant="secondary">
-              <Paperclip className="size-3" /> {a.name}
-            </Badge>
-          ))}
-        </div>
-      )}
     </li>
   )
 }
 
-function SentimentItem({ entry }: { entry: SentimentEntry }) {
+function SentimentItem({ entry, isNew }: { entry: SentimentEntry; isNew?: boolean }) {
   return (
-    <li className="relative pl-6">
-      <span className="absolute left-0 top-1.5">
+    <li className={cn('relative pl-9', isNew && 'tl-new')}>
+      <span className="absolute left-[5px] top-0.5 flex size-[18px] items-center justify-center rounded-full border-2 border-border bg-card">
         <TrafficLightDot value={entry.value} />
       </span>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">Status geändert</span>
-        <span>·</span>
-        <span>{formatDateTime(entry.at)}</span>
-        {entry.byName && (
-          <>
-            <span>·</span>
-            <span>von {entry.byName}</span>
-          </>
-        )}
+      <div className="min-w-0">
+        <MetaLine kind="sentiment" label="Status" at={entry.at} author={entry.byName} />
+        <p className="mt-1 text-sm text-foreground">
+          Beziehung auf „{TRAFFIC_LABEL[entry.value]}“ gesetzt.
+        </p>
       </div>
-      <p className="mt-0.5 text-sm text-foreground">Beziehung auf „{TRAFFIC_LABEL[entry.value]}“ gesetzt.</p>
     </li>
+  )
+}
+
+function EmptyState({ hasAny }: { hasAny: boolean }) {
+  if (hasAny) {
+    return (
+      <p className="py-6 text-center text-sm text-muted-foreground">Keine Einträge für diesen Filter.</p>
+    )
+  }
+  return (
+    <div className="flex flex-col items-center gap-2 py-8 text-center">
+      <span className="flex size-10 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+        <History className="size-5" />
+      </span>
+      <p className="text-sm font-medium text-foreground">Noch keine Aktivitäten</p>
+      <p className="max-w-[42ch] text-xs text-muted-foreground">
+        Halte oben fest, was besprochen wurde — Notizen, Anrufe, E-Mails und Treffen erscheinen hier
+        als Verlauf.
+      </p>
+    </div>
   )
 }

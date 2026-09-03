@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Pencil, X } from 'lucide-react'
 import type { Contact, LinkedInInfo, LinkedInStatus, SentimentEntry, TrafficLight } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { buildLinkedInInfo } from '@/domain/linkedin'
@@ -9,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { isBlank } from '@/domain/placeholders'
 import { EditableAvatar } from '@/components/EditableAvatar'
+import { useFileUrl } from '@/lib/useFileUrl'
 import { telHref } from './shared'
 import { TrafficLightBadge, TrafficLightDot, TrafficLightPicker } from '@/components/TrafficLight'
 import { SentimentSparkline } from '@/components/SentimentSparkline'
@@ -71,21 +73,39 @@ export function IdentityCard({
     void onSave({ sentiment: value, sentimentHistory: history })
   }
 
+  // Tier 3: the photo is clickable to open a larger view. Resolve the stored
+  // reference here (same hook the avatar uses) so the lightbox gets a real URL
+  // and the trigger only appears when there actually is a photo.
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const photoUrl = useFileUrl(contact.photoUrl)
+  const closeLightbox = useCallback(() => setLightboxOpen(false), [])
+
   return (
     <Card className="overflow-hidden">
       <div className="h-20 bg-gradient-to-r from-primary via-primary to-teal/70" />
       <CardContent className="pt-0">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-          <div className="-mt-10">
+          <div className="relative -mt-10 w-fit">
             <EditableAvatar
               src={contact.photoUrl}
               name={contact.fullName}
               folder={contact.id}
               editable={canEdit}
-              onChange={(photoUrl) => onSave({ photoUrl })}
+              onChange={(ref) => onSave({ photoUrl: ref })}
               className="rounded-full ring-4 ring-card"
             />
+            {photoUrl && (
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                aria-label={`Foto von ${contact.fullName} vergrößern`}
+                className="absolute inset-0 cursor-zoom-in rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+              />
+            )}
           </div>
+          {photoUrl && lightboxOpen && (
+            <PhotoLightbox src={photoUrl} alt={contact.fullName} onClose={closeLightbox} />
+          )}
           {/*
             4-Zeilen-Kopf (Lennart-Feedback, Track 2.4):
             Name/LinkedIn · Position/Firma/Team · Region/Betreuer/Status · Kontaktwege
@@ -166,6 +186,66 @@ export function IdentityCard({
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Minimal photo lightbox. There is no Dialog primitive in this codebase, so it
+ * is built inline: a portal to <body> (escaping the card's `overflow-hidden`),
+ * a dark backdrop, and close on Esc / backdrop / the close button. Focus moves
+ * to the close button on open, is trapped inside while open (a single control),
+ * and is restored to the trigger on close. Body scroll is locked meanwhile.
+ */
+function PhotoLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    closeRef.current?.focus()
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      } else if (e.key === 'Tab') {
+        // Only one focusable control — keep focus inside the dialog.
+        e.preventDefault()
+        closeRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+      previouslyFocused?.focus?.()
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Foto von ${alt}`}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+    >
+      <img
+        src={src}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
+      />
+      <button
+        ref={closeRef}
+        type="button"
+        onClick={onClose}
+        aria-label="Schließen"
+        className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        <X className="size-5" />
+      </button>
+    </div>,
+    document.body,
   )
 }
 
