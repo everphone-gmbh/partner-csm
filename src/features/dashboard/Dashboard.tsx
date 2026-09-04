@@ -1,6 +1,6 @@
 import { useMemo, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { AlarmClock, Bell, Cake, TrendingUp, Users } from 'lucide-react'
+import { AlarmClock, Bell, Cake, ChevronRight, TrendingUp, Users } from 'lucide-react'
 import type { Activity, Contact, Region, Reminder } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -195,22 +195,34 @@ export function Dashboard() {
           {coverage.length === 0 ? (
             <p className="text-sm text-muted-foreground">Keine Daten.</p>
           ) : (
-            coverage.map((r) => (
-              <div key={r.regionId} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{regionName(r.regionId)}</span>
-                  <span className="text-muted-foreground">
-                    {r.rated}/{r.total} betreut · {r.coveragePct}%
-                  </span>
-                </div>
-                <div className="flex h-2 overflow-hidden rounded-full bg-secondary">
-                  <Seg n={r.bySentiment.green} total={r.total} cls="bg-status-green" />
-                  <Seg n={r.bySentiment.amber} total={r.total} cls="bg-status-amber" />
-                  <Seg n={r.bySentiment.red} total={r.total} cls="bg-status-red" />
-                  <Seg n={r.bySentiment.neutral} total={r.total} cls="bg-status-neutral/40" />
-                </div>
-              </div>
-            ))
+            // Jede Zeile führt in die nach dieser Region gefilterte Kontaktliste
+            // (Feedback #8a); die Regionsseite mit Organigramm folgt in Phase 3.
+            <div className="-mx-1.5">
+              {coverage.map((r) => (
+                <Link
+                  key={r.regionId}
+                  to={`/contacts?region=${encodeURIComponent(r.regionId)}`}
+                  title={`Kontakte in Region ${regionName(r.regionId)} anzeigen`}
+                  className="group block space-y-1.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/[0.05]"
+                >
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <span className="font-medium transition-colors group-hover:text-primary">
+                      {regionName(r.regionId)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      {r.rated}/{r.total} betreut · {r.coveragePct}%
+                      <ChevronRight className="size-3.5 transition-colors group-hover:text-primary" />
+                    </span>
+                  </div>
+                  <div className="flex h-2 overflow-hidden rounded-full bg-secondary">
+                    <Seg n={r.bySentiment.green} total={r.total} cls="bg-status-green" />
+                    <Seg n={r.bySentiment.amber} total={r.total} cls="bg-status-amber" />
+                    <Seg n={r.bySentiment.red} total={r.total} cls="bg-status-red" />
+                    <Seg n={r.bySentiment.neutral} total={r.total} cls="bg-status-neutral/40" />
+                  </div>
+                </Link>
+              ))}
+            </div>
           )}
           <Legend />
         </CardContent>

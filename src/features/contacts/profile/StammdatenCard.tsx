@@ -1,15 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { AtSign, Briefcase, Building, Building2, Cake, Heart, Home, Link2, Mail, MapPin, PawPrint, Phone, PhoneCall, Plus, Repeat, Smartphone, Trophy, UserRound, Users, X } from 'lucide-react'
 import type { AppUser, BuyingRole, Contact, Region, SocialLink } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
 import { BUYING_ROLE_OPTIONS } from '@/domain/buyingCenter'
+import { useUnsavedChangesGuard } from '@/app/useUnsavedChangesGuard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, daysUntilBirthday } from '@/lib/format'
+import { EMPTY_SUGGESTIONS, type FieldSuggestions } from '../useFieldSuggestions'
+import { SuggestionDatalist } from '../SuggestionDatalist'
 import { EditButton, EditField, FieldRow, selectCls, telHref } from './shared'
 
 interface StammDraft {
@@ -87,6 +90,7 @@ export function StammdatenCard({
   users,
   onSave,
   onCreateRegion,
+  suggestions = EMPTY_SUGGESTIONS,
 }: {
   contact: Contact
   canEdit: boolean
@@ -100,11 +104,21 @@ export function StammdatenCard({
    * die sofort auswählbar wird. Wird von ContactProfile bereitgestellt.
    */
   onCreateRegion?: (name: string) => Promise<Region>
+  /** Vorschläge für Firma und Team (Typeahead, Feedback #3); ohne = reiner Freitext. */
+  suggestions?: FieldSuggestions
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<StammDraft>(() => toStammDraft(contact))
   const [saving, setSaving] = useState(false)
   const bdayDays = canSensitive ? daysUntilBirthday(contact.birthday) : null
+  const listId = useId()
+  const companyListId = `${listId}-companies`
+  const teamListId = `${listId}-teams`
+
+  // Ungespeichert = im Bearbeiten und Entwurf ≠ gespeicherter Kontakt. Während
+  // des Speicherns nicht, sonst würde ein Seitenwechsel danach erneut gestoppt.
+  const base = useMemo(() => toStammDraft(contact), [contact])
+  const isDirty = editing && !saving && JSON.stringify(draft) !== JSON.stringify(base)
 
   // Frisch angelegte Regionen sofort auswählbar machen, auch bevor die
   // Elternabfrage (ContactProfile) die aktualisierte Liste nachgeliefert hat.
@@ -181,6 +195,11 @@ export function StammdatenCard({
       setSaving(false)
     }
   }
+
+  // Seitenwechsel mit ungespeichertem Entwurf abfangen (Feedback #1). „Speichern“
+  // im Dialog ruft dasselbe submit; schlägt es fehl, bleibt die Karte im
+  // Bearbeiten (onSave wirft nach dem Toast weiter).
+  const { dialog } = useUnsavedChangesGuard({ isDirty, onSave: submit })
 
   return (
     <Card>
@@ -266,11 +285,24 @@ export function StammdatenCard({
                   ))}
                 </select>
               </EditField>
+              {/* Freitext mit Vorschlägen aus Kontakten + Soll-Struktur (Feedback #3). */}
               <EditField label="Firma">
-                <Input value={draft.company} onChange={(e) => set('company', e.target.value)} />
+                <Input
+                  list={companyListId}
+                  value={draft.company}
+                  onChange={(e) => set('company', e.target.value)}
+                  aria-label="Firma"
+                />
+                <SuggestionDatalist id={companyListId} options={suggestions.companies} />
               </EditField>
               <EditField label="Team">
-                <Input value={draft.team} onChange={(e) => set('team', e.target.value)} />
+                <Input
+                  list={teamListId}
+                  value={draft.team}
+                  onChange={(e) => set('team', e.target.value)}
+                  aria-label="Team"
+                />
+                <SuggestionDatalist id={teamListId} options={suggestions.teams} />
               </EditField>
               <EditField label="E-Mail">
                 <Input type="email" value={draft.email} onChange={(e) => set('email', e.target.value)} />
@@ -569,6 +601,7 @@ export function StammdatenCard({
           </>
         )}
       </CardContent>
+      {dialog}
     </Card>
   )
 }

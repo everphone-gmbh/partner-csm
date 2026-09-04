@@ -45,8 +45,24 @@ export function ContactList() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const specialFilter = searchParams.get('filter')
+  // Region und Team leben in der Adresse (?region=…&team=…): so lassen sich
+  // gefilterte Listen verlinken — vom Dashboard (Regionen-Abdeckung) und vom
+  // Kontaktkopf („← Team …“) aus. Feedback #8a/#9.
+  const regionFilter = searchParams.get('region')
+  const teamFilter = searchParams.get('team') ?? ''
+  const setParam = (key: string, value: string | null) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value) next.set(key, value)
+        else next.delete(key)
+        return next
+      },
+      // Filterwechsel sollen den Zurück-Knopf nicht mit Zwischenschritten füllen.
+      { replace: true },
+    )
+  const setRegionFilter = (id: string | null) => setParam('region', id)
   const [q, setQ] = useState('')
-  const [regionFilter, setRegionFilter] = useState<string | null>(null)
   const [companyFilter, setCompanyFilter] = useState<string>('')
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [sortMode, setSortMode] = useState<SortMode>(specialFilter === 'stale' ? 'stale' : 'name')
@@ -100,6 +116,16 @@ export function ContactList() {
     [roleScoped],
   )
 
+  /** Unique teams across the visible scope — drives the Team filter. */
+  const teams = useMemo(() => {
+    const list = [...new Set(roleScoped.map((c) => c.team).filter((x): x is string => Boolean(x)))].sort(
+      (a, b) => a.localeCompare(b, 'de'),
+    )
+    // Ein verlinktes Team, das in der sichtbaren Menge fehlt, bleibt wählbar —
+    // sonst zeigte das Feld „Alle“, obwohl gefiltert wird.
+    return teamFilter && !list.includes(teamFilter) ? [teamFilter, ...list] : list
+  }, [roleScoped, teamFilter])
+
   const visible = useMemo(() => {
     let list = roleScoped
     if (specialFilter === 'unmanaged') list = list.filter((c) => c.sentiment === 'neutral')
@@ -107,6 +133,7 @@ export function ContactList() {
       list = list.filter((c) => attentionByContact.get(c.id)?.level !== 'ok')
     if (regionFilter) list = list.filter((c) => c.regionId === regionFilter)
     if (companyFilter) list = list.filter((c) => c.company === companyFilter)
+    if (teamFilter) list = list.filter((c) => c.team === teamFilter)
     if (onlyUnassigned) list = list.filter((c) => isUnassigned(c, regions))
     const term = q.trim().toLowerCase()
     if (term) {
@@ -127,6 +154,7 @@ export function ContactList() {
     q,
     regionFilter,
     companyFilter,
+    teamFilter,
     onlyUnassigned,
     regions,
     sortMode,
@@ -135,6 +163,18 @@ export function ContactList() {
   ])
 
   const canBulk = canApprove(user.role)
+
+  // Aktive Adress-Filter als Chips mit ✕ — jedes ✕ entfernt nur seinen Parameter.
+  const activeChips: { key: string; label: string }[] = []
+  if (specialFilter && SPECIAL_FILTER_LABEL[specialFilter])
+    activeChips.push({ key: 'filter', label: SPECIAL_FILTER_LABEL[specialFilter] })
+  if (regionFilter)
+    activeChips.push({
+      key: 'region',
+      // Solange die Regionen laden (oder bei einer unbekannten ID) steht die ID da.
+      label: `Region: ${regions.find((r) => r.id === regionFilter)?.name ?? regionFilter}`,
+    })
+  if (teamFilter) activeChips.push({ key: 'team', label: `Team: ${teamFilter}` })
 
   const unassignedCount = useMemo(
     () => roleScoped.filter((c) => isUnassigned(c, regions)).length,
@@ -215,15 +255,21 @@ export function ContactList() {
         />
       </div>
 
-      {specialFilter && SPECIAL_FILTER_LABEL[specialFilter] && (
-        <button
-          type="button"
-          onClick={() => setSearchParams({})}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
-        >
-          {SPECIAL_FILTER_LABEL[specialFilter]}
-          <X className="size-3" />
-        </button>
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {activeChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setParam(chip.key, null)}
+              aria-label={`Filter „${chip.label}“ entfernen`}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+            >
+              {chip.label}
+              <X className="size-3" />
+            </button>
+          ))}
+        </div>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -261,6 +307,23 @@ export function ContactList() {
                   {companies.map((co) => (
                     <option key={co} value={co}>
                       {co}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {teams.length > 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                Team
+                <select
+                  value={teamFilter}
+                  onChange={(e) => setParam('team', e.target.value || null)}
+                  className="h-7 max-w-40 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Alle</option>
+                  {teams.map((team) => (
+                    <option key={team} value={team}>
+                      {team}
                     </option>
                   ))}
                 </select>

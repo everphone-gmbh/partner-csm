@@ -15,13 +15,23 @@ export function telHref(number: string): string {
   return `tel:${number.replace(/[^+0-9]/g, '')}`
 }
 
-export function BackLink() {
+/**
+ * Zurück-Link im Kontaktkopf. Ohne Angaben „← Alle Kontakte“; mit `to`/`label`
+ * z. B. „← Team Partner Management“ → nach Team gefilterte Liste (Feedback #9).
+ */
+export function BackLink({
+  to = '/contacts',
+  label = 'Alle Kontakte',
+}: {
+  to?: string
+  label?: string
+}) {
   return (
     <Link
-      to="/contacts"
+      to={to}
       className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
     >
-      <ArrowLeft className="size-4" /> Alle Kontakte
+      <ArrowLeft className="size-4" /> {label}
     </Link>
   )
 }
