@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Pencil, Sparkles, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
 import type { AppUser, Contact, Region } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { repository } from '@/data/repositoryProvider'
@@ -26,6 +26,7 @@ import { KundenCard } from './profile/KundenCard'
 import { FotogalerieCard } from './profile/FotogalerieCard'
 import { NotizCard } from './profile/NotizCard'
 import { TranscriptImportCard } from './TranscriptImportCard'
+import { useFieldSuggestions } from './useFieldSuggestions'
 
 export function ContactProfile() {
   const { id } = useParams()
@@ -33,6 +34,9 @@ export function ContactProfile() {
   const { user } = useSession()
   const { toast } = useToast()
   const [raw, setRaw] = useState<Contact | undefined>(undefined)
+  // Firma-/Team-Vorschläge für die Stammdaten-Bearbeitung; die Karte selbst
+  // bleibt wie regions/users rein über Props versorgt.
+  const suggestions = useFieldSuggestions()
 
   const { data, loading, error, retry } = useRepoQuery(
     () =>
@@ -136,8 +140,17 @@ export function ContactProfile() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <BackLink />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <BackLink />
+          {/* Zurück ins Team des Kontakts = nach Team gefilterte Liste (Feedback #9). */}
+          {view.team && (
+            <BackLink
+              to={`/contacts?team=${encodeURIComponent(view.team)}`}
+              label={`Team ${view.team}`}
+            />
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {user.role === 'overall_admin' && (
             <button
@@ -151,12 +164,18 @@ export function ContactProfile() {
             </button>
           )}
           {canEdit && (
-            <Link
-              to={`/contacts/${view.id}/edit`}
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              <Pencil className="size-4" /> Bearbeiten
-            </Link>
+            <>
+              {/* Direkt von der Karte zum nächsten Kontakt (Feedback #4). */}
+              <Link to="/contacts/new" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                <Plus className="size-4" /> Neuer Kontakt
+              </Link>
+              <Link
+                to={`/contacts/${view.id}/edit`}
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                <Pencil className="size-4" /> Bearbeiten
+              </Link>
+            </>
           )}
         </div>
       </div>
@@ -195,6 +214,7 @@ export function ContactProfile() {
             users={users}
             onSave={save}
             onCreateRegion={createRegion}
+            suggestions={suggestions}
           />
           <FactsCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
           <NetworkCard contact={view} canEdit={canEdit} />

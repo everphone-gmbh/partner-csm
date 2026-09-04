@@ -109,3 +109,46 @@ describe('ContactList — Massenzuordnung', () => {
     expect(screen.queryByRole('checkbox')).toBeNull()
   })
 })
+
+describe('ContactList — Filter über die Adresse (Region/Team)', () => {
+  it('?region= filtert vor, zeigt einen Chip, und ✕ entfernt den Parameter', async () => {
+    renderPage(<ContactList />, { route: '/contacts?region=r-nord' })
+
+    // Anke Richter und Stefan Lang sitzen im Seed in Nord.
+    expect(await screen.findByText(/2 von 8 Kontakten/)).toBeInTheDocument()
+    const chip = screen.getByRole('button', { name: 'Filter „Region: Nord“ entfernen' })
+
+    await userEvent.click(chip)
+    expect(await screen.findByText(/8 von 8 Kontakten/)).toBeInTheDocument()
+    expect(currentLocation()).toBe('/contacts')
+  })
+
+  it('der Regions-Knopf schreibt die Region in die Adresse', async () => {
+    renderPage(<ContactList />, { route: '/contacts' })
+    await screen.findByText(/8 von 8 Kontakten/)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Süd' }))
+    await waitFor(() => expect(currentLocation()).toBe('/contacts?region=r-sued'))
+    // Thomas Berger und Nicole Wagner.
+    expect(screen.getByText(/2 von 8 Kontakten/)).toBeInTheDocument()
+  })
+
+  it('?team= filtert nach Team und zeigt das Team im Auswahlfeld', async () => {
+    renderPage(<ContactList />, { route: '/contacts?team=Partner%20Management' })
+
+    expect(await screen.findByText(/1 von 8 Kontakten/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Anke Richter/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter „Team: Partner Management“ entfernen' })).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Team/)).toHaveValue('Partner Management')
+  })
+
+  it('die Team-Auswahl schreibt das Team in die Adresse', async () => {
+    renderPage(<ContactList />, { route: '/contacts' })
+    await screen.findByText(/8 von 8 Kontakten/)
+
+    await userEvent.selectOptions(screen.getByLabelText(/^Team/), 'Sales Leadership')
+    await waitFor(() => expect(currentLocation()).toBe('/contacts?team=Sales+Leadership'))
+    expect(screen.getByText(/1 von 8 Kontakten/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Julia Hoffmann/ })).toBeInTheDocument()
+  })
+})

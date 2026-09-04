@@ -1,7 +1,9 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
-export function Input({ className, type, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+// ComponentProps<'input'> statt InputHTMLAttributes: schließt `ref` ein (React 19
+// reicht es als normale Prop durch), damit ein Formular ein Feld fokussieren kann.
+export function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
   return (
     <input
       type={type}

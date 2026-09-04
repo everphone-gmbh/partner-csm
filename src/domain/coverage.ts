@@ -51,12 +51,18 @@ export function normalizeUnitKey(value: string | null | undefined): string {
 }
 
 /**
- * Schlüssel einer Einheit. Muss zum Format von `contacts.team` passen:
- * „Abteilung / Team", bzw. nur „Abteilung" auf Abteilungsebene.
+ * Bezeichnung einer Einheit, wie sie im Feld `contacts.team` erwartet wird:
+ * „Abteilung / Team", bzw. nur „Abteilung" auf Abteilungsebene. Einzige Quelle
+ * für dieses Format — die Team-Vorschläge im Formular (useFieldSuggestions)
+ * bauen darauf auf, damit vorgeschlagene Werte hier auch wieder zugeordnet werden.
  */
+export function unitLabel(department: string, team: string | null): string {
+  return team ? `${department} / ${team}` : department
+}
+
+/** Schlüssel einer Einheit (Firma + Bezeichnung, vergleichbar gemacht). */
 export function unitKey(company: string, department: string, team: string | null): string {
-  const label = team ? `${department} / ${team}` : department
-  return `${normalizeUnitKey(company)}|${normalizeUnitKey(label)}`
+  return `${normalizeUnitKey(company)}|${normalizeUnitKey(unitLabel(department, team))}`
 }
 
 function statusFor(contacts: number, managed: number, rated: number): CoverageStatus {

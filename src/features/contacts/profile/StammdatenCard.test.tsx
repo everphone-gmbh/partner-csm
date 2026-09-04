@@ -1,8 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Link } from 'react-router-dom'
+import type { ComponentProps } from 'react'
 import { StammdatenCard } from './StammdatenCard'
 import type { AppUser, Contact, Region } from '@/domain/types'
+// Die Karte importiert weder Repository noch Sitzung — das Gerüst wird nur wegen
+// des Daten-Routers gebraucht: der Wächter gegen Datenverlust (useBlocker) läuft
+// nicht in einem nackten render().
+import { currentLocation, renderPage } from '@/test/pageHarness'
 
 const contact: Contact = {
   id: 'c1',
@@ -22,23 +28,38 @@ const contact: Contact = {
 const regions: Region[] = [{ id: 'r1', name: 'Nord', isPlaceholder: false }]
 const users: AppUser[] = [{ id: 'u1', name: 'Alex', role: 'sub_admin' }]
 
+function renderCard(props: Partial<ComponentProps<typeof StammdatenCard>> = {}) {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  const utils = renderPage(
+    <>
+      <StammdatenCard
+        contact={contact}
+        canEdit
+        canSensitive
+        regions={regions}
+        users={users}
+        onSave={onSave}
+        {...props}
+      />
+      {/* Ein Ziel zum Weg-Navigieren, wie Menü oder Suche es täten. */}
+      <Link to="/dashboard">Übersicht</Link>
+    </>,
+    { route: '/contacts/c1' },
+  )
+  return { ...utils, onSave }
+}
+
 describe('StammdatenCard — neue Felder & Social-Links-Editor', () => {
   it('zeigt die neuen Felder an', () => {
-    const onSave = vi.fn().mockResolvedValue(undefined)
-    render(
-      <StammdatenCard contact={contact} canEdit canSensitive regions={regions} users={users} onSave={onSave} />,
-    )
+    renderCard()
     for (const label of ['Durchwahl / 2. Nummer', 'E-Mail (privat)', 'Dienstanschrift', 'Assistenz', 'Social Media']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
   })
 
   it('bearbeitet, fügt einen Social-Link hinzu und speichert den vollständigen Patch', async () => {
-    const onSave = vi.fn().mockResolvedValue(undefined)
+    const { onSave } = renderCard()
     const user = userEvent.setup()
-    render(
-      <StammdatenCard contact={contact} canEdit canSensitive regions={regions} users={users} onSave={onSave} />,
-    )
 
     await user.click(screen.getByRole('button', { name: 'Bearbeiten' }))
 
@@ -66,11 +87,8 @@ describe('StammdatenCard — neue Felder & Social-Links-Editor', () => {
   })
 
   it('leere Social-Link-Zeilen (ohne URL) fallen beim Speichern weg', async () => {
-    const onSave = vi.fn().mockResolvedValue(undefined)
+    const { onSave } = renderCard()
     const user = userEvent.setup()
-    render(
-      <StammdatenCard contact={contact} canEdit canSensitive regions={regions} users={users} onSave={onSave} />,
-    )
     await user.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     // Zwei Zeilen anlegen, nur eine mit URL füllen.
     await user.click(screen.getByRole('button', { name: 'Link' }))
@@ -81,5 +99,84 @@ describe('StammdatenCard — neue Felder & Social-Links-Editor', () => {
 
     const patch = onSave.mock.calls[0][0]
     expect(patch.socialLinks).toEqual([{ label: '', url: 'https://example.com' }])
+  })
+})
+
+describe('StammdatenCard — Vorschläge für Firma und Team', () => {
+  it('hängt die Vorschläge als Datalist an beide Felder, Freitext bleibt möglich', async () => {
+    renderCard({
+      suggestions: {
+        teams: ['Einkauf Konzern', 'Einkauf Konzern / Mobilfunk'],
+        companies: ['Deutsche Telekom'],
+      },
+    })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+
+    const team = screen.getByLabelText('Team')
+    const teamList = document.getElementById(team.getAttribute('list') ?? '')
+    expect(teamList?.tagName).toBe('DATALIST')
+    expect([...(teamList?.querySelectorAll('option') ?? [])].map((o) => o.value)).toEqual([
+      'Einkauf Konzern',
+      'Einkauf Konzern / Mobilfunk',
+    ])
+
+    const company = screen.getByLabelText('Firma')
+    const companyList = document.getElementById(company.getAttribute('list') ?? '')
+    expect([...(companyList?.querySelectorAll('option') ?? [])].map((o) => o.value)).toEqual([
+      'Deutsche Telekom',
+    ])
+
+    // Kein Zwang zur Auswahl: ein neuer Wert bleibt stehen.
+    await user.type(team, 'Etwas ganz Neues')
+    expect(team).toHaveValue('Etwas ganz Neues')
+  })
+})
+
+describe('StammdatenCard — ungespeicherte Änderungen', () => {
+  it('fragt beim Verlassen nach; „Zurück“ bleibt mit Entwurf, „Verwerfen“ geht', async () => {
+    renderCard()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    await user.type(screen.getByLabelText('Firma'), 'Neue Firma AG')
+
+    await user.click(screen.getByRole('link', { name: 'Übersicht' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Ungespeicherte Änderungen' })
+    expect(currentLocation()).toBe('/contacts/c1')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Zurück' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(currentLocation()).toBe('/contacts/c1')
+    expect(screen.getByLabelText('Firma')).toHaveValue('Neue Firma AG')
+
+    await user.click(screen.getByRole('link', { name: 'Übersicht' }))
+    const again = await screen.findByRole('dialog', { name: 'Ungespeicherte Änderungen' })
+    await user.click(within(again).getByRole('button', { name: 'Verwerfen' }))
+    await waitFor(() => expect(currentLocation()).toBe('/dashboard'))
+  })
+
+  it('speichert aus der Rückfrage heraus und navigiert dann weiter', async () => {
+    const { onSave } = renderCard()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    await user.type(screen.getByLabelText('Firma'), 'Neue Firma AG')
+
+    await user.click(screen.getByRole('link', { name: 'Übersicht' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Ungespeicherte Änderungen' })
+    await user.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(currentLocation()).toBe('/dashboard'))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave.mock.calls[0][0].company).toBe('Neue Firma AG')
+  })
+
+  it('fragt nicht nach, wenn im Bearbeiten nichts geändert wurde', async () => {
+    renderCard()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+
+    await user.click(screen.getByRole('link', { name: 'Übersicht' }))
+    await waitFor(() => expect(currentLocation()).toBe('/dashboard'))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
