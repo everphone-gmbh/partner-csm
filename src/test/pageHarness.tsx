@@ -25,7 +25,7 @@
  * bei der Prüfung von Hand mit echtem Token — siehe CLAUDE.md.
  */
 import { type ReactNode } from 'react'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider, useLocation } from 'react-router-dom'
 import { render } from '@testing-library/react'
 import type { AppUser } from '@/domain/types'
 import type { Repository } from '@/data/repository'
@@ -121,14 +121,26 @@ export function renderPage(ui: ReactNode, options: RenderPageOptions = {}) {
     currentUser = picked
   }
 
-  const result = render(
-    <MemoryRouter initialEntries={[options.route ?? '/']}>
-      <ToastProvider>
-        {ui}
-        <LocationProbe />
-      </ToastProvider>
-    </MemoryRouter>,
+  // Daten-Router wie in App.tsx (dort createBrowserRouter): nur er kennt
+  // useBlocker, auf dem die Rückfrage „Ungespeicherte Änderungen" aufbaut — ein
+  // <MemoryRouter> ließe den Wächter im Test abstürzen. Eine einzelne
+  // Splat-Route trägt die Seite; eigene <Routes> im übergebenen `ui` (etwa für
+  // :id-Parameter) funktionieren darunter wie zuvor.
+  const router = createMemoryRouter(
+    [
+      {
+        path: '*',
+        element: (
+          <ToastProvider>
+            {ui}
+            <LocationProbe />
+          </ToastProvider>
+        ),
+      },
+    ],
+    { initialEntries: [options.route ?? '/'] },
   )
+  const result = render(<RouterProvider router={router} />)
 
   return { ...result, repo, user: currentUser }
 }
