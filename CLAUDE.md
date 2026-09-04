@@ -56,7 +56,7 @@ Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
 
 ```bash
-npm test                 # 333 Tests
+npm test                 # 457 Tests
 npx tsc -b --noEmit      # App
 npx tsc -p tsconfig.test.json --noEmit   # Tests (App-Config schließt sie aus)
 npm run build
@@ -82,6 +82,13 @@ navigiert hat.
 Warum die Ersatzmodule: das echte `repositoryProvider` liefert im Mock-Modus
 einen Singleton (Testfälle würden sich die Daten verändern), und der echte
 `SessionProvider` leitet die Rolle aus einer Supabase-Anmeldung ab.
+
+Seit 2026-09-03 läuft die App auf dem **Daten-Router** (`createBrowserRouter` +
+`RouterProvider`, bewusst **ohne** Loader/Actions) — Grundlage für den
+Speichern/Verwerfen-Wächter (`useBlocker` in `useUnsavedChangesGuard`).
+`pageHarness` nutzt entsprechend `createMemoryRouter`. Komponenten, die den
+Wächter einsetzen (`ContactFormPage`, `StammdatenCard`), brauchen im Test
+`renderPage`, kein nacktes `render`.
 
 **Was diese Tests nicht abdecken:** Anmeldung, Rollenherleitung und alles
 Serverseitige — RLS, die redigierenden Views, Storage-Regeln. Dafür bleibt es bei
@@ -172,7 +179,7 @@ Zwei Feinheiten, die leicht falsch gemacht werden:
   aus.
 - Die Typprüfung braucht **beide** Konfigurationen. `tsc -b` prüft `src` ohne
   Tests, weil `tsconfig.app.json` sie ausschließt; `tsconfig.test.json` holt die
-  32 Test- und Testinfrastruktur-Dateien nach — darunter `fakeSupabase.ts`.
+  47 Test- und Testinfrastruktur-Dateien nach — darunter `fakeSupabase.ts`.
 
 **Branch-Schutz auf `main`** (seit 2026-08-03): der Check `test` aus `ci.yml` ist
 Pflicht, Force-Push und Löschen sind gesperrt, eine Review-Pflicht gibt es nicht
