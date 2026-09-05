@@ -274,6 +274,16 @@ prüfen: siehe `CLAUDE.local.md` — dort steht auch, warum ein
     Kontakte und ist kein Vertriebsgebiet. Nie über den Namen erkennen — eine
     Umbenennung hebelt das sonst aus.
 
+12. **Die App lebt auf einem Unterpfad** (`/partner-csm/` auf GitHub Pages).
+    Alles, was Vite nicht selbst umschreibt, muss `import.meta.env.BASE_URL`
+    folgen oder relativ sein: der Service Worker war drei Monate lang unter
+    `/sw.js` registriert (404, vom `.catch(() => {})` verschluckt), das
+    Manifest zeigte mit `start_url: "/"` auf die Domain-Wurzel — „Zum
+    Homescreen" war so nie installierbar. `src/app/pwa.test.ts` pinnt die
+    Pfade. Prüfen wie in der CI: `GITHUB_ACTIONS=1 npm run build` und
+    `partner-csm-pages-preview` (launch.json, Port 4174) — der normale
+    Dev-Server läuft an der Wurzel und zeigt den Fehler nicht.
+
 ## Datenpflege-Skripte
 
 ```bash
