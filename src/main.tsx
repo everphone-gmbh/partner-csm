@@ -15,8 +15,11 @@ createRoot(document.getElementById('root')!).render(
 
 // Register the service worker only in production builds so dev/demo never
 // serves stale content. Enables install-to-home-screen for events.
+// The app is served from a sub-path on GitHub Pages (/partner-csm/), so the
+// worker URL must follow BASE_URL — an absolute '/sw.js' 404s there and the
+// registration silently never happens.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {})
   })
 }

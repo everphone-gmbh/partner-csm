@@ -48,6 +48,10 @@ self.addEventListener('fetch', (event) => {
         }
         return response
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match('/'))),
+      // Offline fallback: the app shell at the worker's scope (e.g. /partner-csm/),
+      // never a hard-coded '/' — the app lives on a sub-path on GitHub Pages.
+      .catch(() =>
+        caches.match(request).then((cached) => cached || caches.match(self.registration.scope)),
+      ),
   )
 })
