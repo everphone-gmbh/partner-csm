@@ -27,6 +27,8 @@ import { FotogalerieCard } from './profile/FotogalerieCard'
 import { NotizCard } from './profile/NotizCard'
 import { TranscriptImportCard } from './TranscriptImportCard'
 import { useFieldSuggestions } from './useFieldSuggestions'
+import { FavoriteToggle } from './FavoriteToggle'
+import { useFavorites } from './useFavorites'
 
 export function ContactProfile() {
   const { id } = useParams()
@@ -37,6 +39,8 @@ export function ContactProfile() {
   // Firma-/Team-Vorschläge für die Stammdaten-Bearbeitung; die Karte selbst
   // bleibt wie regions/users rein über Props versorgt.
   const suggestions = useFieldSuggestions()
+  // Persönlicher Stern (Feedback #6) — jede Rolle sieht nur die eigenen.
+  const favorites = useFavorites(user.id)
 
   const { data, loading, error, retry } = useRepoQuery(
     () =>
@@ -152,6 +156,12 @@ export function ContactProfile() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <FavoriteToggle
+            name={view.fullName}
+            active={favorites.ids.has(view.id)}
+            onToggle={() => void favorites.toggle(view.id)}
+            showLabel
+          />
           {user.role === 'overall_admin' && (
             <button
               type="button"

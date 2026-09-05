@@ -3,7 +3,7 @@
 // tests so mock and Supabase implementations can't drift apart silently.
 
 type Row = Record<string, unknown>
-type Result = { data: unknown; error: { message: string } | null }
+type Result = { data: unknown; error: { message: string; code?: string } | null }
 
 /**
  * Übersetzt ein SQL-LIKE-Muster in einen case-insensitiven RegExp:
@@ -54,7 +54,18 @@ const TABLES = [
   'everphone_accounts',
   'audit_log',
   'org_units',
+  'favorites',
 ] as const
+
+/**
+ * Zusammengesetzte Primärschlüssel, die der Fake wie Postgres durchsetzt: ein
+ * zweites INSERT auf dasselbe Paar liefert 23505 statt einer zweiten Zeile.
+ * Ohne das prüfte die Contract-Suite die Idempotenz von addFavorite nur im
+ * Mock — im Supabase-Zweig sähe der Adapter den Fehler nie (Fallstrick 4).
+ */
+const UNIQUE_KEYS: Record<string, string[]> = {
+  favorites: ['profile_id', 'contact_id'],
+}
 
 /**
  * Lese-Views (Migration 0018) auf ihre Basistabelle abbilden.
@@ -289,6 +300,18 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
 
       if (this.op === 'insert' || this.op === 'upsert') {
         const items = Array.isArray(this.payload) ? this.payload : [this.payload as Row]
+        // Primärschlüssel-Verletzung wie in Postgres: die ganze Anweisung
+        // scheitert, keine Zeile wird geschrieben.
+        const unique = this.op === 'insert' ? UNIQUE_KEYS[this.table] : undefined
+        if (unique && items.some((item) => rows.some((r) => unique.every((c) => r[c] === item[c])))) {
+          return {
+            data: null,
+            error: {
+              message: `duplicate key value violates unique constraint "${this.table}_pkey"`,
+              code: '23505',
+            },
+          }
+        }
         const written = items.map((item) => {
           // Upsert mit Konfliktspalten: vorhandene Zeile ergänzen statt eine
           // zweite anzulegen — sonst prüft die Contract-Suite Upsert-Methoden
@@ -354,7 +377,8 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
         // Emulate the schema's ON DELETE CASCADE from contacts.
         if (this.table === 'contacts') {
           const ids = new Set(removed.map((r) => r.id))
-          for (const child of ['side_facts', 'contact_photos', 'contact_customers', 'reminders', 'event_attendees'] as const) {
+          // favorites.contact_id ON DELETE CASCADE (0031) — die Sterne aller Nutzer gehen mit.
+          for (const child of ['side_facts', 'contact_photos', 'contact_customers', 'reminders', 'event_attendees', 'favorites'] as const) {
             tables[child] = tables[child].filter((r) => !ids.has(r.contact_id))
           }
           tables.contact_links = tables.contact_links.filter(

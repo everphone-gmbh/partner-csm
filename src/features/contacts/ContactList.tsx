@@ -15,6 +15,8 @@ import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { Input } from '@/components/ui/input'
 import { buttonVariants } from '@/components/ui/button'
 import { GermanyMap } from './GermanyMap'
+import { FavoriteToggle } from './FavoriteToggle'
+import { useFavorites } from './useFavorites'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -50,6 +52,9 @@ export function ContactList() {
   // Kontaktkopf („← Team …“) aus. Feedback #8a/#9.
   const regionFilter = searchParams.get('region')
   const teamFilter = searchParams.get('team') ?? ''
+  // Persönliche Arbeitsliste (Feedback #6) — ebenfalls in der Adresse, damit
+  // „meine Favoriten“ als Lesezeichen taugt.
+  const favoritesOnly = searchParams.get('favorites') === '1'
   const setParam = (key: string, value: string | null) =>
     setSearchParams(
       (prev) => {
@@ -74,6 +79,8 @@ export function ContactList() {
   const [bulkManager, setBulkManager] = useState('')
   const [applying, setApplying] = useState(false)
   const { toast } = useToast()
+  // Vor der Kontaktabfrage, damit die Sterne mit den Zeilen geladen sind.
+  const favorites = useFavorites(user.id)
 
   const { data, loading, error, retry } = useRepoQuery(
     () =>
@@ -134,6 +141,7 @@ export function ContactList() {
     if (regionFilter) list = list.filter((c) => c.regionId === regionFilter)
     if (companyFilter) list = list.filter((c) => c.company === companyFilter)
     if (teamFilter) list = list.filter((c) => c.team === teamFilter)
+    if (favoritesOnly) list = list.filter((c) => favorites.ids.has(c.id))
     if (onlyUnassigned) list = list.filter((c) => isUnassigned(c, regions))
     const term = q.trim().toLowerCase()
     if (term) {
@@ -155,6 +163,8 @@ export function ContactList() {
     regionFilter,
     companyFilter,
     teamFilter,
+    favoritesOnly,
+    favorites.ids,
     onlyUnassigned,
     regions,
     sortMode,
@@ -175,10 +185,17 @@ export function ContactList() {
       label: `Region: ${regions.find((r) => r.id === regionFilter)?.name ?? regionFilter}`,
     })
   if (teamFilter) activeChips.push({ key: 'team', label: `Team: ${teamFilter}` })
+  if (favoritesOnly) activeChips.push({ key: 'favorites', label: 'Favoriten' })
 
   const unassignedCount = useMemo(
     () => roleScoped.filter((c) => isUnassigned(c, regions)).length,
     [roleScoped, regions],
+  )
+  // Gezählt wird im sichtbaren Bereich: ein Account Manager sieht nur die Sterne
+  // auf Kontakten seiner Region, auch wenn er einmal andere markiert hat.
+  const favoriteCount = useMemo(
+    () => roleScoped.filter((c) => favorites.ids.has(c.id)).length,
+    [roleScoped, favorites.ids],
   )
 
   const toggleOne = (id: string) =>
@@ -344,6 +361,18 @@ export function ContactList() {
         )}
       </div>
 
+      {/* Für jede Rolle — Favoriten sind persönlich, kein Bearbeitungsrecht nötig. */}
+      {viewMode === 'list' && (
+        <div className="flex flex-wrap gap-1.5">
+          <FilterChip
+            active={favoritesOnly}
+            onClick={() => setParam('favorites', favoritesOnly ? null : '1')}
+          >
+            Favoriten ({favoriteCount})
+          </FilterChip>
+        </div>
+      )}
+
       {!isAccountManager && (
         <div className="flex flex-wrap gap-1.5">
           <FilterChip active={regionFilter === null} onClick={() => setRegionFilter(null)}>
@@ -498,6 +527,12 @@ export function ContactList() {
                   className="size-4 shrink-0 accent-primary"
                 />
               )}
+              {/* Gleiche Regel wie das Kästchen: eigener Knopf neben dem Link. */}
+              <FavoriteToggle
+                name={c.fullName}
+                active={favorites.ids.has(c.id)}
+                onToggle={() => void favorites.toggle(c.id)}
+              />
               <Link to={`/contacts/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar src={c.photoUrl} name={c.fullName} className="size-11" />
                 <div className="min-w-0 flex-1">

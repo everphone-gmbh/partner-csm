@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 
 // Muss vor den Importen stehen (vi.mock wird hochgezogen): die Seite bekommt ein
@@ -47,5 +48,28 @@ describe('ContactProfile — Kopfzeile', () => {
     await screen.findByRole('link', { name: 'Alle Kontakte' })
     expect(screen.queryByRole('link', { name: 'Neuer Kontakt' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Bearbeiten' })).toBeNull()
+  })
+})
+
+describe('ContactProfile — Favorit', () => {
+  it('zeigt jeder Rolle den Stern und speichert ihn für den angemeldeten Nutzer', async () => {
+    // Bewusst als Account Manager: der Stern hängt nicht am Bearbeitungsrecht.
+    const { repo, user } = renderProfile('c-sandra', 'account_manager')
+
+    const star = await screen.findByRole('button', { name: 'Sandra Vogel als Favorit markieren' })
+    expect(star).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.click(star)
+    expect(
+      await screen.findByRole('button', { name: 'Sandra Vogel aus Favoriten entfernen' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(async () => expect(await repo.listFavorites(user.id)).toEqual(['c-sandra']))
+
+    // Und wieder zurück: Stern weg, Eintrag weg.
+    await userEvent.click(screen.getByRole('button', { name: 'Sandra Vogel aus Favoriten entfernen' }))
+    expect(
+      await screen.findByRole('button', { name: 'Sandra Vogel als Favorit markieren' }),
+    ).toHaveAttribute('aria-pressed', 'false')
+    await waitFor(async () => expect(await repo.listFavorites(user.id)).toEqual([]))
   })
 })

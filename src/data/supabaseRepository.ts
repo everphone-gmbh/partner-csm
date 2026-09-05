@@ -1169,6 +1169,44 @@ export class SupabaseRepository implements Repository {
     return ((data ?? []) as unknown as OrgUnitRow[]).map(mapRowToOrgUnit)
   }
 
+  async listFavorites(profileId: string): Promise<string[]> {
+    // RLS (favorites_select, 0031) liefert ohnehin nur eigene Zeilen; der Filter
+    // macht die Absicht explizit und hält Mock und Adapter gleich.
+    const { data, error } = await this.client
+      .from('favorites')
+      .select('contact_id')
+      .eq('profile_id', profileId)
+    if (error) throw new Error(error.message)
+    // Set statt roher Liste: Postgres verhindert Dubletten per Primärschlüssel,
+    // aber die Oberfläche soll auch dann nicht doppelt zählen, wenn ein Client
+    // sie anders liefert.
+    return [...new Set(((data ?? []) as { contact_id: string }[]).map((r) => r.contact_id))]
+  }
+
+  async addFavorite(profileId: string, contactId: string): Promise<void> {
+    // Der Adapter liest die Anmeldung nicht selbst (wie authorId in addActivity):
+    // die Oberfläche reicht die eigene ID herein, die Policy favorites_insert
+    // (0031) weist jede fremde ab.
+    //
+    // KEIN upsert — der Adapter kennt bewusst keines mehr (CLAUDE.md, Fallstrick
+    // 1). Zwei schnelle Klicks auf denselben Stern erzeugen stattdessen einen
+    // 23505 (unique_violation) auf dem Primärschlüssel: kein Fehler, der Stern
+    // ist gesetzt.
+    const { error } = await this.client
+      .from('favorites')
+      .insert({ profile_id: profileId, contact_id: contactId })
+    if (error && error.code !== '23505') throw new Error(error.message)
+  }
+
+  async removeFavorite(profileId: string, contactId: string): Promise<void> {
+    const { error } = await this.client
+      .from('favorites')
+      .delete()
+      .eq('profile_id', profileId)
+      .eq('contact_id', contactId)
+    if (error) throw new Error(error.message)
+  }
+
   async matchEverphoneAccounts(customerNames: string[]): Promise<EverphoneAccount[]> {
     const keys = [...new Set(customerNames.map(normalizeCompanyName).filter(Boolean))]
     if (keys.length === 0) return []

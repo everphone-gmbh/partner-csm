@@ -293,4 +293,13 @@ export interface Repository {
   listAuditLog(limit?: number): Promise<AuditEntry[]>
   /** Soll-Organisationsstruktur der Partner — Maßstab der Abdeckungsanalyse. */
   listOrgUnits(): Promise<OrgUnit[]>
+
+  // Favoriten (Migration 0031) sind persönlich: jede Zeile gehört genau einem
+  // Profil. Die Oberfläche reicht die eigene Nutzer-ID herein (wie authorId in
+  // addActivity); die Datenbank erzwingt per RLS, dass sie zur Anmeldung passt.
+  /** Kontakt-IDs, die dieser Nutzer markiert hat (Migration 0031; RLS: nur eigene Zeilen). */
+  listFavorites(profileId: string): Promise<string[]>
+  /** Idempotent: doppeltes Markieren ist kein Fehler. */
+  addFavorite(profileId: string, contactId: string): Promise<void>
+  removeFavorite(profileId: string, contactId: string): Promise<void>
 }

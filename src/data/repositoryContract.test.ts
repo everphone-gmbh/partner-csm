@@ -865,5 +865,66 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         expect((await repo.getContact(a.id))?.regionId).toBe('r-1')
       })
     })
+
+    describe('Favoriten', () => {
+      // Die Trennung nach Nutzer prüft hier der Adapter über profile_id; dass ein
+      // Nutzer fremde profile_ids gar nicht schreiben oder lesen kann, erzwingt
+      // erst die RLS (0031) — und die bildet der Fake nicht ab (Fallstrick 4).
+      const OTHER = 'profiles-other'
+
+      it('markiert einen Kontakt und listet ihn für denselben Nutzer', async () => {
+        const c = await repo.createContact(BASE)
+        expect(await repo.listFavorites(VERIFIER.id)).toEqual([])
+
+        await repo.addFavorite(VERIFIER.id, c.id)
+        expect(await repo.listFavorites(VERIFIER.id)).toEqual([c.id])
+      })
+
+      it('doppeltes Markieren ist kein Fehler und zählt den Kontakt nur einmal', async () => {
+        // Zwei schnelle Klicks: Postgres antwortet mit 23505 (Primärschlüssel),
+        // der Adapter wertet das als Erfolg — der Stern ist ja gesetzt.
+        const c = await repo.createContact(BASE)
+        await repo.addFavorite(VERIFIER.id, c.id)
+        await expect(repo.addFavorite(VERIFIER.id, c.id)).resolves.toBeUndefined()
+        expect(await repo.listFavorites(VERIFIER.id)).toEqual([c.id])
+      })
+
+      it('entfernt genau die eine Markierung wieder', async () => {
+        const a = await repo.createContact(BASE)
+        const b = await repo.createContact({ ...BASE, fullName: 'Zweite Person' })
+        await repo.addFavorite(VERIFIER.id, a.id)
+        await repo.addFavorite(VERIFIER.id, b.id)
+
+        await repo.removeFavorite(VERIFIER.id, a.id)
+        expect(await repo.listFavorites(VERIFIER.id)).toEqual([b.id])
+        // Entfernen ohne Markierung ist ebenfalls kein Fehler.
+        await expect(repo.removeFavorite(VERIFIER.id, a.id)).resolves.toBeUndefined()
+        expect(await repo.listFavorites(VERIFIER.id)).toEqual([b.id])
+      })
+
+      it('zeigt jedem Nutzer nur die eigenen Sterne', async () => {
+        const c = await repo.createContact(BASE)
+        await repo.addFavorite(VERIFIER.id, c.id)
+        expect(await repo.listFavorites(OTHER)).toEqual([])
+
+        await repo.addFavorite(OTHER, c.id)
+        expect(await repo.listFavorites(OTHER)).toEqual([c.id])
+
+        await repo.removeFavorite(OTHER, c.id)
+        // Der Stern des ersten Nutzers bleibt vom Entfernen des zweiten unberührt.
+        expect(await repo.listFavorites(OTHER)).toEqual([])
+        expect(await repo.listFavorites(VERIFIER.id)).toEqual([c.id])
+      })
+
+      it('verliert die Markierung mit dem Kontakt (Kaskade, Recht auf Vergessen)', async () => {
+        const c = await repo.createContact(BASE)
+        const other = await repo.createContact({ ...BASE, fullName: 'Zweite Person' })
+        await repo.addFavorite(VERIFIER.id, c.id)
+        await repo.addFavorite(VERIFIER.id, other.id)
+
+        await repo.deleteContact(c.id)
+        expect(await repo.listFavorites(VERIFIER.id)).toEqual([other.id])
+      })
+    })
   })
 }
