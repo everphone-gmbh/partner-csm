@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { ExtractionSuggestion, ExtractionTarget } from './extraction'
 
-export const TARGET_LABEL: Record<ExtractionTarget, string> = {
+const TARGET_LABEL: Record<ExtractionTarget, string> = {
   birthday: 'Geburtstag',
   location: 'Wohnort',
   familyStatus: 'Familienstand',

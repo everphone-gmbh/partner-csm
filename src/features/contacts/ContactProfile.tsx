@@ -245,6 +245,9 @@ export function ContactProfile() {
           entries={historyEntries}
           error={historyQ.error}
           onReload={historyQ.retry}
+          // Sprachmemo → Fakten-Vorschlag → Karte (Feedback #7), gleicher
+          // Speicherweg wie alle Karten.
+          onApplyFacts={save}
         />
       </div>
     </div>
