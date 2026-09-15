@@ -68,6 +68,9 @@ class MockRepository implements Repository {
   private links = clone(seedContactLinks)
   private introRequests = clone(seedIntroRequests)
   private orgUnits: OrgUnit[] = clone(seedOrgUnits)
+  // Favoriten sind pro Nutzer (Migration 0031); der Mock hält sie wie die
+  // Tabelle als (profileId, contactId)-Paare.
+  private favorites: { profileId: string; contactId: string }[] = []
   private seq = 1
   // Im Mock von Hand geführt; produktiv schreiben DB-Trigger (Migration 0019).
   private auditLog: AuditEntry[] = []
@@ -197,6 +200,8 @@ class MockRepository implements Repository {
     this.attendees = this.attendees.filter((a) => a.contactId !== id)
     this.links = this.links.filter((l) => l.fromContactId !== id && l.toContactId !== id)
     this.eventNotes = this.eventNotes.filter((n) => n.contactId !== id)
+    // favorites.contact_id ON DELETE CASCADE (0031): die Sterne aller Nutzer gehen mit.
+    this.favorites = this.favorites.filter((f) => f.contactId !== id)
     // event_guests.promoted_contact_id ist ON DELETE SET NULL: der Gast bleibt als
     // Messe-Historie erhalten, verliert aber den Verweis auf den gelöschten Kontakt.
     this.guests = this.guests.map((g) =>
@@ -435,6 +440,22 @@ class MockRepository implements Repository {
 
   async listOrgUnits() {
     return clone(this.orgUnits)
+  }
+
+  async listFavorites(profileId: string) {
+    return this.favorites.filter((f) => f.profileId === profileId).map((f) => f.contactId)
+  }
+
+  async addFavorite(profileId: string, contactId: string) {
+    // Idempotent wie der zusammengesetzte Primärschlüssel in Postgres (0031).
+    if (this.favorites.some((f) => f.profileId === profileId && f.contactId === contactId)) return
+    this.favorites.push({ profileId, contactId })
+  }
+
+  async removeFavorite(profileId: string, contactId: string) {
+    this.favorites = this.favorites.filter(
+      (f) => !(f.profileId === profileId && f.contactId === contactId),
+    )
   }
 
   async matchEverphoneAccounts(customerNames: string[]) {

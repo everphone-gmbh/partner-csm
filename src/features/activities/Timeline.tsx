@@ -1,12 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, History, Paperclip, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, History, Paperclip, Plus, Sparkles, Trash2 } from 'lucide-react'
 import type { Activity, ActivityType, Contact, Reminder, SentimentEntry } from '@/domain/types'
+import type { ContactPatch } from '@/data/repository'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
-import { canViewActivityBody } from '@/domain/roles'
+import { VoiceRecorder } from '@/components/VoiceRecorder'
+import { canApprove, canViewActivityBody } from '@/domain/roles'
+import {
+  autoExtractAvailable,
+  extractViaServer,
+  transcribeViaServer,
+} from '@/features/contacts/transcript/autoExtract'
+import {
+  parseSuggestions,
+  planApply,
+  type ExtractionSuggestion,
+} from '@/features/contacts/transcript/extraction'
+import { SuggestionReview, type ApplyResult } from '@/features/contacts/transcript/SuggestionReview'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -67,11 +80,18 @@ export function Timeline({
   entries,
   error,
   onReload,
+  onApplyFacts,
 }: {
   contact: Contact
   entries: TimelineEntry[]
   error?: Error
   onReload: () => void
+  /**
+   * Übernimmt aus einer Notiz vorgeschlagene Fakten auf die Karte (Feedback #7).
+   * Ohne diese Funktion gibt es den Vorschlags-Knopf nicht; ContactProfile
+   * reicht sein `save` herein.
+   */
+  onApplyFacts?: (patch: ContactPatch) => Promise<void>
 }) {
   const { user } = useSession()
   const canBody = canViewActivityBody(user.role)
@@ -126,7 +146,7 @@ export function Timeline({
             }}
           />
         )}
-        <AddActivityForm contactId={contact.id} onAdded={onReload} />
+        <AddActivityForm contact={contact} onAdded={onReload} onApplyFacts={onApplyFacts} />
 
         <Separator />
 
@@ -211,12 +231,38 @@ export function Timeline({
   )
 }
 
-function AddActivityForm({ contactId, onAdded }: { contactId: string; onAdded: () => void }) {
+/** Unter so vielen Zeichen gibt es nichts zu belegen — der Vorschlags-Knopf bleibt aus. */
+const MIN_FACTS_CHARS = 20
+
+function AddActivityForm({
+  contact,
+  onAdded,
+  onApplyFacts,
+}: {
+  contact: Contact
+  onAdded: () => void
+  onApplyFacts?: (patch: ContactPatch) => Promise<void>
+}) {
   const { user } = useSession()
   const { toast } = useToast()
   const [type, setType] = useState<ActivityType>('note')
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Sprachmemo + Fakten-Vorschlag (Feedback #7): nur mit erreichbarem
+  // KI-Endpoint (im Demo-Modus nie) und nur für RM+ — die Edge Functions
+  // verlangen die Rolle serverseitig, Account Manager sähen sonst Knöpfe, die
+  // in einem 403 enden. Meldet der Endpoint not_configured, verschwinden die
+  // Knöpfe für diese Sitzung, statt bei jedem Klick erneut zu scheitern.
+  const [endpointMissing, setEndpointMissing] = useState(false)
+  const showMemo = autoExtractAvailable() && canApprove(user.role) && !endpointMissing
+  const [transcribing, setTranscribing] = useState(false)
+  const [extracting, setExtracting] = useState(false)
+  const [suggestions, setSuggestions] = useState<ExtractionSuggestion[] | null>(null)
+  const [approved, setApproved] = useState<Set<string>>(() => new Set())
+  const [applying, setApplying] = useState(false)
+  const [result, setResult] = useState<ApplyResult | null>(null)
+  const busy = saving || transcribing || extracting || applying
 
   const submit = async () => {
     const text = body.trim()
@@ -224,13 +270,15 @@ function AddActivityForm({ contactId, onAdded }: { contactId: string; onAdded: (
     setSaving(true)
     try {
       await repository.addActivity({
-        contactId,
+        contactId: contact.id,
         type,
         occurredAt: new Date().toISOString(),
         authorId: user.id,
         authorName: user.name,
         body: text,
       })
+      // Nur das Feld leeren — eine offene Vorschlagsliste bleibt stehen, sie
+      // gehört zur Karte, nicht zur gespeicherten Notiz.
       setBody('')
       onAdded()
     } catch (err) {
@@ -238,6 +286,85 @@ function AddActivityForm({ contactId, onAdded }: { contactId: string; onAdded: (
     } finally {
       setSaving(false)
     }
+  }
+
+  const notConfigured = () => {
+    toast('KI-Endpoint ist noch nicht freigeschaltet.')
+    setEndpointMissing(true)
+  }
+
+  // Sprachnotiz NACH dem Gespräch (kein Mitschnitt): Audio → transcribe-memo →
+  // Text landet im Eingabefeld und wird über den normalen Weg als Notiz
+  // gespeichert. Das Audio wird nirgends abgelegt.
+  const transcribeMemo = async (audio: Blob) => {
+    setTranscribing(true)
+    try {
+      const r = await transcribeViaServer(audio)
+      if (!r.ok) {
+        if (r.notConfigured) notConfigured()
+        else toast(r.error ?? 'Transkription fehlgeschlagen.')
+        return
+      }
+      const text = r.transcript ?? ''
+      // Anhängen, nicht ersetzen: was schon getippt ist, bleibt.
+      setBody((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${text}` : text))
+    } finally {
+      setTranscribing(false)
+    }
+  }
+
+  const suggestFacts = async () => {
+    const text = body.trim()
+    if (text.length < MIN_FACTS_CHARS) return
+    setExtracting(true)
+    try {
+      const r = await extractViaServer(text, contact.fullName)
+      if (!r.ok) {
+        if (r.notConfigured) notConfigured()
+        else toast(r.error ?? 'KI-Aufruf fehlgeschlagen.')
+        return
+      }
+      const parsed = parseSuggestions(r.raw ?? '')
+      if (!parsed.ok) {
+        toast(parsed.error ?? 'Die Antwort konnte nicht gelesen werden.')
+        return
+      }
+      // Wie in der Transkript-Karte: alles Nicht-Gesperrte ist vorausgewählt.
+      setSuggestions(parsed.suggestions)
+      setApproved(new Set(parsed.suggestions.filter((s) => !s.blocked).map((s) => s.id)))
+      setResult(null)
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  const toggleApproved = (id: string) =>
+    setApproved((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const applyFacts = async () => {
+    if (!suggestions || !onApplyFacts) return
+    const chosen = suggestions.filter((s) => approved.has(s.id) && !s.blocked)
+    const plan = planApply(contact, chosen)
+    setApplying(true)
+    try {
+      if (plan.applied > 0) await onApplyFacts(plan.patch)
+      setResult({ applied: plan.applied, skipped: plan.skipped })
+      setSuggestions(null)
+    } catch {
+      // onApplyFacts (ContactProfile.save) zeigt bereits einen Toast — Liste offen lassen.
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  const closeReview = () => {
+    setSuggestions(null)
+    setResult(null)
   }
 
   return (
@@ -273,12 +400,63 @@ function AddActivityForm({ contactId, onAdded }: { contactId: string; onAdded: (
         rows={3}
         placeholder="Was ist passiert? Beliebig lang — eine KI-Zusammenfassung wird automatisch erzeugt."
       />
+      {showMemo && (
+        <div className="flex flex-wrap items-center gap-2">
+          <VoiceRecorder label="Sprachmemo" onRecorded={(audio) => void transcribeMemo(audio)} />
+          {transcribing && (
+            <span role="status" className="text-xs text-muted-foreground">
+              Transkribiere …
+            </span>
+          )}
+          {/*
+            Rechts, solange Platz ist, sonst eigene Zeile (flex-wrap + ml-auto).
+            max-w-full und whitespace-normal lassen die Beschriftung im Knopf
+            umbrechen, statt aus der ~320px schmalen Karte zu laufen.
+          */}
+          {onApplyFacts && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={suggestFacts}
+              disabled={body.trim().length < MIN_FACTS_CHARS || busy}
+              className="ml-auto h-auto min-h-9 max-w-full whitespace-normal py-1.5"
+            >
+              <Sparkles className="size-4" />
+              {extracting ? 'Analysiere …' : 'Fakten für die Karte vorschlagen'}
+            </Button>
+          )}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">wird als {user.name} gespeichert</span>
         <Button size="sm" onClick={submit} disabled={!body.trim() || saving}>
           {saving ? 'Speichern…' : 'Eintrag speichern'}
         </Button>
       </div>
+      {(suggestions || result) && (
+        <div className="space-y-2 border-t border-border pt-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Vorschläge für die Karte
+          </p>
+          <SuggestionReview
+            suggestions={suggestions ?? []}
+            approved={approved}
+            onToggle={toggleApproved}
+            onApply={applyFacts}
+            applying={applying}
+            result={result}
+          >
+            <button
+              type="button"
+              onClick={closeReview}
+              className="text-xs text-muted-foreground underline hover:text-foreground"
+            >
+              Schließen
+            </button>
+          </SuggestionReview>
+        </div>
+      )}
     </div>
   )
 }

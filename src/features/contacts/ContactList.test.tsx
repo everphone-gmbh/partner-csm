@@ -152,3 +152,54 @@ describe('ContactList — Filter über die Adresse (Region/Team)', () => {
     expect(screen.getByRole('link', { name: /Julia Hoffmann/ })).toBeInTheDocument()
   })
 })
+
+describe('ContactList — Favoriten', () => {
+  it('setzt den Stern ohne zu navigieren, speichert ihn für den Nutzer und filtert danach', async () => {
+    const { repo, user } = renderPage(<ContactList />, { route: '/contacts' })
+
+    const star = await screen.findByRole('button', { name: 'Anke Richter als Favorit markieren' })
+    expect(star).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Favoriten (0)' })).toBeInTheDocument()
+
+    await userEvent.click(star)
+
+    // Kein Sprung zum Profil — der Stern steht neben dem Link, nicht darin.
+    expect(currentLocation()).toBe('/contacts')
+    expect(
+      await screen.findByRole('button', { name: 'Anke Richter aus Favoriten entfernen' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(async () => expect(await repo.listFavorites(user.id)).toEqual(['c-anke']))
+
+    // Der Filter-Knopf zählt mit, schreibt ?favorites=1 und zeigt nur Markierte.
+    await userEvent.click(screen.getByRole('button', { name: 'Favoriten (1)' }))
+    await waitFor(() => expect(currentLocation()).toBe('/contacts?favorites=1'))
+    expect(screen.getByText(/1 von 8 Kontakten/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Anke Richter/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Thomas Berger/ })).toBeNull()
+  })
+
+  it('?favorites=1 filtert vor; ✕ am Chip entfernt den Parameter', async () => {
+    renderPage(<ContactList />, { route: '/contacts?favorites=1' })
+
+    // Frisches Repository: noch keine Sterne.
+    expect(await screen.findByText(/0 von 8 Kontakten/)).toBeInTheDocument()
+    expect(screen.getByText('Keine Kontakte gefunden.')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filter „Favoriten“ entfernen' }))
+    expect(await screen.findByText(/8 von 8 Kontakten/)).toBeInTheDocument()
+    expect(currentLocation()).toBe('/contacts')
+  })
+
+  it('bietet den Stern auch Account Managern an', async () => {
+    // Favoriten sind persönlich — kein Bearbeitungsrecht nötig. Mehmet (West)
+    // sieht Sandra Vogel.
+    const { repo, user } = renderPage(<ContactList />, { route: '/contacts', as: 'account_manager' })
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Sandra Vogel als Favorit markieren' }),
+    )
+
+    await waitFor(async () => expect(await repo.listFavorites(user.id)).toEqual(['c-sandra']))
+    expect(screen.getByRole('button', { name: 'Favoriten (1)' })).toBeInTheDocument()
+  })
+})
