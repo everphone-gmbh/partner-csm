@@ -1,7 +1,15 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import { IdentityCard } from './IdentityCard'
+import { fileStore } from '@/lib/fileStore'
 import type { Contact } from '@/domain/types'
+
+// jsdom kann kein Canvas — das Verkleinern wird ersetzt, damit der Upload-Pfad
+// der Karte überhaupt testbar ist.
+vi.mock('@/lib/image', () => ({
+  fileToResizedBlob: vi.fn().mockResolvedValue(new Blob(['x'], { type: 'image/jpeg' })),
+  fileToResizedDataUrl: vi.fn().mockResolvedValue('data:image/jpeg;base64,zz'),
+}))
 
 const PHOTO = 'data:image/png;base64,iVBORw0KGgo='
 
@@ -87,5 +95,69 @@ describe('IdentityCard — Foto-Lightbox (Tier 3)', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+/*
+ * Ein einmal hinterlegtes Kontaktfoto ließ sich nicht mehr entfernen, nur
+ * überschreiben — und die überschriebene Datei blieb im Bucket liegen. Beides
+ * ist hier festgenagelt: der Knopf existiert, und die alte Datei verschwindet.
+ */
+describe('IdentityCard — Kontaktfoto entfernen und ersetzen', () => {
+  const STORED = 'storage:contact-avatars/c1/alt.jpg'
+  const REMOVE_LABEL = 'Foto von Test Person entfernen'
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('bietet keinen Entfernen-Knopf an, wenn kein Foto hinterlegt ist', () => {
+    renderCard()
+    expect(screen.queryByRole('button', { name: /Foto von .* entfernen/ })).not.toBeInTheDocument()
+  })
+
+  it('bietet Rollen ohne Bearbeitungsrecht keinen Entfernen-Knopf an', () => {
+    renderCard({ contact: { ...contact, photoUrl: PHOTO }, canEdit: false })
+    expect(screen.queryByRole('button', { name: /Foto von .* entfernen/ })).not.toBeInTheDocument()
+  })
+
+  it('löscht nach Rückfrage den Eintrag und die Bilddatei', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const removeFile = vi.spyOn(fileStore, 'remove').mockResolvedValue(undefined)
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    renderCard({ contact: { ...contact, photoUrl: STORED }, onSave })
+
+    fireEvent.click(screen.getByRole('button', { name: REMOVE_LABEL }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ photoUrl: null }))
+    await waitFor(() => expect(removeFile).toHaveBeenCalledWith(STORED))
+  })
+
+  it('lässt das Foto stehen, wenn die Rückfrage abgelehnt wird', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const removeFile = vi.spyOn(fileStore, 'remove').mockResolvedValue(undefined)
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    renderCard({ contact: { ...contact, photoUrl: STORED }, onSave })
+
+    fireEvent.click(screen.getByRole('button', { name: REMOVE_LABEL }))
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(removeFile).not.toHaveBeenCalled()
+  })
+
+  it('räumt beim Ersetzen die alte Bilddatei weg', async () => {
+    const NEU = 'storage:contact-avatars/c1/neu.jpg'
+    vi.spyOn(fileStore, 'upload').mockResolvedValue(NEU)
+    const removeFile = vi.spyOn(fileStore, 'remove').mockResolvedValue(undefined)
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const { container } = renderCard({ contact: { ...contact, photoUrl: STORED }, onSave })
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['x'], 'foto.jpg', { type: 'image/jpeg' })] },
+    })
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ photoUrl: NEU }))
+    await waitFor(() => expect(removeFile).toHaveBeenCalledWith(STORED))
   })
 })

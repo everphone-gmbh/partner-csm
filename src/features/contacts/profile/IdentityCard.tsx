@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { isBlank } from '@/domain/placeholders'
 import { EditableAvatar } from '@/components/EditableAvatar'
+import { fileStore } from '@/lib/fileStore'
 import { useFileUrl } from '@/lib/useFileUrl'
 import { telHref } from './shared'
 import { TrafficLightBadge, TrafficLightDot, TrafficLightPicker } from '@/components/TrafficLight'
@@ -73,6 +74,30 @@ export function IdentityCard({
     void onSave({ sentiment: value, sentimentHistory: history })
   }
 
+  /*
+   * Kontaktfoto: ersetzen UND entfernen, und in beiden Fällen die alte Datei
+   * wegräumen. Vorher blieb sie im Bucket liegen — ein Personenfoto, das die
+   * App nicht mehr zeigt, das aber weiter existiert (DSGVO, Recht auf
+   * Löschung). Reihenfolge wie in der Fotogalerie: erst speichern, dann die
+   * Datei löschen. Scheitert das Speichern, bleibt lieber das Bild stehen als
+   * ein Eintrag ohne Datei zurückzubleiben.
+   */
+  const replacePhoto = async (ref: string) => {
+    const previous = contact.photoUrl
+    await onSave({ photoUrl: ref })
+    if (previous && previous !== ref) await fileStore.remove(previous).catch(() => undefined)
+  }
+
+  const removePhoto = async () => {
+    const previous = contact.photoUrl
+    if (!previous) return
+    if (!window.confirm(`Foto von ${contact.fullName} entfernen? Die Bilddatei wird gelöscht.`)) {
+      return
+    }
+    await onSave({ photoUrl: null })
+    await fileStore.remove(previous).catch(() => undefined)
+  }
+
   // Tier 3: the photo is clickable to open a larger view. Resolve the stored
   // reference here (same hook the avatar uses) so the lightbox gets a real URL
   // and the trigger only appears when there actually is a photo.
@@ -91,7 +116,8 @@ export function IdentityCard({
               name={contact.fullName}
               folder={contact.id}
               editable={canEdit}
-              onChange={(ref) => onSave({ photoUrl: ref })}
+              onChange={replacePhoto}
+              onRemove={removePhoto}
               className="rounded-full ring-4 ring-card"
             />
             {photoUrl && (

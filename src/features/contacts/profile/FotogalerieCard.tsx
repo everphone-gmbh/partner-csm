@@ -41,7 +41,15 @@ export function FotogalerieCard({
   }
   const remove = async (photoId: string) => {
     const photo = gallery.find((p) => p.id === photoId)
-    await onSave({ gallery: gallery.filter((p) => p.id !== photoId) })
+    // Rückfrage, seit der Knopf dauerhaft sichtbar ist: auf dem Tablet sitzt er
+    // dicht am Bild, und ein Fehlgriff wäre nicht rückgängig zu machen.
+    if (!window.confirm('Dieses Foto entfernen? Die Bilddatei wird gelöscht.')) return
+    try {
+      await onSave({ gallery: gallery.filter((p) => p.id !== photoId) })
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      return
+    }
     // Datei erst nach erfolgreichem Speichern löschen, damit bei einem Fehler
     // kein Eintrag ohne Bild zurückbleibt. Verwaiste Dateien wären schlimmer:
     // Personenfotos, die niemand mehr sieht, aber weiter existieren.
@@ -91,9 +99,13 @@ export function FotogalerieCard({
                     type="button"
                     onClick={() => remove(p.id)}
                     aria-label="Foto entfernen"
-                    className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5 text-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                    // Dauerhaft sichtbar statt nur beim Überfahren: auf Tablet
+                    // und Handy gibt es kein Hover, dort war der Knopf bisher
+                    // unauffindbar — und damit das Löschen faktisch unmöglich.
+                    // 24px statt 16px, sonst ist er mit dem Finger nicht zu treffen.
+                    className="absolute right-1 top-1 rounded-full bg-card/90 p-1 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground"
                   >
-                    <X className="size-3" />
+                    <X className="size-4" />
                   </button>
                 )}
               </div>

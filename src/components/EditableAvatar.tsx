@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react'
-import { Camera } from 'lucide-react'
+import { Camera, Trash2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { fileToResizedBlob } from '@/lib/image'
 import { fileStore } from '@/lib/fileStore'
@@ -13,6 +13,7 @@ export function EditableAvatar({
   folder,
   editable = true,
   onChange,
+  onRemove,
   onError,
   className,
 }: {
@@ -23,7 +24,12 @@ export function EditableAvatar({
   folder: string
   editable?: boolean
   /** Erhält die zu speichernde Referenz (Storage-Pfad oder Data-URL). */
-  onChange: (ref: string) => void
+  onChange: (ref: string) => void | Promise<void>
+  /**
+   * Entfernt das vorhandene Foto ersatzlos. Ohne diese Funktion gibt es keinen
+   * Entfernen-Knopf — Aufrufer ohne Löschrecht lassen sie einfach weg.
+   */
+  onRemove?: () => void | Promise<void>
   onError?: (message: string) => void
   className?: string
 }) {
@@ -44,12 +50,26 @@ export function EditableAvatar({
     setBusy(true)
     try {
       const blob = await fileToResizedBlob(file)
-      onChange(await fileStore.upload('contact-avatars', folder, blob))
+      // Awaiten: der Aufrufer speichert und räumt das alte Bild weg. Ohne das
+      // Warten wäre der Knopf schon wieder aktiv, während beides noch läuft.
+      await onChange(await fileStore.upload('contact-avatars', folder, blob))
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Foto konnte nicht gespeichert werden')
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  const handleRemove = async () => {
+    if (!onRemove) return
+    setBusy(true)
+    try {
+      await onRemove()
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Foto konnte nicht entfernt werden')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -67,6 +87,20 @@ export function EditableAvatar({
       >
         <Camera className="size-3.5" />
       </button>
+      {src && onRemove && (
+        <button
+          type="button"
+          onClick={() => void handleRemove()}
+          disabled={busy}
+          aria-label={`Foto von ${name} entfernen`}
+          title="Foto entfernen"
+          // Dauerhaft sichtbar, nicht erst beim Überfahren: auf Tablet und Handy
+          // gibt es kein Hover, dort wäre der Knopf sonst unauffindbar.
+          className="absolute -right-1 -top-1 z-10 flex size-7 items-center justify-center rounded-full border-2 border-background bg-card text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:opacity-60"
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      )}
       <input
         ref={inputRef}
         type="file"

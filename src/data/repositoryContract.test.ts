@@ -110,6 +110,14 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.photoUrl).toBe('data:image/jpeg;x')
     })
 
+    it('clears photoUrl with null so a contact photo can be removed again', async () => {
+      const c = await repo.createContact(BASE)
+      await repo.updateContact(c.id, { photoUrl: 'storage:contact-avatars/x/a.jpg' })
+      await repo.updateContact(c.id, { photoUrl: null })
+      const read = await repo.getContact(c.id)
+      expect(read?.photoUrl ?? null).toBeNull()
+    })
+
     it('clears an optional field when the patch key is present but undefined', async () => {
       const c = await repo.createContact({ ...BASE, team: 'Altes Team', email: 'alt@example.com' })
       await repo.updateContact(c.id, { team: undefined, email: undefined })
