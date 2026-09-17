@@ -1282,6 +1282,84 @@ export class SupabaseRepository implements Repository {
     return mapRowToEventNote(data as unknown as EventNoteRow)
   }
 
+  async deleteEventNote(id: string): Promise<void> {
+    // Anhänge VOR dem Löschen auslesen — danach ist die Zeile weg und mit ihr
+    // der einzige Verweis auf die Dateien. Gleicher Ablauf wie die
+    // Notiz-Aufräumung in deleteContact.
+    const { data: before, error: readError } = await this.client
+      .from('event_notes')
+      .select('attachments')
+      .eq('id', id)
+      .maybeSingle()
+    if (readError) throw new Error(readError.message)
+
+    const { error } = await this.client.from('event_notes').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+
+    // Ein von der Policy gefiltertes DELETE trifft 0 Zeilen und meldet KEINEN
+    // Fehler (derselbe Fallstrick wie beim Platzhalter in deleteRegion).
+    // Deshalb nachlesen: steht die Notiz noch, war es eine Ablehnung — dann
+    // bleiben auch die Dateien liegen, sonst hinge die Notiz sichtbar mit
+    // kaputten Bildern da.
+    const { data: after, error: checkError } = await this.client
+      .from('event_notes')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+    if (checkError) throw new Error(checkError.message)
+    if (after) throw new Error('Diese Notiz darf nur der Verfasser oder ein Relationship Manager löschen.')
+
+    // Erst jetzt die Dateien, best effort: die Zeile ist bereits weg, ein
+    // Fehler in der Ablage darf das nicht nachträglich zum Misserfolg machen.
+    const { fileStore } = await import('@/lib/fileStore')
+    const list = Array.isArray((before as { attachments?: unknown } | null)?.attachments)
+      ? ((before as { attachments: unknown[] }).attachments)
+      : []
+    for (const entry of list) {
+      const ref = (entry as { url?: unknown })?.url
+      // remove() lässt Data-URLs und externe Links unangetastet.
+      if (typeof ref === 'string' && ref) await fileStore.remove(ref).catch(() => undefined)
+    }
+  }
+
+  async removeEventNoteAttachment(noteId: string, attachmentId: string): Promise<EventNote> {
+    const { data: current, error: readError } = await this.client
+      .from('event_notes')
+      .select(NOTE_SELECT)
+      .eq('id', noteId)
+      .maybeSingle()
+    if (readError) throw new Error(readError.message)
+    if (!current) throw new Error('Notiz nicht gefunden.')
+    const note = mapRowToEventNote(current as unknown as EventNoteRow)
+
+    const removed = note.attachments.find((a) => a.id === attachmentId)
+    // Unbekannte ID: nichts zu tun. Kein Schreibzugriff, keine Datei angefasst.
+    if (!removed) return note
+    const remaining = note.attachments.filter((a) => a.id !== attachmentId)
+
+    // UPDATE-dann-Neulesen, KEIN upsert — der schriebe die ganze Zeile und
+    // nullte Text, Zuordnung und Zeitstempel (Fallstrick 1). Die zurückgegebene
+    // Zeile ist zugleich die Probe: filtert `event_notes_update` das UPDATE
+    // weg, kommen 0 Zeilen und KEIN Fehler.
+    const { data: updated, error } = await this.client
+      .from('event_notes')
+      .update({ attachments: remaining })
+      .eq('id', noteId)
+      .select(NOTE_SELECT)
+    if (error) throw new Error(error.message)
+    const rows = (updated ?? []) as unknown as EventNoteRow[]
+    if (rows.length === 0) {
+      throw new Error('Diesen Anhang darf nur der Verfasser oder ein Relationship Manager löschen.')
+    }
+
+    // Datei erst nach dem erfolgreichen Schreiben entfernen, best effort.
+    if (removed.url) {
+      const { fileStore } = await import('@/lib/fileStore')
+      await fileStore.remove(removed.url).catch(() => undefined)
+    }
+    return mapRowToEventNote(rows[0])
+  }
+
   async listEventGuests(eventId: string): Promise<EventGuest[]> {
     const { data, error } = await this.client
       .from('event_guests')

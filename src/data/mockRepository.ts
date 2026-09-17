@@ -501,6 +501,27 @@ class MockRepository implements Repository {
     return clone(note)
   }
 
+  async deleteEventNote(id: string) {
+    // Keine Rechteprüfung: im Demo-Modus gibt es keine Sitzung, und die echte
+    // Entscheidung trifft ohnehin die Policy `event_notes_delete`. Eine
+    // unbekannte ID ist wie im Supabase-Zweig ein stiller Nicht-Treffer.
+    this.eventNotes = this.eventNotes.filter((n) => n.id !== id)
+  }
+
+  async removeEventNoteAttachment(noteId: string, attachmentId: string) {
+    const idx = this.eventNotes.findIndex((n) => n.id === noteId)
+    if (idx < 0) throw new Error(`event note ${noteId} not found`)
+    // Unbekannte Anhang-ID lässt die Notiz unverändert — gleiche Zusage wie im
+    // Supabase-Zweig. Die Dateien liegen hier als Data-URL in der Notiz selbst,
+    // ein Aufräumen in der Ablage gibt es im Mock deshalb nicht.
+    const next = {
+      ...this.eventNotes[idx],
+      attachments: this.eventNotes[idx].attachments.filter((a) => a.id !== attachmentId),
+    }
+    this.eventNotes[idx] = next
+    return clone(next)
+  }
+
   async listEventGuests(eventId: string) {
     return clone(this.guests.filter((g) => g.eventId === eventId))
   }

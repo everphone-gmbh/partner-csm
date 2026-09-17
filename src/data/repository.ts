@@ -267,6 +267,30 @@ export interface Repository {
   removeAttendee(eventId: string, contactId: string): Promise<void>
   listEventNotes(eventId: string): Promise<EventNote[]>
   addEventNote(input: NewEventNote): Promise<EventNote>
+  /**
+   * Löscht eine Notiz samt ihrer Anhänge. Serverseitig erlaubt für RM+ und den
+   * Verfasser (Policy `event_notes_delete`, Migration 0008:
+   * `is_privileged() OR author_id = auth.uid()`).
+   *
+   * Reihenfolge: erst die Zeile, dann die Dateien. Verweigert die Policy das
+   * Löschen, behält die Notiz ihre Bilder, statt mit toten Verweisen
+   * dazustehen. Weil ein von der Policy gefiltertes DELETE 0 Zeilen trifft und
+   * dabei KEINEN Fehler meldet, wird danach nachgelesen — wie in
+   * `deleteRegion`.
+   */
+  deleteEventNote(id: string): Promise<void>
+  /**
+   * Entfernt einen einzelnen Anhang aus einer gespeicherten Notiz.
+   *
+   * Dieselben Rechte wie das Löschen, hier über die Policy
+   * `event_notes_update` (0008) und die Storage-Regel `note_media_delete`
+   * (`is_privileged() OR owner = auth.uid()`). Geschrieben wird per
+   * UPDATE-dann-Neulesen, nie per upsert (Fallstrick 1).
+   *
+   * Eine unbekannte Anhang-ID ist KEIN Fehler: die Notiz kommt unverändert
+   * zurück, und es wird keine Datei angefasst.
+   */
+  removeEventNoteAttachment(noteId: string, attachmentId: string): Promise<EventNote>
   /** Unbekannte Gäste eines Events (Migration 0028). */
   listEventGuests(eventId: string): Promise<EventGuest[]>
   addEventGuest(input: NewEventGuest): Promise<EventGuest>

@@ -404,6 +404,71 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect((await repo.listEventNotes(ev.id)).map((n) => n.text)).toEqual(['Allgemeine Standnotiz'])
     })
 
+    it('löscht eine Event-Notiz samt ihrer Anhänge', async () => {
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      const note = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Versehentlich erfasst',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [{ id: 'att-weg', kind: 'image', url: 'data:image/png;base64,AAA' }],
+      })
+      const bleibt = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Bleibt stehen',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [],
+      })
+
+      await repo.deleteEventNote(note.id)
+
+      // Genau eine Notiz verschwindet, die andere bleibt unangetastet.
+      expect((await repo.listEventNotes(ev.id)).map((n) => n.id)).toEqual([bleibt.id])
+    })
+
+    it('entfernt einen einzelnen Anhang und lässt die übrigen stehen', async () => {
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      const note = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Zwei Bilder',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [
+          { id: 'att-1', kind: 'image', url: 'data:image/png;base64,AAA', name: 'eins.png' },
+          { id: 'att-2', kind: 'image', url: 'data:image/png;base64,BBB', name: 'zwei.png' },
+        ],
+      })
+
+      const updated = await repo.removeEventNoteAttachment(note.id, 'att-1')
+
+      // Der Rückgabewert und der gespeicherte Stand müssen dasselbe sagen —
+      // sonst zeigt die Oberfläche etwas anderes an als die Datenbank hält.
+      expect(updated.attachments.map((a) => a.id)).toEqual(['att-2'])
+      const [read] = await repo.listEventNotes(ev.id)
+      expect(read.attachments.map((a) => a.id)).toEqual(['att-2'])
+      // Der Text der Notiz überlebt das Teil-Update (kein upsert, Fallstrick 1).
+      expect(read.text).toBe('Zwei Bilder')
+    })
+
+    it('lässt die Notiz unverändert, wenn die Anhang-ID unbekannt ist', async () => {
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      const note = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Ein Bild',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [{ id: 'att-1', kind: 'image', url: 'data:image/png;base64,AAA' }],
+      })
+
+      // Zugesagtes Verhalten: kein Fehler, sondern die unveränderte Notiz.
+      const updated = await repo.removeEventNoteAttachment(note.id, 'gibt-es-nicht')
+
+      expect(updated.attachments.map((a) => a.id)).toEqual(['att-1'])
+      const [read] = await repo.listEventNotes(ev.id)
+      expect(read.attachments.map((a) => a.id)).toEqual(['att-1'])
+    })
+
     it('creates, resolves and deletes intro requests (Hilfe-Board)', async () => {
       const req = await repo.addIntroRequest({
         text: 'Brauche einen Draht zum Einkauf Region Süd',
