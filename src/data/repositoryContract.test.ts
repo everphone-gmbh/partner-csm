@@ -354,6 +354,22 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect((await repo.getContact(c.id))?.buyingRole).toBeUndefined()
     })
 
+    it('gibt die Verfasser-ID einer Event-Notiz zurück, nicht nur den Namen', async () => {
+      // Ohne die ID kann die Oberfläche nicht entscheiden, wer löschen darf —
+      // `authorName` ist freier Text und laut Migration 0008 fälschbar.
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      const created = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Wer hat das geschrieben?',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [],
+      })
+      expect(created.authorId).toBe(VERIFIER.id)
+      const [read] = await repo.listEventNotes(ev.id)
+      expect(read.authorId).toBe(VERIFIER.id)
+    })
+
     it('round-trips the contact assignment on event notes and cascades on erasure', async () => {
       const c = await repo.createContact(BASE)
       const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
@@ -361,6 +377,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         eventId: ev.id,
         text: 'Gutes Gespräch am Stand',
         authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
         attachments: [],
         contactId: c.id,
       })
@@ -380,6 +397,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         eventId: ev.id,
         text: 'Allgemeine Standnotiz',
         authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
         attachments: [],
       })
       await repo.deleteContact(c.id)
@@ -705,6 +723,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
           eventId: ev.id,
           text: 'Interessant für Rahmenvertrag',
           authorName: VERIFIER.full_name,
+          authorId: VERIFIER.id,
           attachments: [],
           guestId: guest.id,
         })
@@ -726,6 +745,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
           eventId: ev.id,
           text: 'Sollte echter Kontakt werden',
           authorName: VERIFIER.full_name,
+          authorId: VERIFIER.id,
           attachments: [],
           guestId: guest.id,
         })
@@ -755,6 +775,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
           eventId: ev.id,
           text: 'Notiz zum Gast',
           authorName: VERIFIER.full_name,
+          authorId: VERIFIER.id,
           attachments: [],
           guestId: guest.id,
         })

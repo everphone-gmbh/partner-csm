@@ -103,6 +103,7 @@ export function EventNotes({
         eventId,
         text: text.trim(),
         authorName: user.name,
+        authorId: user.id,
         attachments: pending,
         contactId: selectedContactId || undefined,
         guestId: selectedGuestId || undefined,

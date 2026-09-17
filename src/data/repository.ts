@@ -157,6 +157,16 @@ export interface NewEventNote {
   eventId: string
   text: string
   authorName: string
+  /**
+   * Profil-ID des Verfassers — Pflichtangabe, kein Freitext.
+   *
+   * Der Adapter liest die Sitzung bewusst NICHT selbst aus (genau wie
+   * `addActivity`): die Oberfläche liefert die ID, und die Insert-Policy
+   * `event_notes_insert` (`author_id = auth.uid()`) weist serverseitig ab, was
+   * nicht zur Sitzung passt. Ohne dieses Feld ließe sich später nicht
+   * entscheiden, wer die Notiz wieder löschen darf.
+   */
+  authorId: string
   attachments: NoteAttachment[]
   /** Ziel der Notiz: entweder ein bestehender Kontakt … */
   contactId?: string

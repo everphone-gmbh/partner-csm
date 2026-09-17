@@ -491,6 +491,7 @@ class MockRepository implements Repository {
       eventId: input.eventId,
       text: input.text,
       authorName: input.authorName,
+      authorId: input.authorId,
       createdAt: nowIso(),
       attachments: input.attachments,
       contactId: input.contactId,

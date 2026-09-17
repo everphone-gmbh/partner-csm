@@ -421,11 +421,20 @@ export function mapRowToReminder(row: ReminderRow): Reminder {
   }
 }
 
+/**
+ * Eine Stelle für die Spaltenliste — vier Abfragen lesen Notizen (Liste,
+ * Anlegen, Anhang entfernen, Löschprüfung). Als Literal nebeneinander hätte ein
+ * neues Feld leicht nur in der Hälfte davon gelandet.
+ */
+const NOTE_SELECT =
+  'id, event_id, text, author_name, author_id, attachments, created_at, contact_id, guest_id'
+
 export interface EventNoteRow {
   id: string
   event_id: string
   text: string
   author_name: string
+  author_id: string
   attachments: NoteAttachment[] | null
   created_at: string
   contact_id: string | null
@@ -524,6 +533,7 @@ export function mapRowToEventNote(row: EventNoteRow): EventNote {
     eventId: row.event_id,
     text: row.text,
     authorName: row.author_name,
+    authorId: row.author_id,
     createdAt: row.created_at,
     attachments: row.attachments ?? [],
     contactId: row.contact_id ?? undefined,
@@ -1242,7 +1252,7 @@ export class SupabaseRepository implements Repository {
   async listEventNotes(eventId: string): Promise<EventNote[]> {
     const { data, error } = await this.client
       .from('event_notes')
-      .select('id, event_id, text, author_name, attachments, created_at, contact_id, guest_id')
+      .select(NOTE_SELECT)
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -1256,11 +1266,17 @@ export class SupabaseRepository implements Repository {
         event_id: input.eventId,
         text: input.text,
         author_name: input.authorName,
+        // Der Adapter liest die Sitzung nicht selbst aus — wie addActivity
+        // bekommt er die ID von der Oberfläche. Durchsetzen muss es ohnehin der
+        // Server: die Policy `event_notes_insert` (`author_id = auth.uid()`)
+        // weist ein INSERT mit fremder ID ab, eine Prüfung im Client wäre nur
+        // Kosmetik.
+        author_id: input.authorId,
         attachments: input.attachments,
         contact_id: input.contactId ?? null,
         guest_id: input.guestId ?? null,
       })
-      .select('id, event_id, text, author_name, attachments, created_at, contact_id, guest_id')
+      .select(NOTE_SELECT)
       .single()
     if (error) throw new Error(error.message)
     return mapRowToEventNote(data as unknown as EventNoteRow)
