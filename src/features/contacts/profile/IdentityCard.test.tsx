@@ -35,11 +35,13 @@ function renderCard(overrides: Partial<Parameters<typeof IdentityCard>[0]> = {})
     <IdentityCard
       contact={contact}
       canEdit
+      canEditPhoto
       regionName="Nord"
       managerName="Alex"
       viewerId="u1"
       viewerName="Alex"
       onSave={vi.fn().mockResolvedValue(undefined)}
+      onSavePhoto={vi.fn().mockResolvedValue(undefined)}
       {...overrides}
     />,
   )
@@ -102,10 +104,14 @@ describe('IdentityCard — Foto-Lightbox (Tier 3)', () => {
  * Ein einmal hinterlegtes Kontaktfoto ließ sich nicht mehr entfernen, nur
  * überschreiben — und die überschriebene Datei blieb im Bucket liegen. Beides
  * ist hier festgenagelt: der Knopf existiert, und die alte Datei verschwindet.
+ *
+ * Gespeichert wird seit 2026-09-17 über `onSavePhoto`, nicht über `onSave`:
+ * das Foto darf jede Rolle pflegen, der Rest der Karte bleibt bei RM+.
  */
 describe('IdentityCard — Kontaktfoto entfernen und ersetzen', () => {
   const STORED = 'storage:contact-avatars/c1/alt.jpg'
   const REMOVE_LABEL = 'Foto von Test Person entfernen'
+  const CAMERA_LABEL = 'Foto aufnehmen oder hochladen'
 
   afterEach(() => {
     vi.restoreAllMocks()
@@ -116,32 +122,55 @@ describe('IdentityCard — Kontaktfoto entfernen und ersetzen', () => {
     expect(screen.queryByRole('button', { name: /Foto von .* entfernen/ })).not.toBeInTheDocument()
   })
 
-  it('bietet Rollen ohne Bearbeitungsrecht keinen Entfernen-Knopf an', () => {
-    renderCard({ contact: { ...contact, photoUrl: PHOTO }, canEdit: false })
+  it('bietet ohne Fotorecht weder Kamera noch Entfernen-Knopf an', () => {
+    // canEditPhoto ist die Schranke fürs Foto — nicht mehr canEdit.
+    renderCard({ contact: { ...contact, photoUrl: PHOTO }, canEditPhoto: false })
+    expect(screen.queryByRole('button', { name: CAMERA_LABEL })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Foto von .* entfernen/ })).not.toBeInTheDocument()
+  })
+
+  /*
+   * Der Kern der Änderung: ein Account Manager darf das Foto pflegen, obwohl er
+   * am Kontakt sonst nichts bearbeiten darf. Ginge das Foto weiter über canEdit,
+   * fiele genau dieser Fall wieder hinten runter.
+   */
+  it('zeigt Kamera und Entfernen auch ohne canEdit, den Rest der Karte aber nicht', () => {
+    renderCard({
+      contact: { ...contact, photoUrl: PHOTO, linkedin: { status: 'has_account', url: 'https://x' } },
+      canEdit: false,
+      canEditPhoto: true,
+    })
+
+    expect(screen.getByRole('button', { name: CAMERA_LABEL })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: REMOVE_LABEL })).toBeInTheDocument()
+
+    // Alles andere bleibt zu: keine Beziehungs-Ampel zum Klicken, kein
+    // LinkedIn-Stift — die stehen weiter hinter canEdit.
+    expect(screen.queryByRole('button', { name: 'Positiv' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'LinkedIn bearbeiten' })).not.toBeInTheDocument()
   })
 
   it('löscht nach Rückfrage den Eintrag und die Bilddatei', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const removeFile = vi.spyOn(fileStore, 'remove').mockResolvedValue(undefined)
-    const onSave = vi.fn().mockResolvedValue(undefined)
-    renderCard({ contact: { ...contact, photoUrl: STORED }, onSave })
+    const onSavePhoto = vi.fn().mockResolvedValue(undefined)
+    renderCard({ contact: { ...contact, photoUrl: STORED }, onSavePhoto })
 
     fireEvent.click(screen.getByRole('button', { name: REMOVE_LABEL }))
 
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ photoUrl: null }))
+    await waitFor(() => expect(onSavePhoto).toHaveBeenCalledWith(null))
     await waitFor(() => expect(removeFile).toHaveBeenCalledWith(STORED))
   })
 
   it('lässt das Foto stehen, wenn die Rückfrage abgelehnt wird', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false)
     const removeFile = vi.spyOn(fileStore, 'remove').mockResolvedValue(undefined)
-    const onSave = vi.fn().mockResolvedValue(undefined)
-    renderCard({ contact: { ...contact, photoUrl: STORED }, onSave })
+    const onSavePhoto = vi.fn().mockResolvedValue(undefined)
+    renderCard({ contact: { ...contact, photoUrl: STORED }, onSavePhoto })
 
     fireEvent.click(screen.getByRole('button', { name: REMOVE_LABEL }))
 
-    expect(onSave).not.toHaveBeenCalled()
+    expect(onSavePhoto).not.toHaveBeenCalled()
     expect(removeFile).not.toHaveBeenCalled()
   })
 
@@ -149,15 +178,15 @@ describe('IdentityCard — Kontaktfoto entfernen und ersetzen', () => {
     const NEU = 'storage:contact-avatars/c1/neu.jpg'
     vi.spyOn(fileStore, 'upload').mockResolvedValue(NEU)
     const removeFile = vi.spyOn(fileStore, 'remove').mockResolvedValue(undefined)
-    const onSave = vi.fn().mockResolvedValue(undefined)
-    const { container } = renderCard({ contact: { ...contact, photoUrl: STORED }, onSave })
+    const onSavePhoto = vi.fn().mockResolvedValue(undefined)
+    const { container } = renderCard({ contact: { ...contact, photoUrl: STORED }, onSavePhoto })
 
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, {
       target: { files: [new File(['x'], 'foto.jpg', { type: 'image/jpeg' })] },
     })
 
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ photoUrl: NEU }))
+    await waitFor(() => expect(onSavePhoto).toHaveBeenCalledWith(NEU))
     await waitFor(() => expect(removeFile).toHaveBeenCalledWith(STORED))
   })
 })

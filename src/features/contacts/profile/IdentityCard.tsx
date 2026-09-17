@@ -49,15 +49,24 @@ function LinkedInButton({ url, contactName }: { url?: string; contactName: strin
 export function IdentityCard({
   contact,
   canEdit,
+  canEditPhoto,
   regionName,
   regionIsPlaceholder,
   managerName,
   viewerId,
   viewerName,
   onSave,
+  onSavePhoto,
 }: {
   contact: Contact
+  /** Alles ausser dem Foto: Name, Position, Beziehungs-Ampel, LinkedIn (RM+). */
   canEdit: boolean
+  /**
+   * Nur das Kontaktfoto. Bewusst getrennt von `canEdit`: das Foto darf jede
+   * Rolle pflegen, die den Kontakt sieht (Entscheidung 2026-09-17,
+   * serverseitig Migration 0032).
+   */
+  canEditPhoto: boolean
   regionName?: string
   /** Kennzeichnet „Unbekannt“ & Co. als Platzhalter statt als echtes Gebiet. */
   regionIsPlaceholder?: boolean
@@ -65,6 +74,8 @@ export function IdentityCard({
   viewerId: string
   viewerName: string
   onSave: (patch: ContactPatch) => Promise<void>
+  /** Eigener Speicherweg fürs Foto — `null` entfernt es. */
+  onSavePhoto: (photoUrl: string | null) => Promise<void>
 }) {
   const rateSentiment = (value: TrafficLight) => {
     const history: SentimentEntry[] = [
@@ -81,10 +92,13 @@ export function IdentityCard({
    * Löschung). Reihenfolge wie in der Fotogalerie: erst speichern, dann die
    * Datei löschen. Scheitert das Speichern, bleibt lieber das Bild stehen als
    * ein Eintrag ohne Datei zurückzubleiben.
+   *
+   * Gespeichert wird über `onSavePhoto`, nicht über `onSave`: das Foto nimmt
+   * seit Migration 0032 einen eigenen Weg, damit es jede Rolle pflegen kann.
    */
   const replacePhoto = async (ref: string) => {
     const previous = contact.photoUrl
-    await onSave({ photoUrl: ref })
+    await onSavePhoto(ref)
     if (previous && previous !== ref) await fileStore.remove(previous).catch(() => undefined)
   }
 
@@ -94,7 +108,7 @@ export function IdentityCard({
     if (!window.confirm(`Foto von ${contact.fullName} entfernen? Die Bilddatei wird gelöscht.`)) {
       return
     }
-    await onSave({ photoUrl: null })
+    await onSavePhoto(null)
     await fileStore.remove(previous).catch(() => undefined)
   }
 
@@ -115,7 +129,7 @@ export function IdentityCard({
               src={contact.photoUrl}
               name={contact.fullName}
               folder={contact.id}
-              editable={canEdit}
+              editable={canEditPhoto}
               onChange={replacePhoto}
               onRemove={removePhoto}
               className="rounded-full ring-4 ring-card"

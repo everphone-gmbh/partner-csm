@@ -8,7 +8,12 @@ import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
-import { canApprove, canViewSensitiveFields, redactContactForRole } from '@/domain/roles'
+import {
+  canApprove,
+  canManageContactPhoto,
+  canViewSensitiveFields,
+  redactContactForRole,
+} from '@/domain/roles'
 import { isPlaceholderRegion } from '@/domain/placeholders'
 import { localSummarizer } from '@/domain/ai'
 import { Card, CardContent } from '@/components/ui/card'
@@ -58,6 +63,9 @@ export function ContactProfile() {
   }, [data])
 
   const canEdit = canApprove(user.role)
+  // Das Kontaktfoto hängt NICHT an canEdit: wer den Kontakt sieht, darf sein
+  // Foto pflegen (Entscheidung 2026-09-17, serverseitig Migration 0032).
+  const canEditPhoto = canManageContactPhoto()
   const canSensitive = canViewSensitiveFields(user.role)
   const view = useMemo(
     () => (raw ? redactContactForRole(raw, user.role) : undefined),
@@ -94,6 +102,22 @@ export function ContactProfile() {
     } catch (err) {
       toast(saveErrorMessage(err))
       throw err // keep the card in edit mode so nothing typed is lost
+    }
+  }
+
+  /**
+   * Eigener Speicherweg fürs Kontaktfoto, sonst wie `save`. Nicht über
+   * `updateContact`, weil dessen Policy serverseitig bei RM+ bleibt — ein
+   * Account Manager bekäme dort keine Änderung durch (Migration 0032).
+   */
+  const savePhoto = async (photoUrl: string | null) => {
+    if (!raw) return
+    try {
+      const updated = await repository.setContactPhoto(raw.id, photoUrl)
+      setRaw(updated)
+    } catch (err) {
+      toast(saveErrorMessage(err))
+      throw err // die Karte darf den Erfolg nicht annehmen und nichts wegräumen
     }
   }
 
@@ -193,12 +217,14 @@ export function ContactProfile() {
       <IdentityCard
         contact={view}
         canEdit={canEdit}
+        canEditPhoto={canEditPhoto}
         regionName={regionName}
         regionIsPlaceholder={isPlaceholderRegion(view.regionId, regions)}
         managerName={managerName}
         viewerId={user.id}
         viewerName={user.name}
         onSave={save}
+        onSavePhoto={savePhoto}
       />
 
       {/* AI summary — pinned prominently at the top */}
