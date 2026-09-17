@@ -48,6 +48,9 @@ const ReportPage = lazy(() =>
 const BoardPage = lazy(() =>
   import('@/features/board/BoardPage').then((m) => ({ default: m.BoardPage })),
 )
+const TeamPage = lazy(() =>
+  import('@/features/team/TeamPage').then((m) => ({ default: m.TeamPage })),
+)
 
 /**
  * Pfadlose Layout-Route: alles, was früher innerhalb von <BrowserRouter> lag
@@ -98,6 +101,7 @@ const router = createBrowserRouter(
       <Route path="/coverage" element={<CoveragePage />} />
       <Route path="/account" element={<AccountPage />} />
       <Route path="/board" element={<BoardPage />} />
+      <Route path="/team" element={<TeamPage />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Route>,
   ),

@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Target, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Target, UserCog, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
 import { useDueReminderCount } from '@/app/useDueReminders'
-import { canViewAnalytics, ROLE_LABEL } from '@/domain/roles'
+import { canManageTeam, canViewAnalytics, ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -23,6 +23,12 @@ function useNavItems() {
     items.push({ to: '/coverage', label: 'Abdeckung', icon: Target })
     items.push({ to: '/report', label: 'Bericht', icon: FileText })
     items.push({ to: '/monitoring', label: 'Monitoring', icon: BarChart3 })
+  }
+  // Rollen und Regionen vergeben — eigenes Prädikat, bewusst nicht
+  // canViewAnalytics: Auswertungen SEHEN und Rechte VERGEBEN sind zwei Fragen
+  // (siehe roles.ts). Serverseitig hält die Policy profiles_update (0033).
+  if (canManageTeam(user.role)) {
+    items.push({ to: '/team', label: 'Team', icon: UserCog })
   }
   return items
 }
