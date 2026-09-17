@@ -221,6 +221,12 @@ export interface Repository {
   getContact(id: string): Promise<Contact | undefined>
   createContact(input: NewContact): Promise<Contact>
   updateContact(id: string, patch: ContactPatch): Promise<Contact>
+  /**
+   * Setzt oder entfernt (null) das Kontaktfoto. Eigener Weg statt updateContact,
+   * weil das Foto jede Rolle pflegen darf, updateContact aber bei RM+ bleibt
+   * (Migration 0032).
+   */
+  setContactPhoto(contactId: string, photoUrl: string | null): Promise<Contact>
   /** GDPR right to erasure: removes the contact and (via cascade) all
    * dependent personal data — activities, side facts, photos, reminders,
    * event attendance. Admin-gated in the UI and by RLS (0008). */

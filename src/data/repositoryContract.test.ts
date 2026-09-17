@@ -507,6 +507,57 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.sideFacts.map((f) => f.label)).toEqual(['Golf'])
     })
 
+    describe('Kontaktfoto (setContactPhoto)', () => {
+      // Eigener Weg neben updateContact, weil das Foto jede Rolle pflegen darf,
+      // updateContact aber bei RM+ bleibt (Migration 0032). Im Supabase-Zweig
+      // läuft er über die Datenbankfunktion set_contact_photo.
+      it('setzt eine Bildreferenz und liest sie zurück', async () => {
+        const c = await repo.createContact(BASE)
+        const ref = `storage:contact-avatars/${c.id}/foto.jpg`
+
+        const returned = await repo.setContactPhoto(c.id, ref)
+        expect(returned.photoUrl).toBe(ref)
+        expect((await repo.getContact(c.id))?.photoUrl).toBe(ref)
+      })
+
+      it('entfernt das Foto mit null wieder', async () => {
+        const c = await repo.createContact(BASE)
+        await repo.setContactPhoto(c.id, `storage:contact-avatars/${c.id}/foto.jpg`)
+
+        const returned = await repo.setContactPhoto(c.id, null)
+        expect(returned.photoUrl ?? null).toBeNull()
+        expect((await repo.getContact(c.id))?.photoUrl ?? null).toBeNull()
+      })
+
+      it('verweigert eine Referenz außerhalb des Kontaktordners (Pfadkonvention)', async () => {
+        const a = await repo.createContact(BASE)
+        const b = await repo.createContact({ ...BASE, fullName: 'Zweite Person' })
+        const fremd = `storage:contact-avatars/${b.id}/foto.jpg`
+
+        if (name === 'SupabaseRepository') {
+          // set_contact_photo wirft 22023 — sonst ließe sich ein fremdes Bild
+          // oder eine externe URL unterschieben, die der Browser nachlädt
+          // (Fallstrick 3: die Pfadkonvention ist sicherheitsrelevant).
+          await expect(repo.setContactPhoto(a.id, fremd)).rejects.toThrow()
+          expect((await repo.getContact(a.id))?.photoUrl ?? null).toBeNull()
+        } else {
+          // Der Mock prüft das bewusst NICHT: im Demo-Modus legt der fileStore
+          // Data-URLs (`data:image/…`) ab, eine Pfadprüfung würde also genau den
+          // Weg blockieren, den die Demo nimmt. Durchgesetzt wird die Konvention
+          // dort, wo sie zählt — in der Datenbank.
+          await expect(repo.setContactPhoto(a.id, fremd)).resolves.toMatchObject({
+            photoUrl: fremd,
+          })
+        }
+      })
+
+      it('meldet einen unbekannten Kontakt als Fehler', async () => {
+        // Supabase: 42501 aus set_contact_photo — „nicht sichtbar" und „gibt es
+        // nicht" sind für den Aufrufer dasselbe.
+        await expect(repo.setContactPhoto('c-gibt-es-nicht', null)).rejects.toThrow()
+      })
+    })
+
     describe('Regionen-Selbstverwaltung', () => {
       it('legt eine Region an — taucht in listRegions auf, kein Platzhalter', async () => {
         const created = await repo.createRegion('  Südwest  ')

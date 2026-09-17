@@ -181,6 +181,40 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     })
   }
 
+  /**
+   * Datenbankfunktionen (PostgREST `rpc`). Bis Migration 0032 kam die App ohne
+   * aus; seitdem geht das Kontaktfoto über `set_contact_photo`, weil es jede
+   * Rolle pflegen darf, `contacts_update` aber bei RM+ bleibt. Ohne Nachbildung
+   * prüfte der Supabase-Zweig der Contract-Suite den Adapter gar nicht mehr
+   * (Fallstrick 4).
+   */
+  function callRpc(fn: string, args: Row): Result {
+    if (fn !== 'set_contact_photo') {
+      return { data: null, error: { message: `fakeSupabase: unknown function ${fn}` } }
+    }
+    const id = String(args.p_contact_id ?? '')
+    const url = (args.p_photo_url ?? null) as string | null
+    const row = tables.contacts.find((r) => r.id === id)
+    // Nachbildung von can_see_contact(): der Fake kennt keine Rollen, und für
+    // den Aufrufer sieht „nicht sichtbar" genauso aus wie „gibt es nicht" — die
+    // Funktion wirft in beiden Fällen 42501.
+    if (!row) {
+      return { data: null, error: { message: 'Kein Zugriff auf diesen Kontakt', code: '42501' } }
+    }
+    // Pfadkonvention aus Fallstrick 3, in der Funktion als LIKE formuliert.
+    if (url !== null && !url.startsWith(`storage:contact-avatars/${id}/`)) {
+      return {
+        data: null,
+        error: { message: 'Ungültige Bildreferenz für diesen Kontakt', code: '22023' },
+      }
+    }
+    const before = { ...row }
+    row.photo_url = url
+    // Der Audit-Trigger (0019) feuert auch in einer SECURITY-DEFINER-Funktion.
+    writeAudit('contacts', 'update', { photo_url: url, id }, before)
+    return { data: null, error: null } // returns void
+  }
+
   class Builder implements PromiseLike<Result> {
     private op: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select'
     private selectCols = '*'
@@ -459,6 +493,9 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
   return {
     from(table: string) {
       return new Builder(table)
+    },
+    async rpc(fn: string, args: Row = {}): Promise<Result> {
+      return callRpc(fn, args)
     },
     /** Test helper: peek at raw table contents. */
     _tables: tables,

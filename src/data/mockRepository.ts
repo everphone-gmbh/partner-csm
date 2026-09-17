@@ -191,6 +191,27 @@ class MockRepository implements Repository {
     return clone(this.contacts[idx])
   }
 
+  /**
+   * Kontaktfoto setzen oder entfernen. Produktiv läuft das über die Funktion
+   * `set_contact_photo` (Migration 0032), damit auch Account Manager es dürfen;
+   * hier genügt das Setzen der Spalte.
+   *
+   * Die Pfadkonvention `storage:contact-avatars/<id>/…` prüft der Mock bewusst
+   * NICHT: im Demo-Modus liefert der fileStore Data-URLs (`data:image/…`), eine
+   * Prüfung würde also genau den Weg blockieren, den die Demo nimmt. Erzwungen
+   * wird sie dort, wo sie sicherheitsrelevant ist — in der Datenbank.
+   */
+  async setContactPhoto(contactId: string, photoUrl: string | null) {
+    const idx = this.contacts.findIndex((c) => c.id === contactId)
+    if (idx < 0) throw new Error(`contact ${contactId} not found`)
+    const before = this.contacts[idx]
+    const changed = (before.photoUrl ?? null) !== photoUrl
+    this.contacts[idx] = { ...before, photoUrl, updatedAt: nowIso() }
+    // Wie updateContact: nur eine echte Änderung wird protokolliert.
+    if (changed) this.audit('update', 'contact', contactId, ['photoUrl'])
+    return clone(this.contacts[idx])
+  }
+
   async deleteContact(id: string) {
     if (this.contacts.some((c) => c.id === id)) this.audit('delete', 'contact', id)
     // Mirror the DB's ON DELETE CASCADE: dependent personal data goes too.

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   canApprove,
+  canManageContactPhoto,
   canViewActivityBody,
   canViewAnalytics,
   canViewSensitiveFields,
@@ -53,6 +54,22 @@ describe('canViewAnalytics — Bericht/Abdeckung/Monitoring nur für den Head', 
     // Bearbeitungsrechte.
     expect(canApprove('sub_admin')).toBe(true)
     expect(canViewAnalytics('sub_admin')).toBe(false)
+  })
+})
+
+describe('canManageContactPhoto — das Kontaktfoto darf jede Rolle pflegen', () => {
+  it('lässt jede Rolle durch', () => {
+    // Kein Rollen-Parameter: die Grenze ist die Sichtbarkeit des Kontakts,
+    // nicht die Rolle (Migration 0032 prüft serverseitig can_see_contact()).
+    expect(canManageContactPhoto()).toBe(true)
+  })
+
+  it('öffnet damit NICHT das übrige Bearbeiten (canApprove bleibt getrennt)', () => {
+    // Die beiden dürfen nie zusammenfallen: das Foto ist frei, alles andere am
+    // Kontakt bleibt bei RM+ — serverseitig steht contacts_update weiter auf
+    // is_privileged(), weil RLS zeilen- und nicht spaltenbasiert ist.
+    expect(canApprove('account_manager')).toBe(false)
+    expect(canManageContactPhoto()).toBe(true)
   })
 })
 

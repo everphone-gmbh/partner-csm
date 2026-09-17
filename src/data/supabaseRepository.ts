@@ -790,6 +790,30 @@ export class SupabaseRepository implements Repository {
     return updated
   }
 
+  /**
+   * Kontaktfoto über die Datenbankfunktion `set_contact_photo` (Migration 0032)
+   * setzen oder mit `null` entfernen.
+   *
+   * BEWUSST kein `update` auf `contacts` — auch wenn es hier kürzer aussähe.
+   * Die Policy `contacts_update` steht weiter auf `is_privileged()` (RM+), weil
+   * RLS zeilen- und nicht spaltenbasiert ist: eine gelockerte UPDATE-Policy
+   * öffnete Account Managern JEDE Spalte ihrer Regionskontakte, nicht nur das
+   * Foto. Ein `update` hier würde für sie also schlicht nichts ändern (0 Zeilen,
+   * ohne Fehler). Die Funktion ist der einzige Weg, der für jede Rolle trägt;
+   * sie prüft selbst `can_see_contact()` (42501) und die Pfadkonvention aus
+   * Fallstrick 3 (22023) und löst den Audit-Trigger wie jedes andere UPDATE aus.
+   */
+  async setContactPhoto(contactId: string, photoUrl: string | null): Promise<Contact> {
+    const { error } = await this.client.rpc('set_contact_photo', {
+      p_contact_id: contactId,
+      p_photo_url: photoUrl,
+    })
+    if (error) throw new Error(error.message)
+    const updated = await this.getContact(contactId)
+    if (!updated) throw new Error('Kontakt nach dem Speichern des Fotos nicht gefunden.')
+    return updated
+  }
+
   async reassignContacts(fromUserId: string, toUserId: string): Promise<number> {
     const { data, error } = await this.client
       .from('contacts')
