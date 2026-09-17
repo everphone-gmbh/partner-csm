@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   canApprove,
   canManageContactPhoto,
+  canManageTeam,
   canViewActivityBody,
   canViewAnalytics,
   canViewSensitiveFields,
@@ -54,6 +55,29 @@ describe('canViewAnalytics — Bericht/Abdeckung/Monitoring nur für den Head', 
     // Bearbeitungsrechte.
     expect(canApprove('sub_admin')).toBe(true)
     expect(canViewAnalytics('sub_admin')).toBe(false)
+  })
+})
+
+describe('canManageTeam — Rollen und Regionen vergeben (Team & Rechte)', () => {
+  it('lässt nur den Overall Admin durch', () => {
+    expect(canManageTeam('overall_admin')).toBe(true)
+    expect(canManageTeam('sub_admin')).toBe(false)
+    expect(canManageTeam('account_manager')).toBe(false)
+  })
+
+  it('nimmt dem RM die Rechtevergabe, NICHT das Bearbeiten', () => {
+    // Der RM pflegt und bearbeitet weiter alles am Kontakt, darf aber keine
+    // Rollen verteilen — serverseitig steht profiles_update (0033) auf
+    // overall_admin.
+    expect(canApprove('sub_admin')).toBe(true)
+    expect(canManageTeam('sub_admin')).toBe(false)
+  })
+
+  it('bleibt ein eigenes Prädikat neben canViewAnalytics', () => {
+    // Heute dieselbe Schwelle, aber zwei Fragen: Auswertungen SEHEN gegen
+    // Rechte VERGEBEN. Wer eine davon verschiebt, soll die andere nicht
+    // versehentlich mitnehmen — deshalb zwei Funktionen statt einer.
+    expect(canManageTeam).not.toBe(canViewAnalytics)
   })
 })
 

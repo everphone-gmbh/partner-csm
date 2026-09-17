@@ -87,6 +87,32 @@ export function canViewAnalytics(role: Role): boolean {
 }
 
 /**
+ * Rollen und Regionen vorhandener Konten vergeben — die Seite „Team & Rechte".
+ *
+ * Bewusst GETRENNT von `canViewAnalytics`, obwohl heute beide bei
+ * `overall_admin` stehen. Das sind zwei verschiedene Fragen: `canViewAnalytics`
+ * regelt, wer Auswertungen SIEHT (Bericht, Abdeckung, Monitoring); dieses
+ * Prädikat regelt, wer Rechte VERGIBT. Sie dürfen auseinanderlaufen — die
+ * Rechtevergabe kann später an eine eigene Rolle wandern oder strenger werden,
+ * ohne dass jemand dabei die Berichte verliert. Ein gemeinsames Prädikat müsste
+ * dafür erst wieder aufgetrennt werden, und bis dahin verschöbe jede Änderung
+ * an der einen Frage stillschweigend die andere.
+ *
+ * Serverseitige Entsprechung ist Migration 0033: die Policy `profiles_update`
+ * verlangt `auth_role() = 'overall_admin'`; der Trigger `profiles_guard_change`
+ * sperrt zusätzlich die Änderung der EIGENEN Rolle und das Herabstufen des
+ * LETZTEN Administrators — beides spiegelt die Oberfläche, damit niemand in
+ * einen Fehler klickt.
+ *
+ * Neue Logins anlegen gehört ausdrücklich NICHT dazu: das braucht die
+ * Supabase-Admin-API und damit den Service-Role-Key, der nie im Browser liegen
+ * darf. Dafür kommt Google SSO (Entscheidung 2026-09-17).
+ */
+export function canManageTeam(role: Role): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK.overall_admin
+}
+
+/**
  * Returns a copy of the contact with personal fields stripped for roles that
  * may not see them. Privileged roles get the contact unchanged.
  */
