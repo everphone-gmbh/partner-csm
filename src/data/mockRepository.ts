@@ -1,5 +1,6 @@
 import type {
   Activity,
+  AppUser,
   AuditEntry,
   Contact,
   ContactLink,
@@ -10,6 +11,7 @@ import type {
   OrgUnit,
   Region,
   Reminder,
+  Role,
 } from '@/domain/types'
 import { localSummarizer } from '@/domain/ai'
 import {
@@ -133,6 +135,47 @@ class MockRepository implements Repository {
 
   async listUsers() {
     return clone(this.users)
+  }
+
+  async updateUser(id: string, patch: { role?: Role; regionId?: string | null }) {
+    const idx = this.users.findIndex((u) => u.id === id)
+    if (idx < 0) throw new Error('Konto nicht gefunden.')
+    const current = this.users[idx]
+
+    // Leerer Patch: kein Schreibzugriff, unveränderter Stand zurück — genau wie
+    // im Supabase-Adapter, wo PostgREST einen leeren PATCH-Rumpf ablehnt.
+    if (patch.role === undefined && patch.regionId === undefined) return clone(current)
+
+    // Sperren des Triggers profiles_guard_change (Migration 0033) nachbilden,
+    // damit der Demo-Modus sich verhält wie die Produktion.
+    //
+    // NICHT nachgebildet ist die dritte Sperre — „niemand ändert die EIGENE
+    // Rolle". Sie hängt an auth.uid(); das Repository kennt bewusst keine
+    // Sitzung (auch die Favoriten bekommen ihre profileId von außen gereicht),
+    // und im Demo-Modus lässt sich die Rolle jederzeit umschalten, ein fest
+    // verdrahteter „das bin ich" wäre also schlicht falsch. Serverseitig
+    // greift der Trigger, in der Oberfläche ist das eigene Rollenfeld
+    // deaktiviert.
+    if (patch.role !== undefined && patch.role !== current.role) {
+      const admins = this.users.filter((u) => u.role === 'overall_admin').length
+      if (current.role === 'overall_admin' && admins <= 1) {
+        throw new Error('Der letzte Administrator kann nicht herabgestuft werden')
+      }
+    }
+
+    const next: AppUser = { ...current }
+    if (patch.role !== undefined) next.role = patch.role
+    if (patch.regionId !== undefined) next.regionId = patch.regionId ?? undefined
+
+    // Nur geänderte Felder protokollieren, und nur die Feldnamen — wie der
+    // Trigger profiles_audit (0033 → log_data_change aus 0019) es tut.
+    const fields: string[] = []
+    if (next.role !== current.role) fields.push('role')
+    if (next.regionId !== current.regionId) fields.push('region_id')
+
+    this.users[idx] = next
+    if (fields.length > 0) this.audit('update', 'profile', id, fields.sort())
+    return clone(next)
   }
 
   async listContacts() {

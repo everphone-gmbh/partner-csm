@@ -20,6 +20,7 @@ import type {
   OrgUnit,
   Region,
   Reminder,
+  Role,
   SentimentEntry,
   SideFact,
   SocialLink,
@@ -217,6 +218,17 @@ export interface Repository {
    */
   deleteRegion(id: string): Promise<void>
   listUsers(): Promise<AppUser[]>
+  /** Rolle und/oder Region eines vorhandenen Kontos setzen (Migration 0033).
+   *  Serverseitig nur für overall_admin; der Trigger verhindert die Änderung der
+   *  eigenen Rolle und das Herabstufen des letzten Administrators.
+   *
+   *  Bewusst nur BESTEHENDE Konten: ein neues Login anzulegen braucht die
+   *  Supabase-Admin-API und damit den Service-Role-Key, der nie im Browser
+   *  liegen darf. Das kommt mit Google SSO (Entscheidung 2026-09-17).
+   *
+   *  Ein leerer Patch schreibt nicht und liefert den unveränderten Stand —
+   *  PostgREST lehnt einen leeren PATCH-Rumpf ohnehin ab. */
+  updateUser(id: string, patch: { role?: Role; regionId?: string | null }): Promise<AppUser>
   listContacts(): Promise<Contact[]>
   getContact(id: string): Promise<Contact | undefined>
   createContact(input: NewContact): Promise<Contact>

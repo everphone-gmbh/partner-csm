@@ -37,6 +37,8 @@ const AUDIT_ENTITY_LABEL: Record<string, string> = {
   contact: 'Kontakt',
   contact_photo: 'Foto',
   side_fact: 'Anknüpfungspunkt',
+  // Rollen- und Regionswechsel eines Kontos (Trigger profiles_audit, 0033).
+  profile: 'Konto',
 }
 
 export function MonitoringPage() {
