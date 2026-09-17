@@ -354,6 +354,22 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect((await repo.getContact(c.id))?.buyingRole).toBeUndefined()
     })
 
+    it('gibt die Verfasser-ID einer Event-Notiz zurück, nicht nur den Namen', async () => {
+      // Ohne die ID kann die Oberfläche nicht entscheiden, wer löschen darf —
+      // `authorName` ist freier Text und laut Migration 0008 fälschbar.
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      const created = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Wer hat das geschrieben?',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [],
+      })
+      expect(created.authorId).toBe(VERIFIER.id)
+      const [read] = await repo.listEventNotes(ev.id)
+      expect(read.authorId).toBe(VERIFIER.id)
+    })
+
     it('round-trips the contact assignment on event notes and cascades on erasure', async () => {
       const c = await repo.createContact(BASE)
       const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
@@ -361,6 +377,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         eventId: ev.id,
         text: 'Gutes Gespräch am Stand',
         authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
         attachments: [],
         contactId: c.id,
       })
@@ -380,10 +397,76 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         eventId: ev.id,
         text: 'Allgemeine Standnotiz',
         authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
         attachments: [],
       })
       await repo.deleteContact(c.id)
       expect((await repo.listEventNotes(ev.id)).map((n) => n.text)).toEqual(['Allgemeine Standnotiz'])
+    })
+
+    it('löscht eine Event-Notiz samt ihrer Anhänge', async () => {
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      const note = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Versehentlich erfasst',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [{ id: 'att-weg', kind: 'image', url: 'data:image/png;base64,AAA' }],
+      })
+      const bleibt = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Bleibt stehen',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [],
+      })
+
+      await repo.deleteEventNote(note.id)
+
+      // Genau eine Notiz verschwindet, die andere bleibt unangetastet.
+      expect((await repo.listEventNotes(ev.id)).map((n) => n.id)).toEqual([bleibt.id])
+    })
+
+    it('entfernt einen einzelnen Anhang und lässt die übrigen stehen', async () => {
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      const note = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Zwei Bilder',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [
+          { id: 'att-1', kind: 'image', url: 'data:image/png;base64,AAA', name: 'eins.png' },
+          { id: 'att-2', kind: 'image', url: 'data:image/png;base64,BBB', name: 'zwei.png' },
+        ],
+      })
+
+      const updated = await repo.removeEventNoteAttachment(note.id, 'att-1')
+
+      // Der Rückgabewert und der gespeicherte Stand müssen dasselbe sagen —
+      // sonst zeigt die Oberfläche etwas anderes an als die Datenbank hält.
+      expect(updated.attachments.map((a) => a.id)).toEqual(['att-2'])
+      const [read] = await repo.listEventNotes(ev.id)
+      expect(read.attachments.map((a) => a.id)).toEqual(['att-2'])
+      // Der Text der Notiz überlebt das Teil-Update (kein upsert, Fallstrick 1).
+      expect(read.text).toBe('Zwei Bilder')
+    })
+
+    it('lässt die Notiz unverändert, wenn die Anhang-ID unbekannt ist', async () => {
+      const ev = await repo.createEvent({ name: 'Digital X', date: '2026-10-15' })
+      const note = await repo.addEventNote({
+        eventId: ev.id,
+        text: 'Ein Bild',
+        authorName: VERIFIER.full_name,
+        authorId: VERIFIER.id,
+        attachments: [{ id: 'att-1', kind: 'image', url: 'data:image/png;base64,AAA' }],
+      })
+
+      // Zugesagtes Verhalten: kein Fehler, sondern die unveränderte Notiz.
+      const updated = await repo.removeEventNoteAttachment(note.id, 'gibt-es-nicht')
+
+      expect(updated.attachments.map((a) => a.id)).toEqual(['att-1'])
+      const [read] = await repo.listEventNotes(ev.id)
+      expect(read.attachments.map((a) => a.id)).toEqual(['att-1'])
     })
 
     it('creates, resolves and deletes intro requests (Hilfe-Board)', async () => {
@@ -422,6 +505,57 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(read?.linkedin.url).toBe('https://www.linkedin.com/in/test')
       expect(read?.linkedin.verifiedByName).toBe(VERIFIER.full_name)
       expect(read?.sideFacts.map((f) => f.label)).toEqual(['Golf'])
+    })
+
+    describe('Kontaktfoto (setContactPhoto)', () => {
+      // Eigener Weg neben updateContact, weil das Foto jede Rolle pflegen darf,
+      // updateContact aber bei RM+ bleibt (Migration 0032). Im Supabase-Zweig
+      // läuft er über die Datenbankfunktion set_contact_photo.
+      it('setzt eine Bildreferenz und liest sie zurück', async () => {
+        const c = await repo.createContact(BASE)
+        const ref = `storage:contact-avatars/${c.id}/foto.jpg`
+
+        const returned = await repo.setContactPhoto(c.id, ref)
+        expect(returned.photoUrl).toBe(ref)
+        expect((await repo.getContact(c.id))?.photoUrl).toBe(ref)
+      })
+
+      it('entfernt das Foto mit null wieder', async () => {
+        const c = await repo.createContact(BASE)
+        await repo.setContactPhoto(c.id, `storage:contact-avatars/${c.id}/foto.jpg`)
+
+        const returned = await repo.setContactPhoto(c.id, null)
+        expect(returned.photoUrl ?? null).toBeNull()
+        expect((await repo.getContact(c.id))?.photoUrl ?? null).toBeNull()
+      })
+
+      it('verweigert eine Referenz außerhalb des Kontaktordners (Pfadkonvention)', async () => {
+        const a = await repo.createContact(BASE)
+        const b = await repo.createContact({ ...BASE, fullName: 'Zweite Person' })
+        const fremd = `storage:contact-avatars/${b.id}/foto.jpg`
+
+        if (name === 'SupabaseRepository') {
+          // set_contact_photo wirft 22023 — sonst ließe sich ein fremdes Bild
+          // oder eine externe URL unterschieben, die der Browser nachlädt
+          // (Fallstrick 3: die Pfadkonvention ist sicherheitsrelevant).
+          await expect(repo.setContactPhoto(a.id, fremd)).rejects.toThrow()
+          expect((await repo.getContact(a.id))?.photoUrl ?? null).toBeNull()
+        } else {
+          // Der Mock prüft das bewusst NICHT: im Demo-Modus legt der fileStore
+          // Data-URLs (`data:image/…`) ab, eine Pfadprüfung würde also genau den
+          // Weg blockieren, den die Demo nimmt. Durchgesetzt wird die Konvention
+          // dort, wo sie zählt — in der Datenbank.
+          await expect(repo.setContactPhoto(a.id, fremd)).resolves.toMatchObject({
+            photoUrl: fremd,
+          })
+        }
+      })
+
+      it('meldet einen unbekannten Kontakt als Fehler', async () => {
+        // Supabase: 42501 aus set_contact_photo — „nicht sichtbar" und „gibt es
+        // nicht" sind für den Aufrufer dasselbe.
+        await expect(repo.setContactPhoto('c-gibt-es-nicht', null)).rejects.toThrow()
+      })
     })
 
     describe('Regionen-Selbstverwaltung', () => {
@@ -705,6 +839,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
           eventId: ev.id,
           text: 'Interessant für Rahmenvertrag',
           authorName: VERIFIER.full_name,
+          authorId: VERIFIER.id,
           attachments: [],
           guestId: guest.id,
         })
@@ -726,6 +861,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
           eventId: ev.id,
           text: 'Sollte echter Kontakt werden',
           authorName: VERIFIER.full_name,
+          authorId: VERIFIER.id,
           attachments: [],
           guestId: guest.id,
         })
@@ -755,6 +891,7 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
           eventId: ev.id,
           text: 'Notiz zum Gast',
           authorName: VERIFIER.full_name,
+          authorId: VERIFIER.id,
           attachments: [],
           guestId: guest.id,
         })

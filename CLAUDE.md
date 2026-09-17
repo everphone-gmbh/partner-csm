@@ -56,7 +56,7 @@ Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
 
 ```bash
-npm test                 # 491 Tests
+npm test                 # 516 Tests
 npx tsc -b --noEmit      # App
 npx tsc -p tsconfig.test.json --noEmit   # Tests (App-Config schließt sie aus)
 npm run build
@@ -179,7 +179,7 @@ Zwei Feinheiten, die leicht falsch gemacht werden:
   aus.
 - Die Typprüfung braucht **beide** Konfigurationen. `tsc -b` prüft `src` ohne
   Tests, weil `tsconfig.app.json` sie ausschließt; `tsconfig.test.json` holt die
-  52 Test- und Testinfrastruktur-Dateien nach — darunter `fakeSupabase.ts`.
+  53 Test- und Testinfrastruktur-Dateien nach — darunter `fakeSupabase.ts`.
 
 **Branch-Schutz auf `main`** (seit 2026-08-03): der Check `test` aus `ci.yml` ist
 Pflicht, Force-Push und Löschen sind gesperrt, eine Review-Pflicht gibt es nicht

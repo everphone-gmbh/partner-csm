@@ -191,6 +191,27 @@ class MockRepository implements Repository {
     return clone(this.contacts[idx])
   }
 
+  /**
+   * Kontaktfoto setzen oder entfernen. Produktiv läuft das über die Funktion
+   * `set_contact_photo` (Migration 0032), damit auch Account Manager es dürfen;
+   * hier genügt das Setzen der Spalte.
+   *
+   * Die Pfadkonvention `storage:contact-avatars/<id>/…` prüft der Mock bewusst
+   * NICHT: im Demo-Modus liefert der fileStore Data-URLs (`data:image/…`), eine
+   * Prüfung würde also genau den Weg blockieren, den die Demo nimmt. Erzwungen
+   * wird sie dort, wo sie sicherheitsrelevant ist — in der Datenbank.
+   */
+  async setContactPhoto(contactId: string, photoUrl: string | null) {
+    const idx = this.contacts.findIndex((c) => c.id === contactId)
+    if (idx < 0) throw new Error(`contact ${contactId} not found`)
+    const before = this.contacts[idx]
+    const changed = (before.photoUrl ?? null) !== photoUrl
+    this.contacts[idx] = { ...before, photoUrl, updatedAt: nowIso() }
+    // Wie updateContact: nur eine echte Änderung wird protokolliert.
+    if (changed) this.audit('update', 'contact', contactId, ['photoUrl'])
+    return clone(this.contacts[idx])
+  }
+
   async deleteContact(id: string) {
     if (this.contacts.some((c) => c.id === id)) this.audit('delete', 'contact', id)
     // Mirror the DB's ON DELETE CASCADE: dependent personal data goes too.
@@ -491,6 +512,7 @@ class MockRepository implements Repository {
       eventId: input.eventId,
       text: input.text,
       authorName: input.authorName,
+      authorId: input.authorId,
       createdAt: nowIso(),
       attachments: input.attachments,
       contactId: input.contactId,
@@ -498,6 +520,27 @@ class MockRepository implements Repository {
     }
     this.eventNotes.push(note)
     return clone(note)
+  }
+
+  async deleteEventNote(id: string) {
+    // Keine Rechteprüfung: im Demo-Modus gibt es keine Sitzung, und die echte
+    // Entscheidung trifft ohnehin die Policy `event_notes_delete`. Eine
+    // unbekannte ID ist wie im Supabase-Zweig ein stiller Nicht-Treffer.
+    this.eventNotes = this.eventNotes.filter((n) => n.id !== id)
+  }
+
+  async removeEventNoteAttachment(noteId: string, attachmentId: string) {
+    const idx = this.eventNotes.findIndex((n) => n.id === noteId)
+    if (idx < 0) throw new Error(`event note ${noteId} not found`)
+    // Unbekannte Anhang-ID lässt die Notiz unverändert — gleiche Zusage wie im
+    // Supabase-Zweig. Die Dateien liegen hier als Data-URL in der Notiz selbst,
+    // ein Aufräumen in der Ablage gibt es im Mock deshalb nicht.
+    const next = {
+      ...this.eventNotes[idx],
+      attachments: this.eventNotes[idx].attachments.filter((a) => a.id !== attachmentId),
+    }
+    this.eventNotes[idx] = next
+    return clone(next)
   }
 
   async listEventGuests(eventId: string) {

@@ -358,6 +358,9 @@ export const seedEventNotes: EventNote[] = [
     eventId: 'ev-digitalx',
     text: 'Standaufbau läuft, Telekom-Lounge ist bezogen. Anke kommt gegen 14 Uhr.',
     authorName: 'Alexandra v. Königsmarck',
+    // Muss zu einem echten Seed-Nutzer passen: im Demo-Modus entscheidet der
+    // Vergleich authorId ↔ angemeldeter Nutzer, wer die Notiz löschen darf.
+    authorId: 'u-alex',
     createdAt: '2026-06-30T08:00:00.000Z',
     attachments: [],
   },

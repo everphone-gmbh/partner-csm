@@ -54,6 +54,29 @@ export function canApprove(role: Role): boolean {
 }
 
 /**
+ * Das Kontaktfoto darf JEDE Rolle pflegen (Entscheidung Jannik, 2026-09-17).
+ *
+ * Bewusst OHNE `role`-Parameter: die Grenze ist nicht die Rolle, sondern die
+ * Sichtbarkeit des Kontakts — wer ihn sieht, darf sein Foto setzen, ersetzen
+ * und entfernen. Für den Account Manager ist das seine eigene Region, und genau
+ * so funktioniert die Sichtbarkeit ohnehin schon. Ein Parameter würde nur dazu
+ * einladen, hier später wieder nach Rolle zu staffeln.
+ *
+ * Serverseitige Entsprechung ist Migration 0032: `set_contact_photo()` prüft
+ * `can_see_contact()` und die Pfadkonvention, und die Ablageregeln
+ * `avatars_write`/`avatars_update`/`avatars_delete` prüfen ebenfalls
+ * `can_see_contact()` — wie `avatars_read` es schon immer tat.
+ *
+ * `canApprove` bleibt die Schranke für alles ANDERE am Kontakt (Name, Position,
+ * Beziehungs-Ampel, LinkedIn, Stammdaten); `contacts_update` steht serverseitig
+ * weiter auf `is_privileged()`, weil RLS zeilen- und nicht spaltenbasiert ist.
+ * Die Fotogalerie bleibt ebenfalls RM+ — `gallery` ist ein sensibles Feld.
+ */
+export function canManageContactPhoto(): boolean {
+  return true
+}
+
+/**
  * Portfolio-Auswertungen (Bericht, Abdeckung, Monitoring) sind nur für den Head
  * (Overall Admin) — Entscheidung Lennart 2026-08-06: RMs pflegen und bearbeiten,
  * sehen aber nicht die Team-übergreifenden Auswertungen. Bewusst getrennt von

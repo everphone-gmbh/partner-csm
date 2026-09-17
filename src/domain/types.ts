@@ -297,6 +297,16 @@ export interface EventNote {
   eventId: string
   text: string
   authorName: string
+  /**
+   * Die echte Profil-ID des Verfassers (`event_notes.author_id`, Migration 0008).
+   *
+   * Pflichtfeld, weil `authorName` freier Text ist und laut 0008 fälschbar —
+   * über den Namen lässt sich also nicht entscheiden, wer löschen darf. Die
+   * Oberfläche vergleicht diese ID mit der angemeldeten Sitzung; serverseitig
+   * entscheidet dieselbe Bedingung in den Policies `event_notes_delete` und
+   * `event_notes_update` (`is_privileged() OR author_id = auth.uid()`).
+   */
+  authorId: string
   createdAt: string
   attachments: NoteAttachment[]
   /** Optional: the attendee this note is about (feeds their timeline). */

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Send, X } from 'lucide-react'
+import { ImagePlus, Send, Trash2, X } from 'lucide-react'
 import { VoiceRecorder } from '@/components/VoiceRecorder'
 import type { EventNote, NoteAttachment } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
+import { canApprove } from '@/domain/roles'
 import { useSession } from '@/app/SessionContext'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,25 +15,63 @@ import { fileStore } from '@/lib/fileStore'
 import { useFileUrl } from '@/lib/useFileUrl'
 import { formatDateTime } from '@/lib/format'
 
-function AttachmentView({ attachment, size }: { attachment: NoteAttachment; size: string }) {
+/**
+ * Zeigt ein Foto oder Sprachmemo. Mit `onRemove` bekommt es zusätzlich ein
+ * Kreuz zum Löschen — ohne die Eigenschaft bleibt die Darstellung unverändert,
+ * damit die noch nicht gespeicherten Anhänge im Composer ihren eigenen Knopf
+ * behalten.
+ */
+function AttachmentView({
+  attachment,
+  size,
+  onRemove,
+}: {
+  attachment: NoteAttachment
+  size: string
+  onRemove?: () => void
+}) {
   const resolved = useFileUrl(attachment.url)
+  let body
   if (!resolved) {
-    return attachment.kind === 'image' ? (
-      <div className={`${size} animate-pulse rounded-md bg-secondary`} aria-hidden="true" />
-    ) : (
-      <span className="text-xs text-muted-foreground">Sprachmemo wird geladen…</span>
-    )
-  }
-  if (attachment.kind === 'image') {
-    return (
+    body =
+      attachment.kind === 'image' ? (
+        <div className={`${size} animate-pulse rounded-md bg-secondary`} aria-hidden="true" />
+      ) : (
+        <span className="text-xs text-muted-foreground">Sprachmemo wird geladen…</span>
+      )
+  } else if (attachment.kind === 'image') {
+    body = (
       <img
         src={resolved}
         alt={attachment.name ?? ''}
         className={`${size} rounded-md border border-border object-cover`}
       />
     )
+  } else {
+    body = <audio src={resolved} controls className="h-8" />
   }
-  return <audio src={resolved} controls className="h-8" />
+
+  if (!onRemove) return body
+  return (
+    <div className="relative inline-flex">
+      {body}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Anhang löschen"
+        // Dauerhaft sichtbar statt nur beim Überfahren, und 24px groß — auf
+        // Tablet und Handy gibt es kein Hover, dort wäre der Knopf sonst
+        // unauffindbar. Gleiche Gestaltung wie in FotogalerieCard.
+        // Beim Bild sitzt er im Thumbnail, beim Sprachmemo daneben: über den
+        // Abspielleisten verdeckte er sonst die Bedienknöpfe.
+        className={`absolute rounded-full bg-card/90 p-1 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground ${
+          attachment.kind === 'image' ? 'right-1 top-1' : '-right-2 -top-2'
+        }`}
+      >
+        <X className="size-4" />
+      </button>
+    </div>
+  )
 }
 
 export function EventNotes({
@@ -103,6 +142,7 @@ export function EventNotes({
         eventId,
         text: text.trim(),
         authorName: user.name,
+        authorId: user.id,
         attachments: pending,
         contactId: selectedContactId || undefined,
         guestId: selectedGuestId || undefined,
@@ -129,6 +169,36 @@ export function EventNotes({
       toast(saveErrorMessage(err)) // text + attachments stay in the form
     } finally {
       setSaving(false)
+    }
+  }
+
+  /**
+   * Wer eine gespeicherte Notiz löschen darf: RM+ oder der Verfasser selbst.
+   *
+   * Bewusst wortgleich mit der Policy `event_notes_delete` (Migration 0008,
+   * `is_privileged() OR author_id = auth.uid()`). Eine großzügigere Regel in
+   * der Oberfläche brächte nur Knöpfe hervor, die der Server abweist. Das
+   * Anlegen bleibt davon unberührt — Notizen darf weiterhin jeder schreiben.
+   */
+  const canManage = (n: EventNote) => canApprove(user.role) || n.authorId === user.id
+
+  const removeNote = async (n: EventNote) => {
+    if (!window.confirm('Diese Notiz und alle ihre Anhänge löschen?')) return
+    try {
+      await repository.deleteEventNote(n.id)
+      refresh()
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    }
+  }
+
+  const removeAttachment = async (n: EventNote, attachmentId: string) => {
+    if (!window.confirm('Diesen Anhang löschen?')) return
+    try {
+      await repository.removeEventNoteAttachment(n.id, attachmentId)
+      refresh()
+    } catch (err) {
+      toast(saveErrorMessage(err))
     }
   }
 
@@ -266,12 +336,29 @@ export function EventNotes({
                       Gast: {guestName(n.guestId)}
                     </span>
                   )}
+                  {canManage(n) && (
+                    <button
+                      type="button"
+                      onClick={() => void removeNote(n)}
+                      aria-label="Notiz löschen"
+                      title="Notiz löschen"
+                      // Dauerhaft sichtbar und 24px groß (siehe AttachmentView).
+                      className="ml-auto rounded-full bg-card/90 p-1 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
                 </div>
                 {n.text && <p className="whitespace-pre-wrap text-sm text-foreground">{n.text}</p>}
                 {n.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {n.attachments.map((a) => (
-                      <AttachmentView key={a.id} attachment={a} size="size-20" />
+                      <AttachmentView
+                        key={a.id}
+                        attachment={a}
+                        size="size-20"
+                        onRemove={canManage(n) ? () => void removeAttachment(n, a.id) : undefined}
+                      />
                     ))}
                   </div>
                 )}

@@ -157,6 +157,16 @@ export interface NewEventNote {
   eventId: string
   text: string
   authorName: string
+  /**
+   * Profil-ID des Verfassers — Pflichtangabe, kein Freitext.
+   *
+   * Der Adapter liest die Sitzung bewusst NICHT selbst aus (genau wie
+   * `addActivity`): die Oberfläche liefert die ID, und die Insert-Policy
+   * `event_notes_insert` (`author_id = auth.uid()`) weist serverseitig ab, was
+   * nicht zur Sitzung passt. Ohne dieses Feld ließe sich später nicht
+   * entscheiden, wer die Notiz wieder löschen darf.
+   */
+  authorId: string
   attachments: NoteAttachment[]
   /** Ziel der Notiz: entweder ein bestehender Kontakt … */
   contactId?: string
@@ -211,6 +221,12 @@ export interface Repository {
   getContact(id: string): Promise<Contact | undefined>
   createContact(input: NewContact): Promise<Contact>
   updateContact(id: string, patch: ContactPatch): Promise<Contact>
+  /**
+   * Setzt oder entfernt (null) das Kontaktfoto. Eigener Weg statt updateContact,
+   * weil das Foto jede Rolle pflegen darf, updateContact aber bei RM+ bleibt
+   * (Migration 0032).
+   */
+  setContactPhoto(contactId: string, photoUrl: string | null): Promise<Contact>
   /** GDPR right to erasure: removes the contact and (via cascade) all
    * dependent personal data — activities, side facts, photos, reminders,
    * event attendance. Admin-gated in the UI and by RLS (0008). */
@@ -257,6 +273,30 @@ export interface Repository {
   removeAttendee(eventId: string, contactId: string): Promise<void>
   listEventNotes(eventId: string): Promise<EventNote[]>
   addEventNote(input: NewEventNote): Promise<EventNote>
+  /**
+   * Löscht eine Notiz samt ihrer Anhänge. Serverseitig erlaubt für RM+ und den
+   * Verfasser (Policy `event_notes_delete`, Migration 0008:
+   * `is_privileged() OR author_id = auth.uid()`).
+   *
+   * Reihenfolge: erst die Zeile, dann die Dateien. Verweigert die Policy das
+   * Löschen, behält die Notiz ihre Bilder, statt mit toten Verweisen
+   * dazustehen. Weil ein von der Policy gefiltertes DELETE 0 Zeilen trifft und
+   * dabei KEINEN Fehler meldet, wird danach nachgelesen — wie in
+   * `deleteRegion`.
+   */
+  deleteEventNote(id: string): Promise<void>
+  /**
+   * Entfernt einen einzelnen Anhang aus einer gespeicherten Notiz.
+   *
+   * Dieselben Rechte wie das Löschen, hier über die Policy
+   * `event_notes_update` (0008) und die Storage-Regel `note_media_delete`
+   * (`is_privileged() OR owner = auth.uid()`). Geschrieben wird per
+   * UPDATE-dann-Neulesen, nie per upsert (Fallstrick 1).
+   *
+   * Eine unbekannte Anhang-ID ist KEIN Fehler: die Notiz kommt unverändert
+   * zurück, und es wird keine Datei angefasst.
+   */
+  removeEventNoteAttachment(noteId: string, attachmentId: string): Promise<EventNote>
   /** Unbekannte Gäste eines Events (Migration 0028). */
   listEventGuests(eventId: string): Promise<EventGuest[]>
   addEventGuest(input: NewEventGuest): Promise<EventGuest>

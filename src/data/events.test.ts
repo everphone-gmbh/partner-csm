@@ -38,6 +38,7 @@ describe('events', () => {
       eventId: 'ev-digitalx',
       text: 'Aktuelle Notiz',
       authorName: 'Tester',
+      authorId: 'u-alex',
       attachments: [],
     })
     expect(created.id).toMatch(/^en-local-/)

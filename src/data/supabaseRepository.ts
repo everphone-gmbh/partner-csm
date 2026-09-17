@@ -421,11 +421,20 @@ export function mapRowToReminder(row: ReminderRow): Reminder {
   }
 }
 
+/**
+ * Eine Stelle für die Spaltenliste — vier Abfragen lesen Notizen (Liste,
+ * Anlegen, Anhang entfernen, Löschprüfung). Als Literal nebeneinander hätte ein
+ * neues Feld leicht nur in der Hälfte davon gelandet.
+ */
+const NOTE_SELECT =
+  'id, event_id, text, author_name, author_id, attachments, created_at, contact_id, guest_id'
+
 export interface EventNoteRow {
   id: string
   event_id: string
   text: string
   author_name: string
+  author_id: string
   attachments: NoteAttachment[] | null
   created_at: string
   contact_id: string | null
@@ -524,6 +533,7 @@ export function mapRowToEventNote(row: EventNoteRow): EventNote {
     eventId: row.event_id,
     text: row.text,
     authorName: row.author_name,
+    authorId: row.author_id,
     createdAt: row.created_at,
     attachments: row.attachments ?? [],
     contactId: row.contact_id ?? undefined,
@@ -777,6 +787,30 @@ export class SupabaseRepository implements Repository {
 
     const updated = await this.getContact(id)
     if (!updated) throw new Error(`contact ${id} not found after update`)
+    return updated
+  }
+
+  /**
+   * Kontaktfoto über die Datenbankfunktion `set_contact_photo` (Migration 0032)
+   * setzen oder mit `null` entfernen.
+   *
+   * BEWUSST kein `update` auf `contacts` — auch wenn es hier kürzer aussähe.
+   * Die Policy `contacts_update` steht weiter auf `is_privileged()` (RM+), weil
+   * RLS zeilen- und nicht spaltenbasiert ist: eine gelockerte UPDATE-Policy
+   * öffnete Account Managern JEDE Spalte ihrer Regionskontakte, nicht nur das
+   * Foto. Ein `update` hier würde für sie also schlicht nichts ändern (0 Zeilen,
+   * ohne Fehler). Die Funktion ist der einzige Weg, der für jede Rolle trägt;
+   * sie prüft selbst `can_see_contact()` (42501) und die Pfadkonvention aus
+   * Fallstrick 3 (22023) und löst den Audit-Trigger wie jedes andere UPDATE aus.
+   */
+  async setContactPhoto(contactId: string, photoUrl: string | null): Promise<Contact> {
+    const { error } = await this.client.rpc('set_contact_photo', {
+      p_contact_id: contactId,
+      p_photo_url: photoUrl,
+    })
+    if (error) throw new Error(error.message)
+    const updated = await this.getContact(contactId)
+    if (!updated) throw new Error('Kontakt nach dem Speichern des Fotos nicht gefunden.')
     return updated
   }
 
@@ -1242,7 +1276,7 @@ export class SupabaseRepository implements Repository {
   async listEventNotes(eventId: string): Promise<EventNote[]> {
     const { data, error } = await this.client
       .from('event_notes')
-      .select('id, event_id, text, author_name, attachments, created_at, contact_id, guest_id')
+      .select(NOTE_SELECT)
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -1256,14 +1290,98 @@ export class SupabaseRepository implements Repository {
         event_id: input.eventId,
         text: input.text,
         author_name: input.authorName,
+        // Der Adapter liest die Sitzung nicht selbst aus — wie addActivity
+        // bekommt er die ID von der Oberfläche. Durchsetzen muss es ohnehin der
+        // Server: die Policy `event_notes_insert` (`author_id = auth.uid()`)
+        // weist ein INSERT mit fremder ID ab, eine Prüfung im Client wäre nur
+        // Kosmetik.
+        author_id: input.authorId,
         attachments: input.attachments,
         contact_id: input.contactId ?? null,
         guest_id: input.guestId ?? null,
       })
-      .select('id, event_id, text, author_name, attachments, created_at, contact_id, guest_id')
+      .select(NOTE_SELECT)
       .single()
     if (error) throw new Error(error.message)
     return mapRowToEventNote(data as unknown as EventNoteRow)
+  }
+
+  async deleteEventNote(id: string): Promise<void> {
+    // Anhänge VOR dem Löschen auslesen — danach ist die Zeile weg und mit ihr
+    // der einzige Verweis auf die Dateien. Gleicher Ablauf wie die
+    // Notiz-Aufräumung in deleteContact.
+    const { data: before, error: readError } = await this.client
+      .from('event_notes')
+      .select('attachments')
+      .eq('id', id)
+      .maybeSingle()
+    if (readError) throw new Error(readError.message)
+
+    const { error } = await this.client.from('event_notes').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+
+    // Ein von der Policy gefiltertes DELETE trifft 0 Zeilen und meldet KEINEN
+    // Fehler (derselbe Fallstrick wie beim Platzhalter in deleteRegion).
+    // Deshalb nachlesen: steht die Notiz noch, war es eine Ablehnung — dann
+    // bleiben auch die Dateien liegen, sonst hinge die Notiz sichtbar mit
+    // kaputten Bildern da.
+    const { data: after, error: checkError } = await this.client
+      .from('event_notes')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+    if (checkError) throw new Error(checkError.message)
+    if (after) throw new Error('Diese Notiz darf nur der Verfasser oder ein Relationship Manager löschen.')
+
+    // Erst jetzt die Dateien, best effort: die Zeile ist bereits weg, ein
+    // Fehler in der Ablage darf das nicht nachträglich zum Misserfolg machen.
+    const { fileStore } = await import('@/lib/fileStore')
+    const list = Array.isArray((before as { attachments?: unknown } | null)?.attachments)
+      ? ((before as { attachments: unknown[] }).attachments)
+      : []
+    for (const entry of list) {
+      const ref = (entry as { url?: unknown })?.url
+      // remove() lässt Data-URLs und externe Links unangetastet.
+      if (typeof ref === 'string' && ref) await fileStore.remove(ref).catch(() => undefined)
+    }
+  }
+
+  async removeEventNoteAttachment(noteId: string, attachmentId: string): Promise<EventNote> {
+    const { data: current, error: readError } = await this.client
+      .from('event_notes')
+      .select(NOTE_SELECT)
+      .eq('id', noteId)
+      .maybeSingle()
+    if (readError) throw new Error(readError.message)
+    if (!current) throw new Error('Notiz nicht gefunden.')
+    const note = mapRowToEventNote(current as unknown as EventNoteRow)
+
+    const removed = note.attachments.find((a) => a.id === attachmentId)
+    // Unbekannte ID: nichts zu tun. Kein Schreibzugriff, keine Datei angefasst.
+    if (!removed) return note
+    const remaining = note.attachments.filter((a) => a.id !== attachmentId)
+
+    // UPDATE-dann-Neulesen, KEIN upsert — der schriebe die ganze Zeile und
+    // nullte Text, Zuordnung und Zeitstempel (Fallstrick 1). Die zurückgegebene
+    // Zeile ist zugleich die Probe: filtert `event_notes_update` das UPDATE
+    // weg, kommen 0 Zeilen und KEIN Fehler.
+    const { data: updated, error } = await this.client
+      .from('event_notes')
+      .update({ attachments: remaining })
+      .eq('id', noteId)
+      .select(NOTE_SELECT)
+    if (error) throw new Error(error.message)
+    const rows = (updated ?? []) as unknown as EventNoteRow[]
+    if (rows.length === 0) {
+      throw new Error('Diesen Anhang darf nur der Verfasser oder ein Relationship Manager löschen.')
+    }
+
+    // Datei erst nach dem erfolgreichen Schreiben entfernen, best effort.
+    if (removed.url) {
+      const { fileStore } = await import('@/lib/fileStore')
+      await fileStore.remove(removed.url).catch(() => undefined)
+    }
+    return mapRowToEventNote(rows[0])
   }
 
   async listEventGuests(eventId: string): Promise<EventGuest[]> {
