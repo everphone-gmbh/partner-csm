@@ -195,6 +195,29 @@ Veröffentlichung, nicht den Commit. Wer sicher gehen will, fährt vorher lokal
 Grenze: `oxlint` beendet auch mit Warnungen als Erfolg und fängt daher nur echte
 Fehler.
 
+## Wöchentlicher Release-Rhythmus (seit 2026-09-18)
+
+Feedback aus dem Gruppenchat „Partnerships Tool" wird über die Woche eingebaut, **freitags**
+gibt es ein nummeriertes Release und einen Post im Chat.
+
+- **Version** = `1.<Wochenzähler>`, ein Hotfix dazwischen bekommt eine dritte Zahl (`1.3.1`).
+  Sie steht nur in der Überschrift von `CHANGELOG.md` und als Git-Tag; `package.json` bleibt
+  bewusst auf `0.0.0`.
+- **Zwei Geschwindigkeiten:** Fehlerbehebungen gehen live, sobald sie geprüft sind — die RMs
+  arbeiten täglich im Tool, ein blockierender Fehler wartet nicht bis Freitag. Neue Funktionen
+  sammeln sich und kommen freitags. Beides trägt ab dem Merge eine Zeile unter **Unreleased**.
+- **Keine Zeile, kein Merge.** Die Zeile wird in den Worten eines Relationship Managers
+  geschrieben, mit dem betroffenen Bereich in Klammern. Wirkung, nicht Umsetzung.
+- **Freitag:** Abschnitt nummerieren und datieren, Gate fahren, pushen, CI abwarten, live
+  gegenprüfen, Tag setzen (`git tag v1.3 && git push origin v1.3`), danach den Post aus
+  `docs/RELEASE-NOTES-TEMPLATE.md` entwerfen. **Der Post kommt nach dem Deploy, nie davor.**
+- **Senden nur nach Freigabe.** Jannik liest den Entwurf, dann geht er raus — so steht es auch
+  in der Stoppliste in `~/workspace/CLAUDE.md`.
+- **Board:** offene Punkte liegen im EverTask-Projekt „Partner CSM" (Team „Lovable Projects
+  Bugs"). Titel mit Typ vorn: `Fix:`, `Feature:`, `Security:`, `Check (Name):`. Spalten To Do →
+  In Progress → Done, dazu „Needs decision" für alles, was eine Entscheidung von Jannik braucht.
+  Die ausführliche Wahrheit bleibt `stand.md`, das Board ist die Kurzfassung für andere.
+
 ## Anmelden
 
 Sechs Konten (E-Mail/Passwort), Rollen: `overall_admin`, `sub_admin`
