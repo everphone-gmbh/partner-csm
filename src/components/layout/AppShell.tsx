@@ -201,7 +201,9 @@ function BottomNav() {
             to={to}
             className={({ isActive }) =>
               cn(
-                'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-colors',
+                // min-w-0 + px: ohne das laufen die Beschriftungen ineinander,
+                // sobald der Overall Admin acht Einträge hat (Team kam 09/26 dazu).
+                'flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] transition-colors',
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
               )
             }
@@ -214,7 +216,7 @@ function BottomNav() {
                 </span>
               )}
             </span>
-            {label}
+            <span className="w-full truncate text-center">{label}</span>
           </NavLink>
         ))}
       </div>
