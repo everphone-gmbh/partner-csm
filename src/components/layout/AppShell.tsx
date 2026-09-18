@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Target, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Target, UserCog, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
 import { useDueReminderCount } from '@/app/useDueReminders'
-import { canViewAnalytics, ROLE_LABEL } from '@/domain/roles'
+import { canManageTeam, canViewAnalytics, ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -23,6 +23,12 @@ function useNavItems() {
     items.push({ to: '/coverage', label: 'Abdeckung', icon: Target })
     items.push({ to: '/report', label: 'Bericht', icon: FileText })
     items.push({ to: '/monitoring', label: 'Monitoring', icon: BarChart3 })
+  }
+  // Rollen und Regionen vergeben — eigenes Prädikat, bewusst nicht
+  // canViewAnalytics: Auswertungen SEHEN und Rechte VERGEBEN sind zwei Fragen
+  // (siehe roles.ts). Serverseitig hält die Policy profiles_update (0033).
+  if (canManageTeam(user.role)) {
+    items.push({ to: '/team', label: 'Team', icon: UserCog })
   }
   return items
 }
@@ -195,7 +201,9 @@ function BottomNav() {
             to={to}
             className={({ isActive }) =>
               cn(
-                'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-colors',
+                // min-w-0 + px: ohne das laufen die Beschriftungen ineinander,
+                // sobald der Overall Admin acht Einträge hat (Team kam 09/26 dazu).
+                'flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] transition-colors',
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
               )
             }
@@ -208,7 +216,7 @@ function BottomNav() {
                 </span>
               )}
             </span>
-            {label}
+            <span className="w-full truncate text-center">{label}</span>
           </NavLink>
         ))}
       </div>

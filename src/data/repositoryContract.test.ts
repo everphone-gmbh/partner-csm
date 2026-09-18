@@ -11,7 +11,24 @@ import { createFakeSupabase } from '@/test/fakeSupabase'
 import { seedEverphoneAccounts, seedOrgUnits } from './seed'
 import { normalizeCompanyName, type EverphoneStatus } from '@/domain/everphoneAccounts'
 
-const VERIFIER = { id: 'profiles-verifier', full_name: 'Alexandra Verifier' }
+// Rolle und Region gehören dazu, seit `updateUser` sie setzen kann: ohne sie
+// prüfte der Supabase-Zweig der Suite Rollenwechsel gegen leere Spalten.
+const VERIFIER = {
+  id: 'profiles-verifier',
+  full_name: 'Alexandra Verifier',
+  role: 'sub_admin',
+  region_id: null,
+}
+
+// Zweites Profil, damit beide Backends dieselbe Ausgangslage haben: der Mock
+// hat aus seed.ts genau EINEN overall_admin, der Fake bekommt ihn hier. Nur so
+// lässt sich „der letzte Administrator bleibt stehen" in beiden prüfen.
+const ADMIN_PROFILE = {
+  id: 'profiles-admin',
+  full_name: 'Bertram Adminsen',
+  role: 'overall_admin',
+  region_id: null,
+}
 
 /** Rückabbildung Status → Salesforce `Account.Type` für die Testdaten. */
 const SF_TYPE_BY_STATUS: Record<EverphoneStatus, string> = {
@@ -48,7 +65,7 @@ const IMPLEMENTATIONS: [string, () => Repository][] = [
     () =>
       new SupabaseRepository(
         createFakeSupabase({
-          profiles: [VERIFIER],
+          profiles: [VERIFIER, ADMIN_PROFILE],
           // Der Platzhalter muss auch im Fake existieren, damit der Contract
           // seinen Löschschutz in beiden Backends prüfen kann (Mock hat ihn
           // aus seed.ts).
@@ -627,6 +644,85 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         const units = await repo.listOrgUnits()
         expect(units.some((u) => u.team === null)).toBe(true)
         expect(units.some((u) => u.team !== null)).toBe(true)
+      })
+    })
+
+    describe('Team & Rechte (updateUser)', () => {
+      /** Ein Konto, das kein Administrator ist — in beiden Backends vorhanden. */
+      const someoneElse = async () => {
+        const users = await repo.listUsers()
+        const found = users.find((u) => u.role !== 'overall_admin')
+        if (!found) throw new Error('Testdaten ohne Nicht-Administrator')
+        return found
+      }
+
+      it('setzt die Rolle eines vorhandenen Kontos und liest sie zurück', async () => {
+        const target = await someoneElse()
+        const updated = await repo.updateUser(target.id, { role: 'overall_admin' })
+
+        expect(updated.role).toBe('overall_admin')
+        // Der Name darf dabei nicht verloren gehen — ein upsert hätte ihn
+        // genullt (Fallstrick 1).
+        expect(updated.name).toBe(target.name)
+        const read = (await repo.listUsers()).find((u) => u.id === target.id)
+        expect(read?.role).toBe('overall_admin')
+      })
+
+      it('setzt die Region und liest sie zurück', async () => {
+        const target = await someoneElse()
+        const region = (await repo.listRegions())[0]
+
+        const updated = await repo.updateUser(target.id, { regionId: region.id })
+        expect(updated.regionId).toBe(region.id)
+        expect((await repo.listUsers()).find((u) => u.id === target.id)?.regionId).toBe(region.id)
+      })
+
+      it('nimmt die Region wieder weg (null → keine Region)', async () => {
+        // RMs haben oft keine Region; „zurück auf leer" muss deshalb gehen.
+        const target = await someoneElse()
+        const region = (await repo.listRegions())[0]
+        await repo.updateUser(target.id, { regionId: region.id })
+
+        const cleared = await repo.updateUser(target.id, { regionId: null })
+        expect(cleared.regionId).toBeUndefined()
+        expect((await repo.listUsers()).find((u) => u.id === target.id)?.regionId).toBeUndefined()
+      })
+
+      it('ändert bei leerem Patch nichts und schreibt nicht', async () => {
+        const target = await someoneElse()
+        const before = await repo.listUsers()
+
+        // Ein leerer PATCH-Rumpf wäre für PostgREST ein Fehler — kommt der
+        // unveränderte Nutzer zurück statt einer Ausnahme, hat der Adapter gar
+        // nicht erst geschrieben.
+        expect(await repo.updateUser(target.id, {})).toEqual(target)
+        expect(await repo.listUsers()).toEqual(before)
+      })
+
+      it('verweigert das Herabstufen des letzten Administrators', async () => {
+        const users = await repo.listUsers()
+        const admins = users.filter((u) => u.role === 'overall_admin')
+        expect(admins).toHaveLength(1)
+
+        await expect(repo.updateUser(admins[0].id, { role: 'sub_admin' })).rejects.toThrow(
+          /letzte Administrator/,
+        )
+        // Und die Zeile steht unverändert — sonst wäre die Verwaltung leer.
+        expect((await repo.listUsers()).find((u) => u.id === admins[0].id)?.role).toBe(
+          'overall_admin',
+        )
+      })
+
+      it('lässt den vorletzten Administrator herabstufen', async () => {
+        // Gegenprobe: die Sperre gilt dem LETZTEN, nicht jedem Administrator.
+        const target = await someoneElse()
+        await repo.updateUser(target.id, { role: 'overall_admin' })
+
+        const admin = (await repo.listUsers()).find(
+          (u) => u.role === 'overall_admin' && u.id !== target.id,
+        )!
+        await repo.updateUser(admin.id, { role: 'sub_admin' })
+        expect((await repo.listUsers()).find((u) => u.id === admin.id)?.role).toBe('sub_admin')
       })
     })
 

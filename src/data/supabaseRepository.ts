@@ -509,6 +509,26 @@ export function mapRowToAuditEntry(
   }
 }
 
+/** Konten (Anmeldeprofile). Eine Quelle für Lesen UND für das Neulesen nach
+ *  einem UPDATE, damit die beiden Wege nicht auseinanderlaufen. */
+const PROFILE_SELECT = 'id, full_name, role, region_id'
+
+export interface ProfileRow {
+  id: string
+  full_name: string
+  role: Role
+  region_id: string | null
+}
+
+export function mapRowToUser(row: ProfileRow): AppUser {
+  return {
+    id: row.id,
+    name: row.full_name,
+    role: row.role,
+    regionId: row.region_id ?? undefined,
+  }
+}
+
 const EVERPHONE_SELECT = 'salesforce_id, name, account_type, active_rentals'
 
 export interface EverphoneAccountRow {
@@ -635,11 +655,55 @@ export class SupabaseRepository implements Repository {
   }
 
   async listUsers(): Promise<AppUser[]> {
-    const { data, error } = await this.client.from('profiles').select('id, full_name, role, region_id')
+    const { data, error } = await this.client.from('profiles').select(PROFILE_SELECT)
     if (error) throw new Error(error.message)
-    return ((data ?? []) as { id: string; full_name: string; role: Role; region_id: string | null }[]).map(
-      (r) => ({ id: r.id, name: r.full_name, role: r.role, regionId: r.region_id ?? undefined }),
-    )
+    return ((data ?? []) as unknown as ProfileRow[]).map(mapRowToUser)
+  }
+
+  async updateUser(
+    id: string,
+    patch: { role?: Role; regionId?: string | null },
+  ): Promise<AppUser> {
+    // Nur die wirklich gemeinten Spalten in die Zeile: `undefined` heißt „nicht
+    // anfassen", `null` bei region_id heißt „keine Region" (RMs haben oft keine).
+    const row: Record<string, unknown> = {}
+    if (patch.role !== undefined) row.role = patch.role
+    if (patch.regionId !== undefined) row.region_id = patch.regionId ?? null
+
+    // Leerer Patch: nicht schreiben. PostgREST lehnt einen leeren PATCH-Rumpf
+    // ab, und ein Schreibzugriff ohne Inhalt würde nur den Audit-Trigger aus
+    // 0033 beschäftigen. Stattdessen den aktuellen Stand zurückgeben.
+    if (Object.keys(row).length === 0) {
+      const { data, error } = await this.client
+        .from('profiles')
+        .select(PROFILE_SELECT)
+        .eq('id', id)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      if (!data) throw new Error('Konto nicht gefunden.')
+      return mapRowToUser(data as unknown as ProfileRow)
+    }
+
+    // UPDATE-dann-Neulesen, KEIN upsert — der schriebe die ganze Zeile und
+    // nullte full_name und die nicht mitgeschickte Spalte (Fallstrick 1).
+    // Die zurückgegebene Zeile ist zugleich die Probe: filtert die Policy
+    // `profiles_update` (0033) das UPDATE weg, kommen 0 Zeilen und KEIN Fehler
+    // — derselbe Fallstrick wie bei deleteRegion und removeEventNoteAttachment.
+    const { data, error } = await this.client
+      .from('profiles')
+      .update(row)
+      .eq('id', id)
+      .select(PROFILE_SELECT)
+    // Die Sperren des Triggers profiles_guard_change (eigene Rolle, letzter
+    // Administrator) kommen als ganz normaler Fehler mit Code 42501 an. Seine
+    // Meldung ist bereits für Menschen geschrieben und wird deshalb
+    // durchgereicht, statt sie durch eine allgemeine zu ersetzen.
+    if (error) throw new Error(error.message)
+    const rows = (data ?? []) as unknown as ProfileRow[]
+    if (rows.length === 0) {
+      throw new Error('Nur der Administrator darf Rollen und Regionen ändern.')
+    }
+    return mapRowToUser(rows[0])
   }
 
   async listContacts(): Promise<Contact[]> {

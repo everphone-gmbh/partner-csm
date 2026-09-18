@@ -155,6 +155,10 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     contacts: 'contact',
     contact_photos: 'contact_photo',
     side_facts: 'side_fact',
+    // Rollenwechsel sind sicherheitsrelevant und werden protokolliert
+    // (Trigger profiles_audit, Migration 0033) — wie überall nur die
+    // Feldnamen, nie die Werte.
+    profiles: 'profile',
   }
   let auditSeq = 1
   const AUDIT_AT = '2026-07-01T00:00:00.000Z'
@@ -179,6 +183,43 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
       actor_id: null,
       detail,
     })
+  }
+
+  /**
+   * Trigger `profiles_guard_change` (Migration 0033). RLS prüft Zeilen, nicht
+   * Übergänge — deshalb hängen diese beiden Sperren an einem Trigger und
+   * kommen als ganz normaler Fehler mit Code 42501 beim Adapter an:
+   *   1. Die Konto-ID bleibt unveränderlich (gemeinsamer Schlüssel mit
+   *      auth.users).
+   *   2. Der LETZTE Administrator lässt sich nicht herabstufen.
+   *
+   * Die dritte Sperre des Triggers — „niemand ändert die EIGENE Rolle" —
+   * braucht `auth.uid()`. Der Fake kennt keine Sitzung und kann sie nicht
+   * nachbilden; sie wird von Hand gegen die echte Datenbank geprüft, und die
+   * Oberfläche deaktiviert das eigene Rollenfeld.
+   */
+  function guardProfileUpdate(patch: Row, matched: Row[]): Result | null {
+    for (const row of matched) {
+      if (patch.id !== undefined && patch.id !== row.id) {
+        return {
+          data: null,
+          error: { message: 'Die Konto-ID kann nicht geaendert werden', code: '42501' },
+        }
+      }
+      if (patch.role !== undefined && patch.role !== row.role) {
+        const admins = tables.profiles.filter((p) => p.role === 'overall_admin').length
+        if (row.role === 'overall_admin' && admins <= 1) {
+          return {
+            data: null,
+            error: {
+              message: 'Der letzte Administrator kann nicht herabgestuft werden',
+              code: '42501',
+            },
+          }
+        }
+      }
+    }
+    return null
   }
 
   /**
@@ -376,6 +417,11 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           return { data: null, error: { message: 'empty patch body' } }
         }
         const matched = rows.filter((r) => this.matches(r))
+        if (this.table === 'profiles') {
+          // Trigger vor dem Schreiben: schlägt er an, bleibt die Zeile stehen.
+          const blocked = guardProfileUpdate(patch, matched)
+          if (blocked) return blocked
+        }
         for (const r of matched) {
           const before = { ...r }
           Object.assign(r, patch)
