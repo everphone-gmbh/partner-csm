@@ -255,3 +255,109 @@ describe('Timeline — Sprachmemo im Composer', () => {
     expect(screen.getByRole('button', { name: 'Sprachmemo' })).toBeInTheDocument()
   })
 })
+
+// --- Eintrag nachträglich korrigieren (gemeldet 2026-09-24) ----------------
+//
+// Eine Kollegin hat per Sprachmemo diktiert, die Spracherkennung machte aus
+// JOBRAD ein JOBRAT, und danach gab es keinen Weg mehr, den Text zu ändern.
+
+describe('Timeline — Eintrag ändern und löschen', () => {
+  const typo = (): Activity => ({
+    ...noteWithBody(),
+    body: 'Er fährt ein JOBRAT.',
+  })
+
+  it('bietet Relationship Managern Stift und Papierkorb an', () => {
+    renderPage(
+      <Timeline contact={contact} entries={buildHistory([typo()])} onReload={vi.fn()} />,
+      { as: 'sub_admin' },
+    )
+    expect(screen.getByRole('button', { name: 'Eintrag ändern' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Eintrag löschen' })).toBeInTheDocument()
+  })
+
+  // Für den Account-Manager-Tier ist `body` in activity_cards wegredigiert —
+  // ein Änderungsfeld böte ihm an, einen Text zu überschreiben, den er nie
+  // gesehen hat.
+  it('bietet sie dem Account Manager nicht an, weil er den Text nicht sieht', () => {
+    renderPage(
+      <Timeline contact={contact} entries={buildHistory([typo()])} onReload={vi.fn()} />,
+      { as: 'account_manager' },
+    )
+    expect(screen.queryByRole('button', { name: 'Eintrag ändern' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Eintrag löschen' })).not.toBeInTheDocument()
+  })
+
+  it('speichert den korrigierten Text und meldet das dem Aufrufer', async () => {
+    const user = userEvent.setup()
+    const onReload = vi.fn()
+    const { repo } = renderPage(
+      <Timeline contact={contact} entries={buildHistory([typo()])} onReload={onReload} />,
+      { as: 'sub_admin' },
+    )
+    // Die Einträge kommen hier als Prop herein, nicht aus dem Speicher — der
+    // Schreibweg selbst ist im Contract-Test geprüft, hier zählt die Verdrahtung.
+    const spy = vi
+      .spyOn(repo, 'updateActivity')
+      .mockResolvedValue({ ...typo(), body: 'Er fährt ein JOBRAD.', editedAt: 'jetzt' })
+
+    await user.click(screen.getByRole('button', { name: 'Eintrag ändern' }))
+    const field = screen.getByLabelText('Text des Eintrags')
+    expect(field).toHaveValue('Er fährt ein JOBRAT.')
+    await user.clear(field)
+    await user.type(field, 'Er fährt ein JOBRAD.')
+    await user.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('a1', 'Er fährt ein JOBRAD.'))
+    // Die Liste kommt von außen — die Karte muss den Neuaufbau anstoßen.
+    await waitFor(() => expect(onReload).toHaveBeenCalled())
+  })
+
+  it('verwirft die Eingabe bei Abbrechen und schreibt nicht', async () => {
+    const user = userEvent.setup()
+    const { repo } = renderPage(
+      <Timeline contact={contact} entries={buildHistory([typo()])} onReload={vi.fn()} />,
+      { as: 'sub_admin' },
+    )
+    const spy = vi.spyOn(repo, 'updateActivity')
+
+    await user.click(screen.getByRole('button', { name: 'Eintrag ändern' }))
+    await user.clear(screen.getByLabelText('Text des Eintrags'))
+    await user.type(screen.getByLabelText('Text des Eintrags'), 'egal')
+    await user.click(screen.getByRole('button', { name: 'Abbrechen' }))
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(screen.getByText('Er fährt ein JOBRAT.')).toBeInTheDocument()
+  })
+
+  it('markiert einen korrigierten Eintrag sichtbar als bearbeitet', () => {
+    renderPage(
+      <Timeline
+        contact={contact}
+        entries={buildHistory([{ ...typo(), editedAt: '2026-09-25T09:00:00.000Z' }])}
+        onReload={vi.fn()}
+      />,
+      { as: 'sub_admin' },
+    )
+    expect(screen.getByText(/bearbeitet/)).toBeInTheDocument()
+  })
+
+  it('löscht nur nach Rückfrage', async () => {
+    const user = userEvent.setup()
+    const { repo } = renderPage(
+      <Timeline contact={contact} entries={buildHistory([typo()])} onReload={vi.fn()} />,
+      { as: 'sub_admin' },
+    )
+    const spy = vi.spyOn(repo, 'removeActivity')
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    await user.click(screen.getByRole('button', { name: 'Eintrag löschen' }))
+    expect(confirm).toHaveBeenCalled()
+    expect(spy).not.toHaveBeenCalled()
+
+    confirm.mockReturnValue(true)
+    await user.click(screen.getByRole('button', { name: 'Eintrag löschen' }))
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('a1'))
+    confirm.mockRestore()
+  })
+})

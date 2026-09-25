@@ -94,9 +94,15 @@ class MockRepository implements Repository {
     return clone(this.regions)
   }
 
+  /** Finden ODER anlegen — siehe supabaseRepository.createRegion. Beide Zweige
+   *  müssen sich gleich verhalten, der Contract-Test prüft genau das. */
   async createRegion(name: string) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Regionsname darf nicht leer sein')
+    const existing = this.regions.find(
+      (r) => r.name.toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (existing) return clone(existing)
     const region: Region = {
       id: `region-local-${this.seq++}`,
       name: trimmed,
@@ -131,6 +137,20 @@ class MockRepository implements Repository {
       throw new Error('Region wird noch verwendet — erst Kontakte/Nutzer umziehen, dann löschen.')
     }
     this.regions.splice(idx, 1)
+  }
+
+  /** Spiegelt 0035: die Menge wird ersetzt, das führende Gebiet bleibt, solange
+   *  es Mitglied bleibt — sonst rückt das erste verbliebene nach. */
+  async setContactRegions(contactId: string, regionIds: string[]) {
+    const wanted = [...new Set(regionIds.filter(Boolean))]
+    if (wanted.length === 0) throw new Error('Mindestens ein Gebiet ist nötig')
+    const idx = this.contacts.findIndex((c) => c.id === contactId)
+    if (idx < 0) throw new Error('Kontakt nicht gefunden oder keine Berechtigung')
+    const current = this.contacts[idx]
+    const leading = wanted.includes(current.regionId) ? current.regionId : wanted[0]
+    this.contacts[idx] = { ...current, regionId: leading, regionIds: wanted }
+    this.audit('update', 'contact_region', contactId)
+    return clone(this.contacts[idx])
   }
 
   async listUsers() {
@@ -195,6 +215,9 @@ class MockRepository implements Repository {
       position: input.position,
       photoUrl: null,
       regionId: input.regionId,
+      // Wie der Trigger contacts_region_membership (0035): ein neuer Kontakt
+      // bekommt sein Gebiet sofort als Zuordnung, sonst ist er unsichtbar.
+      regionIds: [input.regionId],
       relationshipManagerId: input.relationshipManagerId,
       company: input.company,
       team: input.team,
@@ -223,6 +246,7 @@ class MockRepository implements Repository {
   }
 
   async updateContact(id: string, patch: ContactPatch) {
+    if (patch.regionIds !== undefined) await this.setContactRegions(id, patch.regionIds)
     const idx = this.contacts.findIndex((c) => c.id === id)
     if (idx < 0) throw new Error(`contact ${id} not found`)
     const before = this.contacts[idx]
@@ -365,6 +389,32 @@ class MockRepository implements Repository {
     }
     this.activities.push(activity)
     return clone(activity)
+  }
+
+  /** Spiegelt 0034: nur der Text ändert sich, `editedAt` setzt der Speicher
+   *  selbst, und ein unveränderter Text markiert den Eintrag nicht. */
+  async updateActivity(id: string, body: string) {
+    const trimmed = body.trim()
+    if (!trimmed) throw new Error('Der Text darf nicht leer sein')
+    const idx = this.activities.findIndex((a) => a.id === id)
+    if (idx < 0) throw new Error('Eintrag nicht gefunden oder keine Berechtigung')
+    const before = this.activities[idx]
+    const changed = before.body !== trimmed
+    this.activities[idx] = {
+      ...before,
+      body: trimmed,
+      aiSummary: localSummarizer.activitySummary({ type: before.type, body: trimmed }),
+      editedAt: changed ? new Date().toISOString() : before.editedAt,
+    }
+    return clone(this.activities[idx])
+  }
+
+  /** Idempotent wie ein DELETE in Postgres: was nicht da ist, ist kein Fehler.
+   *  Der Supabase-Zweig kann beides gar nicht unterscheiden. */
+  async removeActivity(id: string) {
+    const idx = this.activities.findIndex((a) => a.id === id)
+    if (idx < 0) return
+    this.activities.splice(idx, 1)
   }
 
   async listAllActivities() {

@@ -54,6 +54,22 @@ export function canApprove(role: Role): boolean {
 }
 
 /**
+ * Einen gespeicherten Aktivitätseintrag korrigieren oder löschen darf, wer ihn
+ * geschrieben hat, sowie RM aufwärts (Policies `activities_update` 0034 /
+ * `activities_delete` 0008).
+ *
+ * Zusätzlich muss man den Text überhaupt sehen können: für den Account-Manager-
+ * Tier ist `body` in `activity_cards` wegredigiert. Ohne diese Bedingung böte
+ * die Oberfläche ihm an, einen Text zu ändern, den sie ihm nicht zeigt — er
+ * würde ihn mit seiner Eingabe überschreiben, ohne je das Original gesehen zu
+ * haben.
+ */
+export function canEditActivity(role: Role, authorId: string, userId: string): boolean {
+  if (!canViewActivityBody(role)) return false
+  return canApprove(role) || authorId === userId
+}
+
+/**
  * Das Kontaktfoto darf JEDE Rolle pflegen (Entscheidung Jannik, 2026-09-17).
  *
  * Bewusst OHNE `role`-Parameter: die Grenze ist nicht die Rolle, sondern die

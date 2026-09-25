@@ -233,6 +233,75 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       expect(await repo.listActivities(c.id)).toEqual([])
     })
 
+    // Gemeldet 2026-09-24: ein per Sprachmemo diktierter Eintrag enthielt einen
+    // Erkennungsfehler und liess sich nicht mehr korrigieren.
+    describe('Eintrag nachträglich korrigieren', () => {
+      const note = (contactId: string) => ({
+        contactId,
+        type: 'note' as const,
+        occurredAt: '2026-09-24T10:00:00.000Z',
+        authorId: VERIFIER.id,
+        authorName: VERIFIER.full_name,
+        body: 'Er fährt ein JOBRAT.',
+      })
+
+      it('ändert den Text und merkt sich, dass korrigiert wurde', async () => {
+        const c = await repo.createContact(BASE)
+        const added = await repo.addActivity(note(c.id))
+        expect(added.editedAt).toBeUndefined()
+
+        const updated = await repo.updateActivity(added.id, 'Er fährt ein JOBRAD.')
+        expect(updated.id).toBe(added.id)
+        expect(updated.body).toBe('Er fährt ein JOBRAD.')
+        expect(updated.editedAt).toBeTruthy()
+        // Die Zusammenfassung zieht mit — sonst beschriebe sie den alten Text.
+        expect(updated.aiSummary).toContain('JOBRAD')
+
+        const [fromList] = await repo.listActivities(c.id)
+        expect(fromList.body).toBe('Er fährt ein JOBRAD.')
+      })
+
+      it('lässt Kontakt, Verfasser, Zeitpunkt und Art unangetastet', async () => {
+        const c = await repo.createContact(BASE)
+        const added = await repo.addActivity(note(c.id))
+        const updated = await repo.updateActivity(added.id, 'Korrigierter Text')
+        expect(updated.contactId).toBe(added.contactId)
+        expect(updated.authorId).toBe(added.authorId)
+        expect(updated.occurredAt).toBe(added.occurredAt)
+        expect(updated.type).toBe(added.type)
+      })
+
+      it('weist einen leeren Text ab und lässt das Original stehen', async () => {
+        const c = await repo.createContact(BASE)
+        const added = await repo.addActivity(note(c.id))
+        await expect(repo.updateActivity(added.id, '   ')).rejects.toThrow()
+        expect((await repo.listActivities(c.id))[0].body).toBe('Er fährt ein JOBRAT.')
+      })
+
+      it('löscht einen einzelnen Eintrag', async () => {
+        const c = await repo.createContact(BASE)
+        const added = await repo.addActivity(note(c.id))
+        await repo.removeActivity(added.id)
+        expect(await repo.listActivities(c.id)).toEqual([])
+      })
+
+      it('meldet einen Fehler, wenn der zu ändernde Eintrag nicht existiert', async () => {
+        await expect(
+          repo.updateActivity('00000000-0000-0000-0000-000000000000', 'egal'),
+        ).rejects.toThrow()
+      })
+
+      // Kein Fehler: ein DELETE auf eine nicht vorhandene Zeile ist in Postgres
+      // ein Nichts-Tun, und der Adapter kann „gibt es nicht" von „war schon weg"
+      // nicht unterscheiden. Zweimal löschen darf also nicht knallen.
+      it('nimmt ein zweites Löschen klaglos hin', async () => {
+        const c = await repo.createContact(BASE)
+        const added = await repo.addActivity(note(c.id))
+        await repo.removeActivity(added.id)
+        await expect(repo.removeActivity(added.id)).resolves.toBeUndefined()
+      })
+    })
+
     it('persists, lists (from both endpoints) and deletes contact links', async () => {
       const a = await repo.createContact(BASE)
       const b = await repo.createContact({ ...BASE, fullName: 'Zweite Person' })
@@ -575,6 +644,57 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       })
     })
 
+    // Gemeldet 2026-09-24: eine Teamassistenz betreut zwei Gebiete, im Tool hatte
+    // ein Kontakt genau eines. Entscheidung Jannik 2026-09-25: beliebig viele,
+    // alle gleichwertig.
+    describe('Mehrere Gebiete je Kontakt', () => {
+      it('legt einen Kontakt mit genau seinem Gebiet an', async () => {
+        const c = await repo.createContact(BASE)
+        const read = await repo.getContact(c.id)
+        expect(read?.regionIds).toEqual([BASE.regionId])
+      })
+
+      it('nimmt ein zweites Gebiet auf, ohne das erste zu verlieren', async () => {
+        const c = await repo.createContact(BASE)
+        const second = await repo.createRegion('Zweites Gebiet')
+        const updated = await repo.setContactRegions(c.id, [BASE.regionId, second.id])
+        expect([...(updated.regionIds ?? [])].sort()).toEqual(
+          [BASE.regionId, second.id].sort(),
+        )
+        // Das führende Gebiet bleibt, woran andere Stellen es festmachen.
+        expect(updated.regionId).toBe(BASE.regionId)
+      })
+
+      it('entfernt ein Gebiet wieder', async () => {
+        const c = await repo.createContact(BASE)
+        const second = await repo.createRegion('Wieder weg')
+        await repo.setContactRegions(c.id, [BASE.regionId, second.id])
+        const back = await repo.setContactRegions(c.id, [BASE.regionId])
+        expect(back.regionIds).toEqual([BASE.regionId])
+      })
+
+      it('lässt einen Kontakt nicht ohne Gebiet zurück', async () => {
+        const c = await repo.createContact(BASE)
+        await expect(repo.setContactRegions(c.id, [])).rejects.toThrow()
+        expect((await repo.getContact(c.id))?.regionIds).toEqual([BASE.regionId])
+      })
+
+      it('rückt ein verbliebenes Gebiet nach, wenn das führende geht', async () => {
+        const c = await repo.createContact(BASE)
+        const second = await repo.createRegion('Nachrücker')
+        await repo.setContactRegions(c.id, [BASE.regionId, second.id])
+        const after = await repo.setContactRegions(c.id, [second.id])
+        expect(after.regionId).toBe(second.id)
+        expect(after.regionIds).toEqual([second.id])
+      })
+
+      it('schluckt Dubletten in der Eingabe', async () => {
+        const c = await repo.createContact(BASE)
+        const updated = await repo.setContactRegions(c.id, [BASE.regionId, BASE.regionId])
+        expect(updated.regionIds).toEqual([BASE.regionId])
+      })
+    })
+
     describe('Regionen-Selbstverwaltung', () => {
       it('legt eine Region an — taucht in listRegions auf, kein Platzhalter', async () => {
         const created = await repo.createRegion('  Südwest  ')
@@ -586,6 +706,34 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         expect(found).toBeDefined()
         expect(found?.name).toBe('Südwest')
         expect(found?.isPlaceholder).toBe(false)
+      })
+
+      // Gemeldet 2026-09-24: eine Teamassistenz sollte einem Kontakt ein zweites
+      // Gebiet geben, tippte den vorhandenen Namen in „+ Neue Region" und bekam
+      // `duplicate key value violates unique constraint "regions_name_key"`.
+      it('gibt bei vorhandenem Namen die bestehende Region zurück statt zu scheitern', async () => {
+        const first = await repo.createRegion('Public Mitte/West')
+        const again = await repo.createRegion('Public Mitte/West')
+        expect(again.id).toBe(first.id)
+        // Genau eine Region dieses Namens — es entsteht keine Dublette.
+        const all = await repo.listRegions()
+        expect(all.filter((r) => r.name === 'Public Mitte/West')).toHaveLength(1)
+      })
+
+      it('trifft dabei auch bei abweichender Schreibweise und Leerzeichen', async () => {
+        const first = await repo.createRegion('Public Süd/Südwest')
+        const again = await repo.createRegion('  public SÜD/südwest  ')
+        expect(again.id).toBe(first.id)
+        // Der gespeicherte Name bleibt, wie er angelegt wurde.
+        expect(again.name).toBe('Public Süd/Südwest')
+      })
+
+      // `_` und `%` sind in einem LIKE-Muster Platzhalter. Unmaskiert würde
+      // „Nord_Ost" auf „Nord-Ost" passen und die falsche Region liefern.
+      it('behandelt Unterstrich und Prozent als Zeichen, nicht als Platzhalter', async () => {
+        const dash = await repo.createRegion('Nord-Ost')
+        const underscore = await repo.createRegion('Nord_Ost')
+        expect(underscore.id).not.toBe(dash.id)
       })
 
       it('benennt eine Region um — der neue Name bleibt bestehen', async () => {

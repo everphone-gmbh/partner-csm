@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, History, Paperclip, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { ChevronDown, History, Paperclip, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
 import type { Activity, ActivityType, Contact, Reminder, SentimentEntry } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { repository } from '@/data/repositoryProvider'
@@ -8,7 +8,7 @@ import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { VoiceRecorder } from '@/components/VoiceRecorder'
-import { canApprove, canViewActivityBody } from '@/domain/roles'
+import { canApprove, canEditActivity, canViewActivityBody } from '@/domain/roles'
 import {
   autoExtractAvailable,
   extractViaServer,
@@ -209,6 +209,8 @@ export function Timeline({
                             key={entryId(entry)}
                             activity={entry.activity}
                             canBody={canBody}
+                            canEdit={canEditActivity(user.role, entry.activity.authorId, user.id)}
+                            onChanged={onReload}
                             isNew={newId === entryId(entry)}
                           />
                         ) : (
@@ -638,11 +640,13 @@ function MetaLine({
   label,
   at,
   author,
+  editedAt,
 }: {
   kind: ActivityType | 'sentiment'
   label: string
   at: string
   author?: string
+  editedAt?: string
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -651,6 +655,11 @@ function MetaLine({
       <time dateTime={at} title={formatDateTime(at)}>
         {formatRelative(at)}
       </time>
+      {/* Eine Korrektur bleibt erkennbar — sonst liest sich ein nachtraeglich
+          geaenderter Eintrag wie das Original. */}
+      {editedAt && (
+        <span title={`Geändert am ${formatDateTime(editedAt)}`}>· bearbeitet</span>
+      )}
     </div>
   )
 }
@@ -658,14 +667,58 @@ function MetaLine({
 function ActivityItem({
   activity,
   canBody,
+  canEdit,
+  onChanged,
   isNew,
 }: {
   activity: Activity
   canBody: boolean
+  /** Stift und Papierkorb erscheinen nur, wenn die Rolle den Text auch sehen darf. */
+  canEdit: boolean
+  onChanged: () => void
   isNew?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(activity.body)
+  const [saving, setSaving] = useState(false)
+  const { toast } = useToast()
   const { label, icon: Icon } = ACTIVITY_META[activity.type]
+
+  const startEdit = () => {
+    setDraft(activity.body)
+    setEditing(true)
+  }
+
+  const save = async () => {
+    const text = draft.trim()
+    if (!text || text === activity.body) {
+      setEditing(false)
+      return
+    }
+    setSaving(true)
+    try {
+      await repository.updateActivity(activity.id, text)
+      setEditing(false)
+      onChanged()
+      toast('Eintrag geändert.', 'success')
+    } catch (err) {
+      toast(saveErrorMessage(err)) // der getippte Text bleibt stehen
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!window.confirm('Diesen Eintrag löschen? Das lässt sich nicht rückgängig machen.')) return
+    try {
+      await repository.removeActivity(activity.id)
+      onChanged()
+      toast('Eintrag gelöscht.', 'success')
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    }
+  }
   // Redacted tier must NEVER see the raw body — when no AI summary exists,
   // show a placeholder rather than falling back to the confidential text.
   const summary = canBody
@@ -679,32 +732,92 @@ function ActivityItem({
         <Icon className="size-3" />
       </span>
       <div className="min-w-0">
-        <MetaLine kind={activity.type} label={label} at={activity.occurredAt} author={activity.authorName} />
-        <p className="mt-1 text-sm text-foreground">{summary}</p>
+        <div className="flex items-start justify-between gap-2">
+          <MetaLine
+            kind={activity.type}
+            label={label}
+            at={activity.occurredAt}
+            author={activity.authorName}
+            editedAt={activity.editedAt}
+          />
+          {canEdit && !editing && (
+            // Dauerhaft sichtbar, nicht erst bei Mauszeiger: das Kreuz an den
+            // Galeriefotos war so am Tablet unauffindbar (behoben in 1.0).
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={startEdit}
+                title="Eintrag ändern"
+                aria-label="Eintrag ändern"
+                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={remove}
+                title="Eintrag löschen"
+                aria-label="Eintrag löschen"
+                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
 
-        {canBody
-          ? hasMore && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setOpen((o) => !o)}
-                  className="mt-1 inline-flex items-center gap-1 rounded text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <ChevronDown className={cn('size-3 transition-transform', open && 'rotate-180')} />
-                  {open ? 'Weniger' : 'Mehr Details'}
-                </button>
-                {open && (
-                  <p className="mt-1 whitespace-pre-wrap rounded-md bg-secondary/50 p-2 text-sm text-foreground">
-                    {activity.body}
-                  </p>
-                )}
-              </>
-            )
-          : hasMore && (
-              <p className="mt-1 text-xs italic text-muted-foreground">
-                Volltext für Ihre Rolle nicht sichtbar
-              </p>
-            )}
+        {editing ? (
+          <div className="mt-1.5 space-y-2">
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              aria-label="Text des Eintrags"
+              rows={4}
+              autoFocus
+            />
+            <div className="flex items-center gap-2">
+              <Button type="button" size="sm" onClick={save} disabled={saving || !draft.trim()}>
+                {saving ? 'Speichern…' : 'Speichern'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditing(false)}
+                disabled={saving}
+              >
+                Abbrechen
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-1 text-sm text-foreground">{summary}</p>
+        )}
+
+        {!editing &&
+          (canBody
+            ? hasMore && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setOpen((o) => !o)}
+                    className="mt-1 inline-flex items-center gap-1 rounded text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ChevronDown className={cn('size-3 transition-transform', open && 'rotate-180')} />
+                    {open ? 'Weniger' : 'Mehr Details'}
+                  </button>
+                  {open && (
+                    <p className="mt-1 whitespace-pre-wrap rounded-md bg-secondary/50 p-2 text-sm text-foreground">
+                      {activity.body}
+                    </p>
+                  )}
+                </>
+              )
+            : hasMore && (
+                <p className="mt-1 text-xs italic text-muted-foreground">
+                  Volltext für Ihre Rolle nicht sichtbar
+                </p>
+              ))}
 
         {activity.attachments.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">

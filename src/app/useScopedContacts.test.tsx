@@ -55,3 +55,44 @@ describe('useScopedContacts', () => {
     expect(result.current.scoped[0].id).toBe('c3')
   })
 })
+
+// --- Mehrere Gebiete je Kontakt (Migration 0035) ---------------------------
+
+describe('useScopedContacts mit mehreren Gebieten', () => {
+  it('zeigt dem Account Manager auch einen Kontakt, der sein Gebiet als ZWEITES trägt', async () => {
+    // Der gemeldete Fall: eine Teamassistenz ist in Süd geführt, betreut aber
+    // auch West. Der Account Manager in West muss sie sehen.
+    const assistenz: Contact = {
+      ...contact('c-assistenz', 'r-sued'),
+      regionIds: ['r-sued', 'r-west'],
+    }
+    const { result } = renderHook(
+      () => {
+        const session = useSession()
+        return { session, ...useScopedContacts([...contacts, assistenz]) }
+      },
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current).not.toBeNull())
+    act(() => result.current.session.setUserId('u-mehmet')) // account_manager in r-west
+    await waitFor(() => expect(result.current.isAccountManager).toBe(true))
+
+    expect(result.current.scoped.map((c) => c.id).sort()).toEqual(['c-assistenz', 'c3'])
+  })
+
+  it('blendet einen Kontakt weiterhin aus, dessen Gebiete beide fremd sind', async () => {
+    const fremd: Contact = { ...contact('c-fremd', 'r-sued'), regionIds: ['r-sued', 'r-nord'] }
+    const { result } = renderHook(
+      () => {
+        const session = useSession()
+        return { session, ...useScopedContacts([fremd]) }
+      },
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current).not.toBeNull())
+    act(() => result.current.session.setUserId('u-mehmet'))
+    await waitFor(() => expect(result.current.isAccountManager).toBe(true))
+
+    expect(result.current.scoped).toHaveLength(0)
+  })
+})

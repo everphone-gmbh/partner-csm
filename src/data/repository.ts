@@ -83,6 +83,13 @@ export interface ContactPatch {
   position?: string
   photoUrl?: string | null
   regionId?: string
+  /**
+   * Alle Gebiete des Kontakts — ersetzt die Menge (Migration 0035), wie
+   * `sideFacts` und `customers` auch. Mindestens ein Gebiet ist Pflicht.
+   * Gesetzt, gewinnt es gegen `regionId`: das führende Gebiet ergibt sich dann
+   * aus dieser Liste.
+   */
+  regionIds?: string[]
   relationshipManagerId?: string
   company?: string
   team?: string
@@ -199,6 +206,12 @@ export interface Repository {
    * Legt ein neues Vertriebsgebiet an (immer als echte Region, nie als
    * Platzhalter). Der Name wird getrimmt; ein leerer Name ist ein Fehler.
    * Schreibrecht haben serverseitig nur RM+ (RLS `regions_insert`, 0029).
+   *
+   * **Finden ODER anlegen:** gibt es bereits ein Gebiet dieses Namens
+   * (Groß-/Kleinschreibung egal), wird dieses zurückgegeben statt ein zweites
+   * anzulegen. Wer „+ Neue Region" öffnet und einen vorhandenen Namen tippt,
+   * meint dieses Gebiet — vorher endete das in einem Eindeutigkeitsfehler der
+   * Datenbank, der ungefiltert auf dem Bildschirm landete (2026-09-24).
    */
   createRegion(name: string): Promise<Region>
   /**
@@ -217,6 +230,17 @@ export interface Repository {
    * bleibt zweistufig: erst per Massenzuordnung umziehen, dann löschen.
    */
   deleteRegion(id: string): Promise<void>
+  /**
+   * Setzt die Gebiete eines Kontakts (Migration 0035). Ersetzt die ganze Menge:
+   * was nicht in der Liste steht, wird entfernt.
+   *
+   * Mindestens ein Gebiet ist Pflicht — `contacts.region_id` ist NOT NULL, und
+   * ein Kontakt ohne Gebiet wäre für jeden Account Manager unsichtbar. Die
+   * Datenbank weist das Entfernen des letzten Gebiets zusätzlich selbst ab.
+   *
+   * Schreibrecht haben serverseitig nur RM+ (`contact_regions_write`).
+   */
+  setContactRegions(contactId: string, regionIds: string[]): Promise<Contact>
   listUsers(): Promise<AppUser[]>
   /** Rolle und/oder Region eines vorhandenen Kontos setzen (Migration 0033).
    *  Serverseitig nur für overall_admin; der Trigger verhindert die Änderung der
@@ -268,6 +292,28 @@ export interface Repository {
   listActivities(contactId: string): Promise<Activity[]>
   listAllActivities(): Promise<Activity[]>
   addActivity(input: NewActivity): Promise<Activity>
+  /**
+   * Korrigiert den Text eines gespeicherten Eintrags (UPDATE-dann-Neulesen,
+   * kein upsert). Serverseitig erlaubt für RM+ und den Verfasser (Policy
+   * `activities_update`, 0034); der Trigger dort nagelt Kontakt, Verfasser,
+   * Zeitpunkt und Art fest und setzt `editedAt` selbst.
+   *
+   * Anlass: eine per Sprachmemo diktierte Notiz mit Erkennungsfehler war
+   * unkorrigierbar (gemeldet 2026-09-24).
+   */
+  updateActivity(id: string, body: string): Promise<Activity>
+  /**
+   * Löscht einen Eintrag. Serverseitig erlaubt für RM+ und den Verfasser
+   * (Policy `activities_delete`, 0008).
+   *
+   * Wirft, wenn die Zeile danach noch existiert: eine von der RLS gefilterte
+   * Löschung liefert 0 Zeilen und **keinen** Fehler — ohne diese Nachprüfung
+   * meldete die Oberfläche Erfolg, obwohl nichts geschehen ist.
+   *
+   * Einen Eintrag zu löschen, den es nicht (mehr) gibt, ist dagegen kein
+   * Fehler — genau wie ein DELETE in Postgres.
+   */
+  removeActivity(id: string): Promise<void>
   /** Team-wide "Wer kann helfen?" board. */
   listIntroRequests(): Promise<IntroRequest[]>
   addIntroRequest(input: NewIntroRequest): Promise<IntroRequest>

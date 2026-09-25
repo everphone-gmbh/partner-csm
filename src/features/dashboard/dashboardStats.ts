@@ -1,5 +1,6 @@
 import type { Contact, TrafficLight } from '@/domain/types'
 import { daysUntilBirthday } from '@/lib/format'
+import { contactRegionIds } from '@/domain/contactRegions'
 
 export interface UpcomingAnniversary {
   contact: Contact
@@ -44,24 +45,33 @@ export interface RegionCoverage {
   coveragePct: number
 }
 
-/** Per-region relationship coverage — the management steering view. */
+/**
+ * Per-region relationship coverage — the management steering view.
+ *
+ * Ein Kontakt zählt seit 0035 in JEDEM seiner Gebiete (Entscheidung Jannik
+ * 2026-09-25). Die Summe der `total` über alle Gebiete liegt damit bewusst über
+ * der Zahl der Kontakte — eine Assistenz, die zwei Gebiete betreut, fehlt sonst
+ * in einer der beiden Abdeckungslisten.
+ */
 export function computeRegionCoverage(contacts: Contact[]): RegionCoverage[] {
   const map = new Map<string, RegionCoverage>()
   for (const c of contacts) {
-    let r = map.get(c.regionId)
-    if (!r) {
-      r = {
-        regionId: c.regionId,
-        total: 0,
-        bySentiment: { green: 0, amber: 0, red: 0, neutral: 0 },
-        rated: 0,
-        coveragePct: 0,
+    for (const regionId of contactRegionIds(c)) {
+      let r = map.get(regionId)
+      if (!r) {
+        r = {
+          regionId,
+          total: 0,
+          bySentiment: { green: 0, amber: 0, red: 0, neutral: 0 },
+          rated: 0,
+          coveragePct: 0,
+        }
+        map.set(regionId, r)
       }
-      map.set(c.regionId, r)
+      r.total++
+      r.bySentiment[c.sentiment]++
+      if (c.sentiment !== 'neutral') r.rated++
     }
-    r.total++
-    r.bySentiment[c.sentiment]++
-    if (c.sentiment !== 'neutral') r.rated++
   }
   for (const r of map.values()) {
     r.coveragePct = r.total ? Math.round((r.rated / r.total) * 100) : 0

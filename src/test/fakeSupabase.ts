@@ -38,6 +38,7 @@ const TABLES = [
   'regions',
   'profiles',
   'contacts',
+  'contact_regions',
   'side_facts',
   'customers',
   'contact_customers',
@@ -65,6 +66,7 @@ const TABLES = [
  */
 const UNIQUE_KEYS: Record<string, string[]> = {
   favorites: ['profile_id', 'contact_id'],
+  contact_regions: ['contact_id', 'region_id'],
 }
 
 /**
@@ -106,6 +108,17 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
         out.contact_photos = tables.contact_photos
           .filter((p) => p.contact_id === row.id)
           .map((p) => ({ ...p }))
+      }
+      // Spalte der View contact_cards (0035): alle Gebiete, fuehrendes zuerst.
+      // Kein Embed, sondern ein Unterselect — deshalb haengt sie nicht an einer
+      // Klammer im select, sondern am blossen Spaltennamen.
+      if (select.includes('region_ids')) {
+        const own = tables.contact_regions.filter((cr) => cr.contact_id === row.id)
+        out.region_ids = own.length
+          ? own
+              .map((cr) => String(cr.region_id))
+              .sort((a, b) => (a === row.region_id ? -1 : b === row.region_id ? 1 : 0))
+          : [row.region_id]
       }
     }
     return out
@@ -162,6 +175,8 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
   }
   let auditSeq = 1
   const AUDIT_AT = '2026-07-01T00:00:00.000Z'
+  /** now() des Triggers aus 0034 — fest, damit Tests vergleichbar bleiben. */
+  const FAKE_EDITED_AT = '2026-07-02T00:00:00.000Z'
 
   function writeAudit(table: string, action: 'insert' | 'update' | 'delete', row: Row, before?: Row) {
     const entity = AUDIT_ENTITY[table]
@@ -198,6 +213,35 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
    * nachbilden; sie wird von Hand gegen die echte Datenbank geprüft, und die
    * Oberfläche deaktiviert das eigene Rollenfeld.
    */
+  /**
+   * Trigger `activities_guard_change` (Migration 0034). Aenderbar ist nur der
+   * Inhalt: Kontakt, Verfasser, Zeitpunkt und Art bleiben stehen, sonst liesse
+   * sich per UPDATE die Regionspruefung aus `activities_insert` umgehen und ein
+   * Eintrag in einen fremden Kontakt schieben.
+   *
+   * `edited_at` setzt die Datenbank selbst — und nur, wenn sich am Text wirklich
+   * etwas geaendert hat. Der Fake muss das nachbilden, sonst behauptet der
+   * Mock-Zweig eine Korrektur-Markierung, die der Supabase-Zweig nicht liefert.
+   */
+  const ACTIVITY_FROZEN = ['id', 'contact_id', 'author_id', 'occurred_at', 'type']
+  function guardActivityUpdate(patch: Row, matched: Row[]): Result | null {
+    for (const row of matched) {
+      for (const col of ACTIVITY_FROZEN) {
+        if (patch[col] !== undefined && patch[col] !== row[col]) {
+          return {
+            data: null,
+            error: { message: `${col} kann nicht geaendert werden`, code: '42501' },
+          }
+        }
+      }
+      const changed =
+        (patch.body !== undefined && patch.body !== row.body) ||
+        (patch.ai_summary !== undefined && patch.ai_summary !== row.ai_summary)
+      if (changed) patch.edited_at = FAKE_EDITED_AT
+    }
+    return null
+  }
+
   function guardProfileUpdate(patch: Row, matched: Row[]): Result | null {
     for (const row of matched) {
       if (patch.id !== undefined && patch.id !== row.id) {
@@ -404,6 +448,21 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           if (base.id === undefined) base.id = `${this.table}-${seq++}`
           rows.push(base)
           writeAudit(this.table, 'insert', base)
+          // Trigger contacts_region_membership (0035): ohne ihn haette ein neu
+          // angelegter Kontakt keine Gebietszuordnung und waere fuer jeden
+          // Account Manager unsichtbar.
+          if (this.table === 'contacts' && base.region_id) {
+            const has = tables.contact_regions.some(
+              (cr) => cr.contact_id === base.id && cr.region_id === base.region_id,
+            )
+            if (!has) {
+              tables.contact_regions.push({
+                contact_id: base.id,
+                region_id: base.region_id,
+                created_at: AUDIT_AT,
+              })
+            }
+          }
           return base
         })
         return this.finish(written)
@@ -420,6 +479,10 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
         if (this.table === 'profiles') {
           // Trigger vor dem Schreiben: schlägt er an, bleibt die Zeile stehen.
           const blocked = guardProfileUpdate(patch, matched)
+          if (blocked) return blocked
+        }
+        if (this.table === 'activities') {
+          const blocked = guardActivityUpdate(patch, matched)
           if (blocked) return blocked
         }
         for (const r of matched) {
@@ -450,6 +513,27 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
                   'update or delete on table "regions" violates foreign key constraint',
               },
             }
+          }
+        }
+        if (this.table === 'contact_regions') {
+          // Trigger promote_leading_region (0035): das letzte Gebiet bleibt, und
+          // faellt das fuehrende weg, rueckt ein verbliebenes nach.
+          for (const r of removed) {
+            const contact = tables.contacts.find((c) => c.id === r.contact_id)
+            if (!contact) continue // Kaskade beim Loeschen des Kontakts
+            const rest = tables.contact_regions.filter(
+              (cr) => cr.contact_id === r.contact_id && !removed.includes(cr),
+            )
+            if (rest.length === 0) {
+              return {
+                data: null,
+                error: {
+                  message: 'Ein Kontakt braucht mindestens ein Gebiet',
+                  code: '23502',
+                },
+              }
+            }
+            if (contact.region_id === r.region_id) contact.region_id = rest[0].region_id
           }
         }
         for (const r of removed) writeAudit(this.table, 'delete', r)

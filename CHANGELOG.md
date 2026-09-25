@@ -39,7 +39,11 @@ Erstes nummeriertes Release. Sammelt, was seit dem Digital-X-Event dazugekommen 
 ## Unreleased → 1.1 (Freitag 2026-09-25)
 
 ### Neu
+- **Ein Kontakt kann zu mehreren Regionen gehören**: im Kontakt unter „Bearbeiten" stehen die Gebiete jetzt als Chips, weitere lassen sich hinzufügen und wieder entfernen. Wer zwei Gebiete betreut — etwa eine Teamassistenz —, taucht in beiden Listen, Filtern und Abdeckungen auf. Ein Gebiet muss bleiben. **Die Regionszahlen summieren sich dadurch auf mehr als die Gesamtzahl der Kontakte**; das ist gewollt, sonst fehlte so jemand in einer der Listen. (Kontakte, Übersicht, Bericht)
+- **Eine gespeicherte Notiz lässt sich korrigieren**: am Eintrag sitzen jetzt ein Stift und ein Papierkorb. Wenn die Spracherkennung aus JOBRAD ein JOBRAT gemacht hat, ist das kein Dauerzustand mehr. Erlaubt für den Verfasser und für Relationship Manager; korrigierte Einträge sind als „bearbeitet" gekennzeichnet. (Kontaktkarte)
 
 ### Behoben
+- **Eine vorhandene Region noch einmal anzulegen** endete in einer englischen Datenbankmeldung. Jetzt wird das bestehende Gebiet einfach ausgewählt — Groß- und Kleinschreibung egal. (Kontakte)
+- **Fehlermeldungen der Datenbank** landeten wortwörtlich auf dem Bildschirm. Sie werden jetzt überall in verständliche Sätze übersetzt. (Allgemein)
 
 ### Intern

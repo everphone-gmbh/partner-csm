@@ -61,8 +61,9 @@ describe('useFavorites', () => {
     await act(() => pending)
 
     expect(result.current.isFavorite('c-anke')).toBe(false)
+    // Die Meldung der Datenbank wird übersetzt, nicht durchgereicht.
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Speichern fehlgeschlagen: RLS: permission denied',
+      'Speichern fehlgeschlagen: Dafür fehlt dir die Berechtigung.',
     )
     expect(await repo.listFavorites('u-alex')).toEqual([])
   })

@@ -8,6 +8,7 @@ import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { contactRegionIds } from '@/domain/contactRegions'
 import {
   canApprove,
   canManageContactPhoto,
@@ -86,7 +87,14 @@ export function ContactProfile() {
   )
   const historyEntries = historyQ.data ?? []
 
-  const regionName = view ? regions.find((r) => r.id === view.regionId)?.name : undefined
+  // Alle Gebiete, nicht nur das führende (0035) — sonst sieht man auf der Karte
+  // nicht, dass der Kontakt zu zweien gehört.
+  const regionName = view
+    ? contactRegionIds(view)
+        .map((id) => regions.find((r) => r.id === id)?.name)
+        .filter(Boolean)
+        .join(' · ') || undefined
+    : undefined
   const managerName = view ? users.find((u) => u.id === view.relationshipManagerId)?.name : undefined
 
   const aiIntro = useMemo(
