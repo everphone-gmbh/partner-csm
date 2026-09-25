@@ -1,6 +1,7 @@
 import type { Activity, Contact, TrafficLight } from '@/domain/types'
 import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { upcomingBirthdays, type UpcomingBirthday } from '@/features/dashboard/dashboardStats'
+import { isInRegion } from '@/domain/contactRegions'
 
 export interface RegionReport {
   total: number
@@ -27,7 +28,7 @@ export function buildRegionReport(
   managerId: string | null = null,
   today: Date = new Date(),
 ): RegionReport {
-  let scoped = regionId ? contacts.filter((c) => c.regionId === regionId) : contacts
+  let scoped = regionId ? contacts.filter((c) => isInRegion(c, regionId)) : contacts
   if (managerId) scoped = scoped.filter((c) => c.relationshipManagerId === managerId)
   const scopedIds = new Set(scoped.map((c) => c.id))
 

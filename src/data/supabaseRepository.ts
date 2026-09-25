@@ -65,7 +65,7 @@ const ACTIVITY_READ = 'activity_cards'
 const ACTIVITY_SELECT = 'id, contact_id, type, occurred_at, author_id, body, ai_summary, edited_at'
 
 const CONTACT_SELECT =
-  'id, full_name, position, photo_url, region_id, relationship_manager_id, company, team, email, ' +
+  'id, full_name, position, photo_url, region_id, region_ids, relationship_manager_id, company, team, email, ' +
   'phone_work, phone_mobile, phone_private, ' +
   'phone_direct, email_private, business_address, assistant_name, assistant_contact, social_links, ' +
   'birthday, location, family_status, children, pets, linkedin_status, linkedin_url, ' +
@@ -81,6 +81,8 @@ export interface ContactRow {
   position: string | null
   photo_url: string | null
   region_id: string
+  /** Alle Gebiete des Kontakts (View-Spalte seit 0035). */
+  region_ids?: string[] | null
   relationship_manager_id: string | null
   company: string | null
   team: string | null
@@ -139,6 +141,7 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     position: row.position ?? '',
     photoUrl: row.photo_url,
     regionId: row.region_id,
+    regionIds: row.region_ids ?? undefined,
     relationshipManagerId: row.relationship_manager_id ?? '',
     company: row.company ?? undefined,
     team: row.team ?? undefined,
@@ -323,6 +326,7 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
       case 'sideFacts':
       case 'gallery':
       case 'customers':
+      case 'regionIds':
         // Relation rows, not columns — persisted separately in updateContact.
         break
       default: {
@@ -612,6 +616,50 @@ export class SupabaseRepository implements Repository {
    * Name in der Datenbank bleibt unangetastet, wir geben ihn zurück, wie er dort
    * steht.
    */
+  async setContactRegions(contactId: string, regionIds: string[]): Promise<Contact> {
+    const wanted = [...new Set(regionIds.filter(Boolean))]
+    if (wanted.length === 0) throw new Error('Mindestens ein Gebiet ist nötig')
+
+    const { data: existingRows, error: readError } = await this.client
+      .from('contact_regions')
+      .select('region_id')
+      .eq('contact_id', contactId)
+    if (readError) throw new Error(readError.message)
+    const current = ((existingRows ?? []) as unknown as { region_id: string }[]).map(
+      (r) => r.region_id,
+    )
+
+    // Erst hinzufügen, dann entfernen. Andersherum stünde der Kontakt einen
+    // Augenblick ohne Gebiet da — und der Trigger weist genau das ab.
+    const toAdd = wanted.filter((id) => !current.includes(id))
+    const toRemove = current.filter((id) => !wanted.includes(id))
+
+    if (toAdd.length > 0) {
+      const { error } = await this.client
+        .from('contact_regions')
+        .insert(toAdd.map((region_id) => ({ contact_id: contactId, region_id })))
+      if (error) throw new Error(error.message)
+    }
+    if (toRemove.length > 0) {
+      const { error } = await this.client
+        .from('contact_regions')
+        .delete()
+        .eq('contact_id', contactId)
+        .in('region_id', toRemove)
+      if (error) throw new Error(error.message)
+    }
+
+    // Nachlesen statt annehmen: eine von der Policy gefilterte Änderung liefert
+    // 0 Zeilen und KEINEN Fehler (wie bei deleteRegion).
+    const contact = await this.getContact(contactId)
+    if (!contact) throw new Error('Kontakt nicht gefunden oder keine Berechtigung')
+    const after = [...(contact.regionIds ?? [contact.regionId])].sort()
+    if (after.join(',') !== [...wanted].sort().join(',')) {
+      throw new Error('Gebiete konnten nicht gesetzt werden')
+    }
+    return contact
+  }
+
   async createRegion(name: string): Promise<Region> {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Regionsname darf nicht leer sein')
@@ -812,6 +860,12 @@ export class SupabaseRepository implements Repository {
     if (Object.keys(row).length > 0) {
       const { error } = await this.client.from('contacts').update(row).eq('id', id)
       if (error) throw new Error(error.message)
+    }
+
+    // Gebiete zuerst: steht der Kontakt danach nicht mehr im eigenen Gebiet,
+    // sollen die übrigen Änderungen trotzdem geschrieben sein.
+    if (patch.regionIds !== undefined) {
+      await this.setContactRegions(id, patch.regionIds)
     }
 
     // Side facts are replaced wholesale (small rows, client-generated ids).

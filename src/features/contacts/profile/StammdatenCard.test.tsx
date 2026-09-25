@@ -180,3 +180,67 @@ describe('StammdatenCard — ungespeicherte Änderungen', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
+
+// --- Mehrere Regionen je Kontakt (Migration 0035) --------------------------
+//
+// Gemeldet 2026-09-24: eine Teamassistenz betreut zwei Gebiete, konnte das aber
+// nicht eintragen. Ihr Versuch über „+ Neue Region" legte ein Gebiet an, statt
+// eines zuzuordnen — und lief in eine Datenbankmeldung.
+
+const zweiRegionen: Region[] = [
+  { id: 'r1', name: 'Public Süd/Südwest', isPlaceholder: false },
+  { id: 'r2', name: 'Public Mitte/West', isPlaceholder: false },
+  { id: 'r3', name: 'Unbekannt', isPlaceholder: true },
+]
+
+describe('StammdatenCard — mehrere Regionen', () => {
+  it('nimmt eine zweite Region auf und speichert beide', async () => {
+    const user = userEvent.setup()
+    const { onSave } = renderCard({ regions: zweiRegionen })
+    await user.click(screen.getByRole('button', { name: /bearbeiten/i }))
+
+    await user.selectOptions(screen.getByLabelText('Region hinzufügen'), 'r2')
+    await user.click(screen.getByRole('button', { name: /^speichern$/i }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].regionIds).toEqual(['r1', 'r2'])
+  })
+
+  it('entfernt eine Region wieder', async () => {
+    const user = userEvent.setup()
+    const { onSave } = renderCard({
+      regions: zweiRegionen,
+      contact: { ...contact, regionIds: ['r1', 'r2'] },
+    })
+    await user.click(screen.getByRole('button', { name: /bearbeiten/i }))
+
+    await user.click(screen.getByRole('button', { name: /Region Public Süd\/Südwest entfernen/ }))
+    await user.click(screen.getByRole('button', { name: /^speichern$/i }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].regionIds).toEqual(['r2'])
+  })
+
+  it('lässt die letzte Region nicht entfernen', async () => {
+    const user = userEvent.setup()
+    renderCard({ regions: zweiRegionen })
+    await user.click(screen.getByRole('button', { name: /bearbeiten/i }))
+
+    // Ein Kontakt ohne Gebiet wäre für jeden Account Manager unsichtbar, und die
+    // Datenbank lehnt es ohnehin ab — die Oberfläche bietet es gar nicht erst an.
+    expect(screen.getByRole('button', { name: /Region Public Süd\/Südwest entfernen/ })).toBeDisabled()
+  })
+
+  it('bietet eine bereits zugeordnete Region nicht noch einmal an', async () => {
+    const user = userEvent.setup()
+    renderCard({ regions: zweiRegionen, contact: { ...contact, regionIds: ['r1', 'r2'] } })
+    await user.click(screen.getByRole('button', { name: /bearbeiten/i }))
+
+    const add = screen.getByLabelText('Region hinzufügen')
+    const offered = within(add)
+      .getAllByRole('option')
+      .map((o) => (o as HTMLOptionElement).value)
+      .filter(Boolean)
+    expect(offered).toEqual(['r3'])
+  })
+})

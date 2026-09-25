@@ -83,6 +83,13 @@ export interface ContactPatch {
   position?: string
   photoUrl?: string | null
   regionId?: string
+  /**
+   * Alle Gebiete des Kontakts — ersetzt die Menge (Migration 0035), wie
+   * `sideFacts` und `customers` auch. Mindestens ein Gebiet ist Pflicht.
+   * Gesetzt, gewinnt es gegen `regionId`: das führende Gebiet ergibt sich dann
+   * aus dieser Liste.
+   */
+  regionIds?: string[]
   relationshipManagerId?: string
   company?: string
   team?: string
@@ -223,6 +230,17 @@ export interface Repository {
    * bleibt zweistufig: erst per Massenzuordnung umziehen, dann löschen.
    */
   deleteRegion(id: string): Promise<void>
+  /**
+   * Setzt die Gebiete eines Kontakts (Migration 0035). Ersetzt die ganze Menge:
+   * was nicht in der Liste steht, wird entfernt.
+   *
+   * Mindestens ein Gebiet ist Pflicht — `contacts.region_id` ist NOT NULL, und
+   * ein Kontakt ohne Gebiet wäre für jeden Account Manager unsichtbar. Die
+   * Datenbank weist das Entfernen des letzten Gebiets zusätzlich selbst ab.
+   *
+   * Schreibrecht haben serverseitig nur RM+ (`contact_regions_write`).
+   */
+  setContactRegions(contactId: string, regionIds: string[]): Promise<Contact>
   listUsers(): Promise<AppUser[]>
   /** Rolle und/oder Region eines vorhandenen Kontos setzen (Migration 0033).
    *  Serverseitig nur für overall_admin; der Trigger verhindert die Änderung der

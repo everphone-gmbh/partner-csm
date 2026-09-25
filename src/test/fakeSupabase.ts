@@ -38,6 +38,7 @@ const TABLES = [
   'regions',
   'profiles',
   'contacts',
+  'contact_regions',
   'side_facts',
   'customers',
   'contact_customers',
@@ -65,6 +66,7 @@ const TABLES = [
  */
 const UNIQUE_KEYS: Record<string, string[]> = {
   favorites: ['profile_id', 'contact_id'],
+  contact_regions: ['contact_id', 'region_id'],
 }
 
 /**
@@ -106,6 +108,17 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
         out.contact_photos = tables.contact_photos
           .filter((p) => p.contact_id === row.id)
           .map((p) => ({ ...p }))
+      }
+      // Spalte der View contact_cards (0035): alle Gebiete, fuehrendes zuerst.
+      // Kein Embed, sondern ein Unterselect — deshalb haengt sie nicht an einer
+      // Klammer im select, sondern am blossen Spaltennamen.
+      if (select.includes('region_ids')) {
+        const own = tables.contact_regions.filter((cr) => cr.contact_id === row.id)
+        out.region_ids = own.length
+          ? own
+              .map((cr) => String(cr.region_id))
+              .sort((a, b) => (a === row.region_id ? -1 : b === row.region_id ? 1 : 0))
+          : [row.region_id]
       }
     }
     return out
@@ -435,6 +448,21 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           if (base.id === undefined) base.id = `${this.table}-${seq++}`
           rows.push(base)
           writeAudit(this.table, 'insert', base)
+          // Trigger contacts_region_membership (0035): ohne ihn haette ein neu
+          // angelegter Kontakt keine Gebietszuordnung und waere fuer jeden
+          // Account Manager unsichtbar.
+          if (this.table === 'contacts' && base.region_id) {
+            const has = tables.contact_regions.some(
+              (cr) => cr.contact_id === base.id && cr.region_id === base.region_id,
+            )
+            if (!has) {
+              tables.contact_regions.push({
+                contact_id: base.id,
+                region_id: base.region_id,
+                created_at: AUDIT_AT,
+              })
+            }
+          }
           return base
         })
         return this.finish(written)
@@ -485,6 +513,27 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
                   'update or delete on table "regions" violates foreign key constraint',
               },
             }
+          }
+        }
+        if (this.table === 'contact_regions') {
+          // Trigger promote_leading_region (0035): das letzte Gebiet bleibt, und
+          // faellt das fuehrende weg, rueckt ein verbliebenes nach.
+          for (const r of removed) {
+            const contact = tables.contacts.find((c) => c.id === r.contact_id)
+            if (!contact) continue // Kaskade beim Loeschen des Kontakts
+            const rest = tables.contact_regions.filter(
+              (cr) => cr.contact_id === r.contact_id && !removed.includes(cr),
+            )
+            if (rest.length === 0) {
+              return {
+                data: null,
+                error: {
+                  message: 'Ein Kontakt braucht mindestens ein Gebiet',
+                  code: '23502',
+                },
+              }
+            }
+            if (contact.region_id === r.region_id) contact.region_id = rest[0].region_id
           }
         }
         for (const r of removed) writeAudit(this.table, 'delete', r)

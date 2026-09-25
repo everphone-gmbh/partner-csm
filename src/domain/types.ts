@@ -111,6 +111,12 @@ export interface Contact {
   position: string
   photoUrl?: string | null
   regionId: string
+  /**
+   * Alle Gebiete des Kontakts (Migration 0035). `regionId` ist das führende und
+   * immer auch hier enthalten. Zum Filtern und Zählen `contactRegionIds()`
+   * benutzen, nicht `regionId` — sonst fehlt ein zweitzugeordneter Kontakt.
+   */
+  regionIds?: string[]
   relationshipManagerId: string
   /** Employer/organization — the tool maps partners across companies (Telekom, Apple, …). */
   company?: string

@@ -116,3 +116,43 @@ describe('upcomingBirthdays', () => {
     expect(up[1].inDays).toBe(3)
   })
 })
+
+// --- Mehrere Gebiete je Kontakt (Migration 0035) ---------------------------
+//
+// Entscheidung Jannik 2026-09-25: ein Kontakt zählt in JEDEM seiner Gebiete.
+// Eine Assistenz, die zwei Gebiete betreut, fehlt sonst in einer der beiden
+// Abdeckungslisten.
+
+describe('computeRegionCoverage mit mehreren Gebieten', () => {
+  it('zählt einen Kontakt in jedem seiner Gebiete', () => {
+    const cov = computeRegionCoverage([
+      contact({
+        id: '1',
+        regionId: 'r-sued',
+        regionIds: ['r-sued', 'r-west'],
+        sentiment: 'green',
+      }),
+      contact({ id: '2', regionId: 'r-west', sentiment: 'neutral' }),
+    ])
+    expect(cov.find((r) => r.regionId === 'r-sued')?.total).toBe(1)
+    expect(cov.find((r) => r.regionId === 'r-west')?.total).toBe(2)
+    // Bewusst: die Summe über die Gebiete liegt über der Zahl der Kontakte.
+    expect(cov.reduce((n, r) => n + r.total, 0)).toBe(3)
+  })
+
+  it('zählt die Bewertung in beiden Gebieten mit', () => {
+    const cov = computeRegionCoverage([
+      contact({ id: '1', regionId: 'r-sued', regionIds: ['r-sued', 'r-west'], sentiment: 'green' }),
+    ])
+    expect(cov.find((r) => r.regionId === 'r-sued')?.coveragePct).toBe(100)
+    expect(cov.find((r) => r.regionId === 'r-west')?.coveragePct).toBe(100)
+  })
+
+  it('behandelt einen Kontakt ohne regionIds wie bisher', () => {
+    // Demo-Modus und ältere Fixtures kennen das Feld nicht — ohne Rückfall
+    // fiele so ein Kontakt spurlos aus jeder Auswertung.
+    const cov = computeRegionCoverage([contact({ id: '1', regionId: 'r-nord', sentiment: 'amber' })])
+    expect(cov).toHaveLength(1)
+    expect(cov[0]).toMatchObject({ regionId: 'r-nord', total: 1 })
+  })
+})

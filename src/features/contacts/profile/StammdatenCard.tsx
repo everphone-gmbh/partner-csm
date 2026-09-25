@@ -3,6 +3,7 @@ import { AtSign, Briefcase, Building, Building2, Cake, Heart, Home, Link2, Mail,
 import type { AppUser, BuyingRole, Contact, Region, SocialLink } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
+import { contactRegionIds } from '@/domain/contactRegions'
 import { BUYING_ROLE_OPTIONS } from '@/domain/buyingCenter'
 import { useUnsavedChangesGuard } from '@/app/useUnsavedChangesGuard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,7 +19,7 @@ import { EditButton, EditField, FieldRow, selectCls, telHref } from './shared'
 interface StammDraft {
   fullName: string
   position: string
-  regionId: string
+  regionIds: string[]
   relationshipManagerId: string
   company: string
   team: string
@@ -56,7 +57,7 @@ function toStammDraft(c: Contact): StammDraft {
   return {
     fullName: c.fullName,
     position: c.position,
-    regionId: c.regionId,
+    regionIds: contactRegionIds(c),
     relationshipManagerId: c.relationshipManagerId,
     company: c.company ?? '',
     team: c.team ?? '',
@@ -144,7 +145,11 @@ export function StammdatenCard({
     try {
       const created = await onCreateRegion(name)
       setCreatedRegions((prev) => [...prev, created])
-      set('regionId', created.id)
+      // Hinzufügen statt ersetzen — und schon vorhandene nicht doppeln: bei
+      // einem bereits bekannten Namen liefert createRegion das bestehende Gebiet.
+      setDraft((d) =>
+        d.regionIds.includes(created.id) ? d : { ...d, regionIds: [...d.regionIds, created.id] },
+      )
       setNewRegionName('')
       setShowNewRegion(false)
     } catch {
@@ -164,7 +169,7 @@ export function StammdatenCard({
       await onSave({
         fullName: draft.fullName.trim() || contact.fullName,
         position: draft.position.trim(),
-        regionId: draft.regionId,
+        regionIds: draft.regionIds,
         relationshipManagerId: draft.relationshipManagerId,
         company: draft.company.trim() || undefined,
         team: draft.team.trim() || undefined,
@@ -217,14 +222,58 @@ export function StammdatenCard({
               <EditField label="Funktion">
                 <Input value={draft.position} onChange={(e) => set('position', e.target.value)} />
               </EditField>
-              <EditField label="Region">
-                <select className={selectCls} value={draft.regionId} onChange={(e) => set('regionId', e.target.value)}>
-                  {regionOptions.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                      {r.isPlaceholder ? ' (Platzhalter)' : ''}
-                    </option>
-                  ))}
+              <EditField label="Regionen">
+                {/*
+                  Mehrfachauswahl seit 0035: eine Teamassistenz kann zwei
+                  Gebiete betreuen. Chips statt eines <select multiple>, das am
+                  Handy kaum bedienbar ist — und das Entfernen-Kreuz ist
+                  dauerhaft sichtbar, nicht erst bei Mauszeiger.
+                */}
+                <div className="flex flex-wrap gap-1.5">
+                  {draft.regionIds.map((id) => {
+                    const r = regionOptions.find((o) => o.id === id)
+                    const last = draft.regionIds.length === 1
+                    return (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1 rounded-full bg-secondary py-1 pl-2.5 pr-1 text-xs"
+                      >
+                        {r?.name ?? 'Unbekannt'}
+                        {r?.isPlaceholder ? ' (Platzhalter)' : ''}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            set('regionIds', draft.regionIds.filter((x) => x !== id))
+                          }
+                          disabled={last}
+                          title={last ? 'Mindestens eine Region ist nötig' : 'Region entfernen'}
+                          aria-label={`Region ${r?.name ?? ''} entfernen`}
+                          className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-destructive disabled:opacity-40"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+                <select
+                  className={`${selectCls} mt-1.5`}
+                  value=""
+                  aria-label="Region hinzufügen"
+                  onChange={(e) => {
+                    const id = e.target.value
+                    if (id) set('regionIds', [...draft.regionIds, id])
+                  }}
+                >
+                  <option value="">+ Region hinzufügen …</option>
+                  {regionOptions
+                    .filter((r) => !draft.regionIds.includes(r.id))
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                        {r.isPlaceholder ? ' (Platzhalter)' : ''}
+                      </option>
+                    ))}
                 </select>
                 {onCreateRegion &&
                   (showNewRegion ? (

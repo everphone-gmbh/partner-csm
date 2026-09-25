@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge'
 import { AttentionBadge } from '@/components/AttentionBadge'
 import { TrafficLightDot, TRAFFIC_LABEL } from '@/components/TrafficLight'
 import { cn } from '@/lib/utils'
+import { isInRegion } from '@/domain/contactRegions'
 
 type SortMode = 'name' | 'stale'
 
@@ -138,7 +139,7 @@ export function ContactList() {
     if (specialFilter === 'unmanaged') list = list.filter((c) => c.sentiment === 'neutral')
     if (specialFilter === 'stale')
       list = list.filter((c) => attentionByContact.get(c.id)?.level !== 'ok')
-    if (regionFilter) list = list.filter((c) => c.regionId === regionFilter)
+    if (regionFilter) list = list.filter((c) => isInRegion(c, regionFilter))
     if (companyFilter) list = list.filter((c) => c.company === companyFilter)
     if (teamFilter) list = list.filter((c) => c.team === teamFilter)
     if (favoritesOnly) list = list.filter((c) => favorites.ids.has(c.id))

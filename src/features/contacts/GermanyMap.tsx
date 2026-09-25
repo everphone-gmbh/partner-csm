@@ -1,5 +1,6 @@
 import type { Contact, Region, TrafficLight } from '@/domain/types'
 import { cn } from '@/lib/utils'
+import { isInRegion } from '@/domain/contactRegions'
 
 // Schematic Germany silhouette (not survey-accurate) with the five working
 // regions placed roughly by geography. A real Bundesland map can drop in later.
@@ -57,7 +58,7 @@ export function GermanyMap({
   // unter der Karte statt als Marker — sonst wären ihre Kontakte unsichtbar.
   const offMap = regions
     .filter((r) => !regionPos(r))
-    .map((r) => ({ region: r, count: contacts.filter((c) => c.regionId === r.id).length }))
+    .map((r) => ({ region: r, count: contacts.filter((c) => isInRegion(c, r.id)).length }))
     .filter((e) => e.count > 0)
 
   return (
@@ -67,7 +68,7 @@ export function GermanyMap({
       {regions.map((r) => {
         const pos = regionPos(r)
         if (!pos) return null
-        const list = contacts.filter((c) => c.regionId === r.id)
+        const list = contacts.filter((c) => isInRegion(c, r.id))
         const active = activeRegion === r.id
         return (
           <g key={r.id}>

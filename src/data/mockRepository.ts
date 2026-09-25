@@ -139,6 +139,20 @@ class MockRepository implements Repository {
     this.regions.splice(idx, 1)
   }
 
+  /** Spiegelt 0035: die Menge wird ersetzt, das führende Gebiet bleibt, solange
+   *  es Mitglied bleibt — sonst rückt das erste verbliebene nach. */
+  async setContactRegions(contactId: string, regionIds: string[]) {
+    const wanted = [...new Set(regionIds.filter(Boolean))]
+    if (wanted.length === 0) throw new Error('Mindestens ein Gebiet ist nötig')
+    const idx = this.contacts.findIndex((c) => c.id === contactId)
+    if (idx < 0) throw new Error('Kontakt nicht gefunden oder keine Berechtigung')
+    const current = this.contacts[idx]
+    const leading = wanted.includes(current.regionId) ? current.regionId : wanted[0]
+    this.contacts[idx] = { ...current, regionId: leading, regionIds: wanted }
+    this.audit('update', 'contact_region', contactId)
+    return clone(this.contacts[idx])
+  }
+
   async listUsers() {
     return clone(this.users)
   }
@@ -201,6 +215,9 @@ class MockRepository implements Repository {
       position: input.position,
       photoUrl: null,
       regionId: input.regionId,
+      // Wie der Trigger contacts_region_membership (0035): ein neuer Kontakt
+      // bekommt sein Gebiet sofort als Zuordnung, sonst ist er unsichtbar.
+      regionIds: [input.regionId],
       relationshipManagerId: input.relationshipManagerId,
       company: input.company,
       team: input.team,
@@ -229,6 +246,7 @@ class MockRepository implements Repository {
   }
 
   async updateContact(id: string, patch: ContactPatch) {
+    if (patch.regionIds !== undefined) await this.setContactRegions(id, patch.regionIds)
     const idx = this.contacts.findIndex((c) => c.id === id)
     if (idx < 0) throw new Error(`contact ${id} not found`)
     const before = this.contacts[idx]

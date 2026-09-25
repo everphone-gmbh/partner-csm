@@ -644,6 +644,57 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
       })
     })
 
+    // Gemeldet 2026-09-24: eine Teamassistenz betreut zwei Gebiete, im Tool hatte
+    // ein Kontakt genau eines. Entscheidung Jannik 2026-09-25: beliebig viele,
+    // alle gleichwertig.
+    describe('Mehrere Gebiete je Kontakt', () => {
+      it('legt einen Kontakt mit genau seinem Gebiet an', async () => {
+        const c = await repo.createContact(BASE)
+        const read = await repo.getContact(c.id)
+        expect(read?.regionIds).toEqual([BASE.regionId])
+      })
+
+      it('nimmt ein zweites Gebiet auf, ohne das erste zu verlieren', async () => {
+        const c = await repo.createContact(BASE)
+        const second = await repo.createRegion('Zweites Gebiet')
+        const updated = await repo.setContactRegions(c.id, [BASE.regionId, second.id])
+        expect([...(updated.regionIds ?? [])].sort()).toEqual(
+          [BASE.regionId, second.id].sort(),
+        )
+        // Das führende Gebiet bleibt, woran andere Stellen es festmachen.
+        expect(updated.regionId).toBe(BASE.regionId)
+      })
+
+      it('entfernt ein Gebiet wieder', async () => {
+        const c = await repo.createContact(BASE)
+        const second = await repo.createRegion('Wieder weg')
+        await repo.setContactRegions(c.id, [BASE.regionId, second.id])
+        const back = await repo.setContactRegions(c.id, [BASE.regionId])
+        expect(back.regionIds).toEqual([BASE.regionId])
+      })
+
+      it('lässt einen Kontakt nicht ohne Gebiet zurück', async () => {
+        const c = await repo.createContact(BASE)
+        await expect(repo.setContactRegions(c.id, [])).rejects.toThrow()
+        expect((await repo.getContact(c.id))?.regionIds).toEqual([BASE.regionId])
+      })
+
+      it('rückt ein verbliebenes Gebiet nach, wenn das führende geht', async () => {
+        const c = await repo.createContact(BASE)
+        const second = await repo.createRegion('Nachrücker')
+        await repo.setContactRegions(c.id, [BASE.regionId, second.id])
+        const after = await repo.setContactRegions(c.id, [second.id])
+        expect(after.regionId).toBe(second.id)
+        expect(after.regionIds).toEqual([second.id])
+      })
+
+      it('schluckt Dubletten in der Eingabe', async () => {
+        const c = await repo.createContact(BASE)
+        const updated = await repo.setContactRegions(c.id, [BASE.regionId, BASE.regionId])
+        expect(updated.regionIds).toEqual([BASE.regionId])
+      })
+    })
+
     describe('Regionen-Selbstverwaltung', () => {
       it('legt eine Region an — taucht in listRegions auf, kein Platzhalter', async () => {
         const created = await repo.createRegion('  Südwest  ')
