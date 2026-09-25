@@ -38,7 +38,7 @@ npm install && npm run dev
 
 > ⚠ **Lokal ist Produktion.** Es gibt **keine** zweite Instanz und keine
 > Testdatenbank. Auf Janniks Rechner steht `.env.local` auf `supabase` — ein
-> unbedachtes `npm run dev` arbeitet also auf 671 echten Personendatensätzen,
+> unbedachtes `npm run dev` arbeitet also auf 267 echten Personendatensätzen,
 > und `deleteContact` löscht dort zusätzlich die Storage-Dateien. Die Tests
 > warnen nicht, weil sie ohnehin immer im Demo-Modus laufen.
 >
@@ -56,7 +56,7 @@ Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
 
 ```bash
-npm test                 # 516 Tests
+npm test                 # 596 Tests
 npx tsc -b --noEmit      # App
 npx tsc -p tsconfig.test.json --noEmit   # Tests (App-Config schließt sie aus)
 npm run build
@@ -114,6 +114,21 @@ Staging, keine Down-Migrationen, kein dokumentiertes Backup. Eine Migration, die
 zur Hälfte durchläuft, muss also von Hand geradegezogen werden. Deshalb vor dem
 Anwenden zweimal lesen, und Datenänderungen und Strukturänderungen nicht in
 derselben Datei mischen.
+
+**Vorher zur Probe laufen lassen.** Seit 25.09. gibt es dafür ein Skript:
+
+```bash
+./scripts/dry_run_migrations.sh      # braucht lokales Postgres (brew install postgresql@17)
+```
+
+Es baut ein Wegwerf-Postgres unter `/tmp`, spielt alle Migrationen der Reihe
+nach ein und prüft anschließend die **Zugriffsregeln mit echten Rollen**
+(`set role authenticated` + gesetztes `auth.uid()`) — das kann die Vitest-Suite
+grundsätzlich nicht, weil `fakeSupabase` weder RLS noch Sitzungen kennt. Beim
+ersten Einsatz fand der Lauf drei Fehler in 0035, darunter einen, der jeden neu
+angelegten Kontakt für Account Manager unsichtbar gemacht hätte. Eine neue
+Migration ohne diesen Lauf anzuwenden ist seitdem nicht mehr nötig.
+`KEEP=1` lässt die Instanz zum Nachsehen stehen.
 
 **Ist-Stand prüfen** statt der Dateinummern vertrauen — Einzelabfragen gehen
 über das MCP `execute_sql` (dasselbe `project_id`), z. B.
@@ -286,15 +301,15 @@ prüfen: siehe `CLAUDE.local.md` — dort steht auch, warum ein
    das Kästchen blieb optisch leer. Außerdem ist es ungültiges Markup. Kästchen
    **neben** den Link legen, Link nimmt den Rest der Zeile.
 
-10. **Leer heißt hier meist `''`, nicht `NULL`.** Der Import hat 458 Positionen
-    als leeren String hinterlassen; `count(position)` liefert deshalb 671,
-    obwohl nur 213 Kontakte eine Position haben. `src/domain/placeholders.ts`
+10. **Leer heißt hier meist `''`, nicht `NULL`.** Der Import hat Positionen als
+    leeren String hinterlassen, nicht als NULL — `count(position)` zählt sie
+    deshalb mit. (Stand 25.09.: 267 Kontakte, 4 ohne Position.) `src/domain/placeholders.ts`
     ist die einzige Wahrheit dazu (`isBlank`, `findGaps`, `isUnassigned`) —
     Lückenprüfungen dort ergänzen, nicht in Komponenten nachbauen.
 
 11. **Was Platzhalter ist, sagt die Datenbank**, nicht der Code:
-    `regions.is_placeholder` (Migration 0024). Die Region „Unbekannt" hält 446
-    Kontakte und ist kein Vertriebsgebiet. Nie über den Namen erkennen — eine
+    `regions.is_placeholder` (Migration 0024). Die Region „Unbekannt" ist kein
+    Vertriebsgebiet (Stand 25.09.: 5 Kontakte liegen dort). Nie über den Namen erkennen — eine
     Umbenennung hebelt das sonst aus.
 
 12. **Die App lebt auf einem Unterpfad** (`/partner-csm/` auf GitHub Pages).
@@ -306,6 +321,14 @@ prüfen: siehe `CLAUDE.local.md` — dort steht auch, warum ein
     Pfade. Prüfen wie in der CI: `GITHUB_ACTIONS=1 npm run build` und
     `partner-csm-pages-preview` (launch.json, Port 4174) — der normale
     Dev-Server läuft an der Wurzel und zeigt den Fehler nicht.
+
+13. **Ein Kontakt hat MEHRERE Regionen** (Migration 0035). `contact.regionId` ist
+    nur das führende Gebiet; zum Filtern und Zählen gehören
+    `contactRegionIds()` / `isInRegion()` aus `src/domain/contactRegions.ts`.
+    Wer `regionId` vergleicht, lässt einen zweitzugeordneten Kontakt aus der
+    Liste fallen — genau der Fall, für den die Änderung gebaut wurde. In der
+    Datenbank ist `contact_regions` die Wahrheit, `contacts.region_id` wird per
+    Trigger daraus abgeleitet und ist immer Mitglied der Menge.
 
 ## Datenpflege-Skripte
 
