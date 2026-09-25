@@ -94,9 +94,15 @@ class MockRepository implements Repository {
     return clone(this.regions)
   }
 
+  /** Finden ODER anlegen — siehe supabaseRepository.createRegion. Beide Zweige
+   *  müssen sich gleich verhalten, der Contract-Test prüft genau das. */
   async createRegion(name: string) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Regionsname darf nicht leer sein')
+    const existing = this.regions.find(
+      (r) => r.name.toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (existing) return clone(existing)
     const region: Region = {
       id: `region-local-${this.seq++}`,
       name: trimmed,
@@ -365,6 +371,32 @@ class MockRepository implements Repository {
     }
     this.activities.push(activity)
     return clone(activity)
+  }
+
+  /** Spiegelt 0034: nur der Text ändert sich, `editedAt` setzt der Speicher
+   *  selbst, und ein unveränderter Text markiert den Eintrag nicht. */
+  async updateActivity(id: string, body: string) {
+    const trimmed = body.trim()
+    if (!trimmed) throw new Error('Der Text darf nicht leer sein')
+    const idx = this.activities.findIndex((a) => a.id === id)
+    if (idx < 0) throw new Error('Eintrag nicht gefunden oder keine Berechtigung')
+    const before = this.activities[idx]
+    const changed = before.body !== trimmed
+    this.activities[idx] = {
+      ...before,
+      body: trimmed,
+      aiSummary: localSummarizer.activitySummary({ type: before.type, body: trimmed }),
+      editedAt: changed ? new Date().toISOString() : before.editedAt,
+    }
+    return clone(this.activities[idx])
+  }
+
+  /** Idempotent wie ein DELETE in Postgres: was nicht da ist, ist kein Fehler.
+   *  Der Supabase-Zweig kann beides gar nicht unterscheiden. */
+  async removeActivity(id: string) {
+    const idx = this.activities.findIndex((a) => a.id === id)
+    if (idx < 0) return
+    this.activities.splice(idx, 1)
   }
 
   async listAllActivities() {

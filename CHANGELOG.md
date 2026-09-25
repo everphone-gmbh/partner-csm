@@ -39,7 +39,10 @@ Erstes nummeriertes Release. Sammelt, was seit dem Digital-X-Event dazugekommen 
 ## Unreleased → 1.1 (Freitag 2026-09-25)
 
 ### Neu
+- **Eine gespeicherte Notiz lässt sich korrigieren**: am Eintrag sitzen jetzt ein Stift und ein Papierkorb. Wenn die Spracherkennung aus JOBRAD ein JOBRAT gemacht hat, ist das kein Dauerzustand mehr. Erlaubt für den Verfasser und für Relationship Manager; korrigierte Einträge sind als „bearbeitet" gekennzeichnet. (Kontaktkarte)
 
 ### Behoben
+- **Eine vorhandene Region noch einmal anzulegen** endete in einer englischen Datenbankmeldung. Jetzt wird das bestehende Gebiet einfach ausgewählt — Groß- und Kleinschreibung egal. (Kontakte)
+- **Fehlermeldungen der Datenbank** landeten wortwörtlich auf dem Bildschirm. Sie werden jetzt überall in verständliche Sätze übersetzt. (Allgemein)
 
 ### Intern

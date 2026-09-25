@@ -50,6 +50,8 @@ export interface Activity {
   authorName: string // attribution: who logged this
   body: string
   aiSummary?: string
+  /** Gesetzt, sobald der Text nachträglich korrigiert wurde (Migration 0034). */
+  editedAt?: string
   attachments: Attachment[]
 }
 

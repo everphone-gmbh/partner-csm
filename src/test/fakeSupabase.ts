@@ -162,6 +162,8 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
   }
   let auditSeq = 1
   const AUDIT_AT = '2026-07-01T00:00:00.000Z'
+  /** now() des Triggers aus 0034 — fest, damit Tests vergleichbar bleiben. */
+  const FAKE_EDITED_AT = '2026-07-02T00:00:00.000Z'
 
   function writeAudit(table: string, action: 'insert' | 'update' | 'delete', row: Row, before?: Row) {
     const entity = AUDIT_ENTITY[table]
@@ -198,6 +200,35 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
    * nachbilden; sie wird von Hand gegen die echte Datenbank geprüft, und die
    * Oberfläche deaktiviert das eigene Rollenfeld.
    */
+  /**
+   * Trigger `activities_guard_change` (Migration 0034). Aenderbar ist nur der
+   * Inhalt: Kontakt, Verfasser, Zeitpunkt und Art bleiben stehen, sonst liesse
+   * sich per UPDATE die Regionspruefung aus `activities_insert` umgehen und ein
+   * Eintrag in einen fremden Kontakt schieben.
+   *
+   * `edited_at` setzt die Datenbank selbst — und nur, wenn sich am Text wirklich
+   * etwas geaendert hat. Der Fake muss das nachbilden, sonst behauptet der
+   * Mock-Zweig eine Korrektur-Markierung, die der Supabase-Zweig nicht liefert.
+   */
+  const ACTIVITY_FROZEN = ['id', 'contact_id', 'author_id', 'occurred_at', 'type']
+  function guardActivityUpdate(patch: Row, matched: Row[]): Result | null {
+    for (const row of matched) {
+      for (const col of ACTIVITY_FROZEN) {
+        if (patch[col] !== undefined && patch[col] !== row[col]) {
+          return {
+            data: null,
+            error: { message: `${col} kann nicht geaendert werden`, code: '42501' },
+          }
+        }
+      }
+      const changed =
+        (patch.body !== undefined && patch.body !== row.body) ||
+        (patch.ai_summary !== undefined && patch.ai_summary !== row.ai_summary)
+      if (changed) patch.edited_at = FAKE_EDITED_AT
+    }
+    return null
+  }
+
   function guardProfileUpdate(patch: Row, matched: Row[]): Result | null {
     for (const row of matched) {
       if (patch.id !== undefined && patch.id !== row.id) {
@@ -420,6 +451,10 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
         if (this.table === 'profiles') {
           // Trigger vor dem Schreiben: schlägt er an, bleibt die Zeile stehen.
           const blocked = guardProfileUpdate(patch, matched)
+          if (blocked) return blocked
+        }
+        if (this.table === 'activities') {
+          const blocked = guardActivityUpdate(patch, matched)
           if (blocked) return blocked
         }
         for (const r of matched) {
