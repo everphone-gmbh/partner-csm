@@ -36,7 +36,15 @@ Erstes nummeriertes Release. Sammelt, was seit dem Digital-X-Event dazugekommen 
 - Routing auf den Daten-Router umgestellt, Grundlage für die Speichern/Verwerfen-Abfrage.
 - 541 automatische Tests, Dependabot ohne offene Meldungen.
 
-## Unreleased → 1.1 (Freitag 2026-09-25)
+## Unreleased → 1.2 (Freitag 2026-10-02)
+
+### Neu
+
+### Behoben
+
+### Intern
+
+## 1.1 (Freitag 2026-09-25)
 
 ### Neu
 - **Ein Kontakt kann zu mehreren Regionen gehören**: im Kontakt unter „Bearbeiten" stehen die Gebiete jetzt als Chips, weitere lassen sich hinzufügen und wieder entfernen. Wer zwei Gebiete betreut — etwa eine Teamassistenz —, taucht in beiden Listen, Filtern und Abdeckungen auf. Ein Gebiet muss bleiben. **Die Regionszahlen summieren sich dadurch auf mehr als die Gesamtzahl der Kontakte**; das ist gewollt, sonst fehlte so jemand in einer der Listen. (Kontakte, Übersicht, Bericht)
