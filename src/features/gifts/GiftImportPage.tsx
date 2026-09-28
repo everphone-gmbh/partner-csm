@@ -165,28 +165,41 @@ export function GiftImportPage() {
 
       let total = 0
       const touched: GiftOccasion[] = []
+      // Was dieser Lauf anlegt, kennt die nächste Liste: Gin und Schokolade
+      // gehören beide zu „Weihnachten 2026/27" — der Anlass entsteht einmal,
+      // ein gleichnamiges Produkt auch.
+      const knownOccasions = [...occasions]
+      const knownProducts = [...products]
       for (let i = 0; i < blocks.length; i++) {
         const s = settings[i]
         if (!s.include || drafts[i].drafts.length === 0) continue
-        // 2. Anlass: vorhanden oder neu.
-        const occasion = s.occasionId
-          ? occasions.find((o) => o.id === s.occasionId)!
-          : await repository.createGiftOccasion({ name: s.newName, kind: s.newKind })
-        if (!touched.some((o) => o.id === occasion.id)) touched.push(occasion)
+        // 2. Anlass: vorhanden oder neu — „neu" mit einem Namen, den es schon
+        //    gibt, nimmt den vorhandenen statt einen zweiten gleichnamigen.
+        const newName = s.newName.trim().toLowerCase()
+        let occasion = s.occasionId
+          ? knownOccasions.find((o) => o.id === s.occasionId)!
+          : knownOccasions.find((o) => o.name.trim().toLowerCase() === newName)
+        if (!occasion) {
+          occasion = await repository.createGiftOccasion({ name: s.newName, kind: s.newKind })
+          knownOccasions.push(occasion)
+        }
+        const occasionId = occasion.id
+        if (!touched.some((o) => o.id === occasionId)) touched.push(occasion)
         // 3. Produkte dieses Anlasses: vorhandene nach Namen, fehlende anlegen.
         const productIdByName = new Map(
-          products.filter((p) => p.occasionId === occasion.id).map((p) => [p.name.toLowerCase(), p.id]),
+          knownProducts.filter((p) => p.occasionId === occasionId).map((p) => [p.name.toLowerCase(), p.id]),
         )
         for (const d of drafts[i].drafts) {
           const name = d.productName?.trim()
           if (name && !productIdByName.has(name.toLowerCase())) {
-            const p = await repository.createGiftProduct({ occasionId: occasion.id, name })
+            const p = await repository.createGiftProduct({ occasionId, name })
+            knownProducts.push(p)
             productIdByName.set(name.toLowerCase(), p.id)
           }
         }
         // 4. Empfänger.
         const rows: NewGiftRecipient[] = drafts[i].drafts.map((d) => ({
-          occasionId: occasion.id,
+          occasionId,
           productId: d.productName ? productIdByName.get(d.productName.trim().toLowerCase()) : undefined,
           contactId: linkContacts ? matchContact(d, contacts) : undefined,
           firstName: d.firstName,
@@ -372,7 +385,7 @@ export function GiftImportPage() {
                 onChange={(e) => setLinkContacts(e.target.checked)}
                 className="size-4 accent-[var(--primary)]"
               />
-              Gleichnamige Kontakte verknüpfen ({contactMatches} {contactMatches === 1 ? 'Treffer' : 'Treffer'})
+              Gleichnamige Kontakte mit passender Firma verknüpfen ({contactMatches} Treffer)
             </label>
             <p className="text-xs text-muted-foreground">
               Verknüpft wird nur, wenn genau ein Kontakt Vor- und Nachnamen teilt. Dann erscheint das Geschenk

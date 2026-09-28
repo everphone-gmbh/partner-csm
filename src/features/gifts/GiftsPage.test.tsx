@@ -208,7 +208,7 @@ describe('Import einer Liste', () => {
     // Absender: Jonas und Mira gibt es schon, „Neu Person" wird neu angelegt.
     expect(screen.getByLabelText('Zuordnung für Jonas')).toHaveValue('gs-jonas')
     expect(screen.getByLabelText('Zuordnung für Neu Person')).toHaveValue('new')
-    expect(screen.getByText(/Gleichnamige Kontakte verknüpfen \(1 Treffer\)/)).toBeInTheDocument()
+    expect(screen.getByText(/Gleichnamige Kontakte mit passender Firma verknüpfen \(1 Treffer\)/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Import starten' }))
     expect(await screen.findByText('4 Empfänger importiert')).toBeInTheDocument()
@@ -228,5 +228,36 @@ describe('Import einer Liste', () => {
     const product = (await repo.listGiftProducts()).find((p) => p.id === weber?.productId)
     expect(product?.name).toBe('Schokolade')
     expect((await repo.listGiftSenders()).some((s) => s.name === 'Neu Person')).toBe(true)
+  })
+
+  it('legt einen neuen Anlass nur einmal an, wenn zwei Listen dazugehören', async () => {
+    // Wie Gin und Schokolade im Sheet: zwei Listen, dieselbe noch nicht
+    // angelegte Saison, dasselbe Produkt.
+    const TWO = [
+      ['Sender', 'Account', 'Vorname', 'Nachname', 'Adresse', 'PLZ', 'Stadt', 'Land', 'Owner / Co', 'Produkt'],
+      ['Direkt', 'Kaiser Werke', 'Nele', 'Kaiser', 'Werkstraße 1', '44135', 'Dortmund', 'DE', 'Mira', 'Schokolade'],
+      ['Via EP', 'Lindenhof KG', 'Paul', 'Linde', 'Allee 44', '50667', 'Köln', 'DE', 'Jonas', 'Schokolade'],
+      ['2 x Schoki in 2027/28', '', '', '', '', '', '', '', '', ''],
+      ['Weber Consulting', 'Anna', 'Weber', 'Parkweg 2', '60311', 'Frankfurt', 'DE', 'Mira', 'Schokolade'],
+      ['Hofmann IT', 'Ben', 'Hofmann', 'Lindenstraße 9', '70173', 'Stuttgart', 'DE', 'Mira / Jonas', 'Schokolade'],
+      ['2 x Schoki in 2027/28', '', '', '', '', '', '', '', ''],
+    ]
+      .map((r) => r.join('\t'))
+      .join('\n')
+    const user = userEvent.setup()
+    const { repo } = renderPage(<GiftImportPage />, { route: '/gifts/import', as: 'sub_admin' })
+    await user.click(await screen.findByLabelText('Eingefügte Liste'))
+    await user.paste(TWO)
+    expect(await screen.findByText(/Liste 2/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Import starten' }))
+    expect(await screen.findByText('4 Empfänger importiert')).toBeInTheDocument()
+
+    const season = (await repo.listGiftOccasions()).filter((o) => o.name === 'Weihnachten 2027/28')
+    expect(season).toHaveLength(1)
+    const recipients = (await repo.listGiftRecipients()).filter((r) => r.occasionId === season[0].id)
+    expect(recipients).toHaveLength(4)
+    const products = (await repo.listGiftProducts()).filter((p) => p.occasionId === season[0].id)
+    expect(products.map((p) => p.name)).toEqual(['Schokolade'])
   })
 })

@@ -56,7 +56,7 @@ Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
 
 ```bash
-npm test                 # 731 Tests
+npm test                 # 737 Tests
 npx tsc -b --noEmit      # App
 npx tsc -p tsconfig.test.json --noEmit   # Tests (App-Config schließt sie aus)
 npm run build

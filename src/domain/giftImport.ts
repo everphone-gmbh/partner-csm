@@ -13,7 +13,9 @@ import type { Contact, GiftShipping } from './types'
  *   C  Firma · Vorname · Nachname · Adresse · PLZ · Stadt · Land · Owner · Produkt
  *                                                          (2026/27, OHNE Kopf)
  *
- * — getrennt durch Fußzeilen wie „232 Boxen" oder „55 Gin in 2026/27". Die
+ * — getrennt durch Fußzeilen wie „232 Boxen" oder „55 Gin in 2026/27". Seit dem
+ * Umbau am 28.09. steht jede Liste auf einem eigenen Blatt und die Fußzeile
+ * rechts neben der letzten Datenzeile; beides wird verstanden. Die
  * Absender stehen als Freitext („Jonas / Moritz", „Mira, Sina & Co"), in 45
  * Schreibweisen. Dieses Modul zerlegt das in Blöcke, schlägt je Block die
  * Spaltenbedeutung vor und liefert Entwürfe; bestätigt wird in der Oberfläche.
@@ -163,11 +165,38 @@ export function splitIntoBlocks(table: string[][]): ImportBlock[] {
   return blocks.map((b, index) => {
     const width = Math.max(b.header?.length ?? 0, ...b.rows.map((r) => r.length))
     const rows = b.rows.map((r) => [...r, ...Array(Math.max(0, width - r.length)).fill('')])
+    const footer = liftTrailingFooter(rows, b.header, b.footer)
     const mapping = b.header
       ? Array.from({ length: width }, (_, j) => (b.header![j] ? mapHeaderCell(b.header![j]) : undefined) ?? 'ignore')
       : guessMapping(rows)
-    return { ...b, index, rows, mapping }
+    return { ...b, index, rows, mapping, footer }
   })
+}
+
+const SEASON = /\d{4}\s*\/\s*\d{2}/
+
+/**
+ * Fußzeile rechts neben der letzten Datenzeile („… Geschenkbox | 232 Boxen |
+ * in 2025/26"). Zählt nur, wo die Spalte keinen Kopf hat, sonst in keiner Zeile
+ * etwas steht und mindestens eine der Zellen eine Saison nennt — eine einzelne
+ * Notiz („2 Stück") bleibt Teil der Zeile. Die Zellen werden aus der Zeile
+ * genommen, damit sie beim Raten der Spalten nicht mitzählen.
+ */
+function liftTrailingFooter(rows: string[][], header: string[] | undefined, footer: string | undefined) {
+  const last = rows[rows.length - 1]
+  if (!last || rows.length < 2) return footer
+  const cols = last
+    .map((_, j) => j)
+    .filter(
+      (j) =>
+        last[j].trim() &&
+        !header?.[j]?.trim() &&
+        rows.slice(0, -1).every((r) => !(r[j] ?? '').trim()),
+    )
+  if (!cols.some((j) => SEASON.test(last[j]))) return footer
+  const lifted = cols.map((j) => last[j].trim())
+  for (const j of cols) last[j] = ''
+  return [footer, ...lifted].filter(Boolean).join(' · ')
 }
 
 const COUNTRY_WORDS = new Set(
@@ -209,7 +238,9 @@ export function guessMapping(rows: string[][]): GiftImportField[] {
     let best = -1
     let bestScore = min
     for (let j = 0; j < width; j++) {
-      if (taken(j) || cols[j].length === 0) continue
+      // Eine fast leere Spalte hätte mit ihrem einen Wert sonst die beste Quote
+      // (1 von 1) und schlüge die echte Spalte.
+      if (taken(j) || cols[j].length === 0 || filledShare(j) < 0.5) continue
       const s = score(j)
       if (s >= bestScore) {
         best = j
@@ -323,17 +354,40 @@ function nameKey(s: string): string {
   return norm(s).replace(/[^a-z ]/g, '')
 }
 
+// Rechtsformen und Allerweltswörter tragen nichts dazu bei, ob zwei Firmen
+// dieselbe sind: „Telekom Deutschland GmbH" und „Deutsche Telekom AG" teilen „telekom".
+const COMPANY_NOISE = new Set([
+  'gmbh', 'ag', 'se', 'kg', 'kgaa', 'co', 'ohg', 'mbh', 'ev', 'und', 'the',
+  'deutschland', 'deutsche', 'germany', 'group', 'gruppe', 'holding', 'international', 'service', 'services',
+])
+
+function companyWords(s?: string): Set<string> {
+  return new Set(
+    norm(s ?? '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .split(' ')
+      .filter((w) => w.length >= 3 && !COMPANY_NOISE.has(w)),
+  )
+}
+
 /**
  * Gleichnamiger Kontakt im Tool? Nur bei genau EINEM Treffer — zwei Kontakte
- * gleichen Namens verknüpfen wir nicht auf Verdacht.
+ * gleichen Namens verknüpfen wir nicht auf Verdacht. Und nur, wenn die Firma
+ * nicht widerspricht: die Kontakte sind fast alle Telekom, auf den Listen
+ * stehen überwiegend andere Firmen — ein „Thomas Wagner" bei Siemens ist nicht
+ * der gleichnamige Telekom-Kontakt. Fehlt die Firma auf einer Seite, reicht der Name.
  */
 export function matchContact(
-  d: Pick<DraftRecipient, 'firstName' | 'lastName'>,
-  contacts: Pick<Contact, 'id' | 'fullName'>[],
+  d: Pick<DraftRecipient, 'firstName' | 'lastName' | 'company'>,
+  contacts: Pick<Contact, 'id' | 'fullName' | 'company'>[],
 ): string | undefined {
   const full = [d.firstName, d.lastName].filter(Boolean).join(' ')
   if (!d.firstName || !d.lastName) return undefined
   const key = nameKey(full)
   const hits = contacts.filter((c) => nameKey(c.fullName) === key)
-  return hits.length === 1 ? hits[0].id : undefined
+  if (hits.length !== 1) return undefined
+  const theirs = companyWords(hits[0].company)
+  const ours = companyWords(d.company)
+  const fits = theirs.size === 0 || ours.size === 0 || [...ours].some((w) => theirs.has(w))
+  return fits ? hits[0].id : undefined
 }

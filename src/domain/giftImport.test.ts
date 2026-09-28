@@ -73,6 +73,50 @@ describe('splitIntoBlocks — die drei Listen des Sheets', () => {
   })
 })
 
+describe('splitIntoBlocks — ein Blatt je Liste, Fußzeile rechts neben der letzten Zeile', () => {
+  // So steht es seit dem Umbau des Sheets am 28.09. Erfundene Namen.
+  const HEAD = ['Vorname', 'Nachname', 'All', 'Street', 'PLZ', 'City', 'Country Code', 'EP Ansprechpartner', 'Geschenk', '', '']
+  const mara = ['Mara', 'Feldberg', 'Nordlicht AG', 'Hafenstraße 12', '20457', 'Hamburg', 'DE', 'Jonas', 'Geschenkbox']
+  const tilo = ['Tilo', 'Brenner', 'Brenner & Söhne GmbH', 'Am Markt 3', '80331', 'München', 'DE', 'Mira', 'Geschenkbox']
+
+  it('liest „232 Boxen · in 2025/26" rechts neben der letzten Zeile als Fußzeile', () => {
+    const [block] = splitIntoBlocks([HEAD, [...mara, '', ''], [...tilo, '232 Boxen', 'in 2025/26']])
+    expect(block.footer).toBe('232 Boxen · in 2025/26')
+    expect(block.rows[1].slice(9)).toEqual(['', ''])
+    expect(blockToDrafts(block).drafts).toHaveLength(2)
+  })
+
+  it('lässt eine einzelne Notiz ohne Saison in der Zeile stehen', () => {
+    const [block] = splitIntoBlocks([HEAD, [...mara, '', ''], [...tilo, '2 Stück', '']])
+    expect(block.footer).toBeUndefined()
+    expect(block.rows[1][9]).toBe('2 Stück')
+  })
+
+  it('rät eine Liste ohne Kopfzeile richtig, auch mit Fußzeile in einer Extra-Spalte', () => {
+    // Vorher gewann die Fußzeilen-Spalte (1 von 1 Werten „wie eine Straße")
+    // gegen die echte Straßenspalte.
+    const [block] = splitIntoBlocks([
+      ['Weber Consulting', 'Anna', 'Weber', 'Parkweg 2', '60311', 'Frankfurt', 'DE', 'Jonas', 'Schokolade', ''],
+      ['Hofmann IT', 'Ben', 'Hofmann', 'Lindenstraße 9', '70173', 'Stuttgart', 'DE', 'Jonas / Emil', 'Schokolade', ''],
+      ['Gruber GmbH', 'Clara', 'Gruber', 'Seestraße 5', '8001', 'Zürich', 'CH', 'Mira', 'Schokolade', '171 x Schoki in 2026/27'],
+    ])
+    expect(block.footer).toBe('171 x Schoki in 2026/27')
+    expect(block.mapping).toEqual([
+      'company', 'firstName', 'lastName', 'street', 'postalCode', 'city', 'country', 'senders', 'product', 'ignore',
+    ])
+  })
+
+  it('lässt sich beim Raten von einer fast leeren Spalte nicht irreführen', () => {
+    const m = guessMapping([
+      ['Weber Consulting', 'Anna', 'Weber', 'Parkweg 2', '60311', 'Frankfurt', 'DE', 'Jonas', 'Schokolade', ''],
+      ['Hofmann IT', 'Ben', 'Hofmann', 'Lindenstraße 9', '70173', 'Stuttgart', 'DE', 'Jonas / Emil', 'Schokolade', ''],
+      ['Gruber GmbH', 'Clara', 'Gruber', 'Seestraße 5', '8001', 'Zürich', 'CH', 'Mira', 'Schokolade', 'Tor 2'],
+    ])
+    expect(m[3]).toBe('street')
+    expect(m[9]).toBe('ignore')
+  })
+})
+
 describe('blockToDrafts', () => {
   const blocks = splitIntoBlocks(SHEET)
 
@@ -157,6 +201,16 @@ describe('Einzelteile', () => {
     expect(matchContact({ firstName: 'mara', lastName: 'FELDBERG' }, contacts)).toBe('c1')
     expect(matchContact({ firstName: 'Tilo', lastName: 'Brenner' }, contacts)).toBeUndefined()
     expect(matchContact({ lastName: 'Feldberg' }, contacts)).toBeUndefined()
+  })
+
+  it('verknüpft nicht, wenn die Firma widerspricht — Rechtsform und Schreibweise zählen nicht', () => {
+    const contacts = [{ id: 'c1', fullName: 'Mara Feldberg', company: 'Deutsche Telekom AG' }]
+    const mara = { firstName: 'Mara', lastName: 'Feldberg' }
+    expect(matchContact({ ...mara, company: 'Telekom Deutschland GmbH' }, contacts)).toBe('c1')
+    expect(matchContact({ ...mara, company: 'Siemens AG' }, contacts)).toBeUndefined()
+    // Fehlt die Firma auf einer Seite, entscheidet der Name.
+    expect(matchContact(mara, contacts)).toBe('c1')
+    expect(matchContact({ ...mara, company: 'Siemens AG' }, [{ id: 'c2', fullName: 'Mara Feldberg' }])).toBe('c2')
   })
 
 
