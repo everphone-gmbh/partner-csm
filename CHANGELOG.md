@@ -78,4 +78,4 @@ Bündelt den Freitagsstand (25.09.) und den Ausbau vom Montag: die Sektion „Ge
 
 ### Intern
 - CHANGELOG aufgeräumt: doppelte Abschnitte entfernt, 1.1 nennt jetzt Freitag und Montag.
-- 737 automatische Tests.
+- 737 automatische Tests. Testwerkzeug vitest auf 4.1.11 — schließt die zwei offenen Dependabot-Meldungen (betrafen nur die Entwicklung, nicht das ausgelieferte Tool).
