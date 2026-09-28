@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Link } from 'react-router-dom'
 import type { ComponentProps } from 'react'
 import { StammdatenCard } from './StammdatenCard'
+import { UnsavedChangesScope } from '@/app/UnsavedChangesScope'
 import type { AppUser, Contact, Region } from '@/domain/types'
 // Die Karte importiert weder Repository noch Sitzung — das Gerüst wird nur wegen
 // des Daten-Routers gebraucht: der Wächter gegen Datenverlust (useBlocker) läuft
@@ -30,8 +31,10 @@ const users: AppUser[] = [{ id: 'u1', name: 'Alex', role: 'sub_admin' }]
 
 function renderCard(props: Partial<ComponentProps<typeof StammdatenCard>> = {}) {
   const onSave = vi.fn().mockResolvedValue(undefined)
+  // In der Seitenklammer wie auf dem Kontaktprofil: die Karte meldet ihren
+  // Eingabestand nur an, den Wächter samt Rückfrage hält die Klammer.
   const utils = renderPage(
-    <>
+    <UnsavedChangesScope>
       <StammdatenCard
         contact={contact}
         canEdit
@@ -43,7 +46,7 @@ function renderCard(props: Partial<ComponentProps<typeof StammdatenCard>> = {}) 
       />
       {/* Ein Ziel zum Weg-Navigieren, wie Menü oder Suche es täten. */}
       <Link to="/dashboard">Übersicht</Link>
-    </>,
+    </UnsavedChangesScope>,
     { route: '/contacts/c1' },
   )
   return { ...utils, onSave }

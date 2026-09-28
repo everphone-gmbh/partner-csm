@@ -688,10 +688,299 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         expect(after.regionIds).toEqual([second.id])
       })
 
+      // Massenzuordnung seit 0035: „Region zuordnen" über viele Kontakte muss sagen,
+      // was aus bereits vorhandenen Gebieten wird.
+      it('Massenzuordnung „ersetzen": danach gilt nur noch das neue Gebiet', async () => {
+        const c = await repo.createContact(BASE)
+        const second = await repo.createRegion('Zweitgebiet Ersetzen')
+        const target = await repo.createRegion('Zielgebiet Ersetzen')
+        await repo.setContactRegions(c.id, [BASE.regionId, second.id])
+
+        const n = await repo.bulkAssign([c.id], { regionId: target.id, regionMode: 'replace' })
+        expect(n).toBe(1)
+        const after = await repo.getContact(c.id)
+        expect(after?.regionId).toBe(target.id)
+        expect(after?.regionIds).toEqual([target.id])
+      })
+
+      it('Massenzuordnung ohne Modus ersetzt — wie „Region zuordnen" immer gemeint war', async () => {
+        const c = await repo.createContact(BASE)
+        const second = await repo.createRegion('Zweitgebiet Vorgabe')
+        const target = await repo.createRegion('Zielgebiet Vorgabe')
+        await repo.setContactRegions(c.id, [BASE.regionId, second.id])
+
+        await repo.bulkAssign([c.id], { regionId: target.id })
+        expect((await repo.getContact(c.id))?.regionIds).toEqual([target.id])
+      })
+
+      it('Massenzuordnung „hinzufügen": vorhandene Gebiete und das führende bleiben', async () => {
+        const c = await repo.createContact(BASE)
+        const target = await repo.createRegion('Zielgebiet Hinzufuegen')
+
+        const n = await repo.bulkAssign([c.id], { regionId: target.id, regionMode: 'add' })
+        expect(n).toBe(1)
+        const after = await repo.getContact(c.id)
+        expect(after?.regionId).toBe(BASE.regionId)
+        expect([...(after?.regionIds ?? [])].sort()).toEqual([BASE.regionId, target.id].sort())
+      })
+
+      it('Massenzuordnung „hinzufügen" ist wiederholbar, ohne zu doppeln', async () => {
+        const c = await repo.createContact(BASE)
+        const target = await repo.createRegion('Zielgebiet Zweimal')
+        await repo.bulkAssign([c.id], { regionId: target.id, regionMode: 'add' })
+        await repo.bulkAssign([c.id], { regionId: target.id, regionMode: 'add' })
+        expect((await repo.getContact(c.id))?.regionIds).toHaveLength(2)
+      })
+
       it('schluckt Dubletten in der Eingabe', async () => {
         const c = await repo.createContact(BASE)
         const updated = await repo.setContactRegions(c.id, [BASE.regionId, BASE.regionId])
         expect(updated.regionIds).toEqual([BASE.regionId])
+      })
+    })
+
+    // Sektion „Geschenke" (Migration 0036).
+    describe('Geschenke', () => {
+      const occasion = () => repo.createGiftOccasion({ name: 'Weihnachten Test', kind: 'weihnachten', shipBy: '2026-12-12' })
+
+      it('legt einen Anlass an, ändert und löscht ihn samt Produkten und Empfängern', async () => {
+        const o = await occasion()
+        expect(o).toMatchObject({ name: 'Weihnachten Test', kind: 'weihnachten', shipBy: '2026-12-12' })
+        const p = await repo.createGiftProduct({ occasionId: o.id, name: 'Schokolade', emoji: '🍫' })
+        await repo.createGiftRecipient({ occasionId: o.id, productId: p.id, lastName: 'Muster', senderIds: [] })
+
+        const renamed = await repo.updateGiftOccasion(o.id, { name: 'Weihnachten 2026/27', shipBy: null })
+        expect(renamed.name).toBe('Weihnachten 2026/27')
+        expect(renamed.shipBy).toBeUndefined()
+
+        await repo.deleteGiftOccasion(o.id)
+        expect((await repo.listGiftOccasions()).some((x) => x.id === o.id)).toBe(false)
+        expect((await repo.listGiftProducts()).some((x) => x.occasionId === o.id)).toBe(false)
+        expect((await repo.listGiftRecipients()).some((x) => x.occasionId === o.id)).toBe(false)
+      })
+
+      it('liefert immer denselben Geburtstags-Anlass', async () => {
+        const a = await repo.ensureBirthdayOccasion()
+        const b = await repo.ensureBirthdayOccasion()
+        expect(a.id).toBe(b.id)
+        expect(a.kind).toBe('geburtstag')
+        expect((await repo.listGiftOccasions()).filter((o) => o.kind === 'geburtstag')).toHaveLength(1)
+      })
+
+      it('findet Absender unabhängig von der Schreibweise, statt sie doppelt anzulegen', async () => {
+        const jan = await repo.createGiftSender('Jonas Probe', true)
+        const again = await repo.createGiftSender('  jonas   PROBE ')
+        expect(again.id).toBe(jan.id)
+        expect(again.isCLevel).toBe(true)
+        const updated = await repo.updateGiftSender(jan.id, { isCLevel: false })
+        expect(updated.isCLevel).toBe(false)
+      })
+
+      it('legt einen Empfänger mit Absendern an und liest ihn vollständig zurück', async () => {
+        const o = await occasion()
+        const p = await repo.createGiftProduct({ occasionId: o.id, name: 'Gin' })
+        const s1 = await repo.createGiftSender('Absender A')
+        const s2 = await repo.createGiftSender('Absender B')
+        const created = await repo.createGiftRecipient({
+          occasionId: o.id,
+          productId: p.id,
+          firstName: 'Erika',
+          lastName: 'Muster',
+          company: 'Muster GmbH',
+          street: 'Weg 1',
+          postalCode: '12345',
+          city: 'Musterstadt',
+          country: 'DE',
+          shipping: 'via_ep',
+          senderIds: [s1.id, s2.id, s1.id],
+        })
+        expect(created).toMatchObject({ firstName: 'Erika', shipping: 'via_ep', status: 'geplant' })
+        expect(created.statusAt).toBeUndefined()
+        expect([...created.senderIds].sort()).toEqual([s1.id, s2.id].sort())
+
+        const listed = (await repo.listGiftRecipients()).find((r) => r.id === created.id)
+        expect([...(listed?.senderIds ?? [])].sort()).toEqual([s1.id, s2.id].sort())
+      })
+
+      it('ändert Felder gezielt, leert mit null und ersetzt die Absender', async () => {
+        const o = await occasion()
+        const s1 = await repo.createGiftSender('Absender C')
+        const s2 = await repo.createGiftSender('Absender D')
+        const r = await repo.createGiftRecipient({ occasionId: o.id, lastName: 'Muster', city: 'Alt', note: 'Notiz', senderIds: [s1.id] })
+
+        const u = await repo.updateGiftRecipient(r.id, { city: 'Neu', note: null, senderIds: [s2.id] })
+        expect(u.city).toBe('Neu')
+        expect(u.note).toBeUndefined()
+        expect(u.lastName).toBe('Muster')
+        expect(u.senderIds).toEqual([s2.id])
+      })
+
+      it('setzt beim Statuswechsel den Zeitpunkt, beim Anlegen nicht', async () => {
+        const o = await occasion()
+        const r = await repo.createGiftRecipient({ occasionId: o.id, lastName: 'Muster', senderIds: [] })
+        expect(r.statusAt).toBeUndefined()
+        const u = await repo.updateGiftRecipient(r.id, { status: 'versandt' })
+        expect(u.status).toBe('versandt')
+        expect(u.statusAt).toBeTruthy()
+      })
+
+      it('setzt den Status für mehrere auf einmal und zählt die getroffenen', async () => {
+        const o = await occasion()
+        const a = await repo.createGiftRecipient({ occasionId: o.id, lastName: 'A', senderIds: [] })
+        const b = await repo.createGiftRecipient({ occasionId: o.id, lastName: 'B', senderIds: [] })
+        expect(await repo.setGiftStatus([a.id, b.id, 'gibt-es-nicht'], 'bestellt')).toBe(2)
+        const all = await repo.listGiftRecipients()
+        expect(all.filter((r) => r.id === a.id || r.id === b.id).every((r) => r.status === 'bestellt')).toBe(true)
+      })
+
+      it('weist ein Produkt aus einem anderen Anlass ab', async () => {
+        const o1 = await occasion()
+        const o2 = await repo.createGiftOccasion({ name: 'Anderer Anlass', kind: 'sonstiges' })
+        const fremd = await repo.createGiftProduct({ occasionId: o2.id, name: 'Fremd' })
+        await expect(
+          repo.createGiftRecipient({ occasionId: o1.id, productId: fremd.id, lastName: 'Muster', senderIds: [] }),
+        ).rejects.toThrow()
+      })
+
+      it('weist eine Zeile ohne Person und ohne Firma ab', async () => {
+        const o = await occasion()
+        await expect(repo.createGiftRecipient({ occasionId: o.id, street: 'Weg 1', senderIds: [] })).rejects.toThrow()
+      })
+
+      it('lässt Empfänger stehen, wenn ihr Produkt gelöscht wird', async () => {
+        const o = await occasion()
+        const p = await repo.createGiftProduct({ occasionId: o.id, name: 'Weg damit' })
+        const r = await repo.createGiftRecipient({ occasionId: o.id, productId: p.id, lastName: 'Muster', senderIds: [] })
+        await repo.deleteGiftProduct(p.id)
+        const after = (await repo.listGiftRecipients()).find((x) => x.id === r.id)
+        expect(after).toBeDefined()
+        expect(after?.productId).toBeUndefined()
+      })
+
+      it('nimmt einen gelöschten Absender aus allen Zeilen', async () => {
+        const o = await occasion()
+        const s1 = await repo.createGiftSender('Absender Weg')
+        const r = await repo.createGiftRecipient({ occasionId: o.id, lastName: 'Muster', senderIds: [s1.id] })
+        await repo.deleteGiftSender(s1.id)
+        expect((await repo.listGiftRecipients()).find((x) => x.id === r.id)?.senderIds).toEqual([])
+      })
+
+      it('zeigt auf der Kontaktkarte nur verknüpfte Geschenke — und löscht sie mit dem Kontakt', async () => {
+        const c = await repo.createContact(BASE)
+        const o = await occasion()
+        await repo.createGiftRecipient({ occasionId: o.id, contactId: c.id, firstName: 'Test', lastName: 'Kontakt', senderIds: [] })
+        await repo.createGiftRecipient({ occasionId: o.id, lastName: 'Fremd', senderIds: [] })
+        expect(await repo.listContactGifts(c.id)).toHaveLength(1)
+
+        await repo.deleteContact(c.id)
+        expect(await repo.listContactGifts(c.id)).toEqual([])
+        expect((await repo.listGiftRecipients()).some((r) => r.contactId === c.id)).toBe(false)
+      })
+
+      it('importiert viele Empfänger samt Absendern auf einmal', async () => {
+        const o = await occasion()
+        const s1 = await repo.createGiftSender('Absender Import')
+        const rows = Array.from({ length: 130 }, (_, i) => ({
+          occasionId: o.id,
+          lastName: `Import ${i}`,
+          status: 'zugestellt' as const,
+          senderIds: [s1.id],
+        }))
+        expect(await repo.importGiftRecipients(rows)).toBe(130)
+        const imported = (await repo.listGiftRecipients()).filter((r) => r.occasionId === o.id)
+        expect(imported).toHaveLength(130)
+        expect(imported.every((r) => r.senderIds.includes(s1.id) && r.status === 'zugestellt')).toBe(true)
+      })
+    })
+
+    // Telekom-Struktur (org_units): Pflege durch die Leitung, Namen für die
+    // Vorschläge über org_unit_names() (Migration 0037).
+    describe('Telekom-Struktur', () => {
+      it('legt eine Einheit an, ändert und löscht sie', async () => {
+        const u = await repo.createOrgUnit({ company: 'Telekom', department: '  Vertrieb Test ', team: 'Team X' })
+        expect(u).toMatchObject({ company: 'Telekom', department: 'Vertrieb Test', team: 'Team X' })
+
+        const changed = await repo.updateOrgUnit(u.id, { team: null, note: 'Notiz' })
+        expect(changed.team).toBeNull()
+        expect(changed.note).toBe('Notiz')
+        expect(changed.department).toBe('Vertrieb Test')
+
+        await repo.deleteOrgUnit(u.id)
+        expect((await repo.listOrgUnits()).some((x) => x.id === u.id)).toBe(false)
+      })
+
+      it('verlangt Firma und Abteilung', async () => {
+        await expect(repo.createOrgUnit({ company: 'Telekom', department: ' ' })).rejects.toThrow()
+      })
+
+      it('liefert für die Vorschläge nur Namen, ohne Doppel und ohne Notiz', async () => {
+        await repo.createOrgUnit({ company: 'Telekom', department: 'Doppelt', team: 'T', note: 'geheim' })
+        await repo.createOrgUnit({ company: 'Telekom', department: 'Doppelt', team: 'T' })
+        const names = (await repo.listOrgUnitNames()).filter((n) => n.department === 'Doppelt')
+        expect(names).toHaveLength(1)
+        expect(Object.keys(names[0]).sort()).toEqual(['company', 'department', 'team'])
+      })
+    })
+
+    // Dubletten zusammenführen (Migration 0038).
+    describe('Zusammenführen', () => {
+      it('hängt alles an den Gewinner, vereint Beziehungen und löscht den Verlierer', async () => {
+        const w = await repo.createContact({ ...BASE, fullName: 'Dublette W', sideFacts: [{ id: 'sf-w', label: 'Segeln', category: 'hobby' }] })
+        const l = await repo.createContact({ ...BASE, fullName: 'Dublette L', sideFacts: [{ id: 'sf-l1', label: 'segeln', category: 'hobby' }, { id: 'sf-l2', label: 'Golf', category: 'sport' }] })
+        const x = await repo.createContact({ ...BASE, fullName: 'Dritter' })
+        const second = await repo.createRegion('Gebiet des Verlierers')
+        await repo.setContactRegions(l.id, [BASE.regionId, second.id])
+        await repo.addActivity({ contactId: l.id, type: 'note', occurredAt: '2026-09-01T10:00:00.000Z', authorId: VERIFIER.id, authorName: VERIFIER.full_name, body: 'am Verlierer' })
+        await repo.addContactLink({ fromContactId: l.id, toContactId: w.id, kind: 'knows' })
+        await repo.addContactLink({ fromContactId: l.id, toContactId: x.id, kind: 'reports_to' })
+        const o = await repo.createGiftOccasion({ name: 'Merge-Anlass', kind: 'sonstiges' })
+        await repo.createGiftRecipient({ occasionId: o.id, contactId: l.id, lastName: 'L', senderIds: [] })
+
+        const merged = await repo.mergeContacts(w.id, l.id, { email: 'neu@example.org' })
+
+        expect(merged.id).toBe(w.id)
+        expect(merged.email).toBe('neu@example.org')
+        expect(await repo.getContact(l.id)).toBeUndefined()
+        expect((await repo.listActivities(w.id)).map((a) => a.body)).toEqual(['am Verlierer'])
+        // Anknüpfungspunkte vereint, gleichlautende nur einmal.
+        expect(merged.sideFacts.map((f) => f.label.toLowerCase()).sort()).toEqual(['golf', 'segeln'])
+        expect([...(merged.regionIds ?? [])].sort()).toEqual([BASE.regionId, second.id].sort())
+        // Die Verbindung zwischen den beiden ist weg, die zum Dritten zieht mit.
+        const links = await repo.listContactLinks(w.id)
+        expect(links.some((k) => k.fromContactId === k.toContactId)).toBe(false)
+        expect(links.some((k) => k.toContactId === x.id && k.kind === 'reports_to')).toBe(true)
+        expect((await repo.listContactGifts(w.id)).length).toBe(1)
+      })
+
+      it('lässt sich nicht mit sich selbst ausführen', async () => {
+        const c = await repo.createContact(BASE)
+        await expect(repo.mergeContacts(c.id, c.id)).rejects.toThrow()
+        expect(await repo.getContact(c.id)).toBeDefined()
+      })
+
+      it('meldet einen Fehler, wenn es einen der Kontakte nicht gibt', async () => {
+        const c = await repo.createContact(BASE)
+        await expect(repo.mergeContacts(c.id, 'gibt-es-nicht')).rejects.toThrow()
+        expect(await repo.getContact(c.id)).toBeDefined()
+      })
+    })
+
+    // Organigramm (Migration 0039).
+    describe('Organigramm-Felder', () => {
+      it('setzt die Ebene, nimmt sie wieder zurück und pflegt weitere Firmen', async () => {
+        const c = await repo.createContact(BASE)
+        expect(c.hierarchyLevel).toBeUndefined()
+
+        const placed = await repo.updateContact(c.id, {
+          hierarchyLevel: 'executive',
+          additionalCompanies: ['  Zweitfirma GmbH ', ''],
+        })
+        expect(placed.hierarchyLevel).toBe('executive')
+        expect(placed.additionalCompanies).toEqual(['Zweitfirma GmbH'])
+
+        const cleared = await repo.updateContact(c.id, { hierarchyLevel: null, additionalCompanies: [] })
+        expect(cleared.hierarchyLevel).toBeUndefined()
+        expect(cleared.additionalCompanies).toBeUndefined()
       })
     })
 

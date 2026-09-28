@@ -56,6 +56,11 @@ const TABLES = [
   'audit_log',
   'org_units',
   'favorites',
+  'gift_occasions',
+  'gift_products',
+  'gift_senders',
+  'gift_recipients',
+  'gift_recipient_senders',
 ] as const
 
 /**
@@ -67,6 +72,7 @@ const TABLES = [
 const UNIQUE_KEYS: Record<string, string[]> = {
   favorites: ['profile_id', 'contact_id'],
   contact_regions: ['contact_id', 'region_id'],
+  gift_recipient_senders: ['recipient_id', 'sender_id'],
 }
 
 /**
@@ -124,8 +130,14 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     return out
   }
 
+  function giftRecipientDefaults(row: Row): Row {
+    return { shipping: 'direkt', status: 'geplant', status_at: null, ...row }
+  }
+
   function contactDefaults(row: Row): Row {
     return {
+      hierarchy_level: null,
+      additional_companies: [],
       photo_url: null,
       relationship_manager_id: null,
       company: null,
@@ -223,6 +235,50 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
    * etwas geaendert hat. Der Fake muss das nachbilden, sonst behauptet der
    * Mock-Zweig eine Korrektur-Markierung, die der Supabase-Zweig nicht liefert.
    */
+  /**
+   * Riegel der Geschenk-Tabellen (Migration 0036), wie Postgres sie durchsetzt:
+   * eindeutige Absendernamen ohne Rücksicht auf Groß/Klein, genau ein
+   * Geburtstags-Anlass, jede Empfängerzeile nennt jemanden, und ein Produkt
+   * muss zum Anlass der Zeile gehören. `candidates` sind die Zeilen, wie sie
+   * NACH dem Schreiben aussähen; `others` der übrige Bestand.
+   */
+  function checkGiftConstraints(table: string, candidates: Row[], others: Row[]): Result | null {
+    const fail = (message: string, code: string): Result => ({ data: null, error: { message, code } })
+    const blank = (v: unknown) => typeof v !== 'string' || v.trim() === ''
+    if (table === 'gift_senders') {
+      const key = (r: Row) => String(r.name ?? '').trim().toLowerCase()
+      const seen = new Set(others.map(key))
+      for (const c of candidates) {
+        if (blank(c.name)) return fail('new row violates check constraint "gift_senders_name_check"', '23514')
+        if (seen.has(key(c))) return fail('duplicate key value violates unique constraint "gift_senders_name_key"', '23505')
+        seen.add(key(c))
+      }
+    }
+    if (table === 'gift_occasions') {
+      let birthdays = others.filter((r) => r.kind === 'geburtstag').length
+      for (const c of candidates) {
+        if (blank(c.name)) return fail('new row violates check constraint "gift_occasions_name_check"', '23514')
+        if (c.kind === 'geburtstag' && ++birthdays > 1) {
+          return fail('duplicate key value violates unique constraint "gift_occasions_one_birthday"', '23505')
+        }
+      }
+    }
+    if (table === 'gift_recipients') {
+      for (const c of candidates) {
+        if (blank(c.first_name) && blank(c.last_name) && blank(c.company)) {
+          return fail('new row violates check constraint "gift_recipients_names_someone"', '23514')
+        }
+        if (
+          c.product_id &&
+          !tables.gift_products.some((p) => p.id === c.product_id && p.occasion_id === c.occasion_id)
+        ) {
+          return fail('Das Produkt gehört zu einem anderen Anlass', '23514')
+        }
+      }
+    }
+    return null
+  }
+
   const ACTIVITY_FROZEN = ['id', 'contact_id', 'author_id', 'occurred_at', 'type']
   function guardActivityUpdate(patch: Row, matched: Row[]): Result | null {
     for (const row of matched) {
@@ -273,7 +329,87 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
    * prüfte der Supabase-Zweig der Contract-Suite den Adapter gar nicht mehr
    * (Fallstrick 4).
    */
+  /**
+   * merge_contacts() aus 0038 auf den Rohtabellen: umhängen, vereinen, den
+   * Verlierer löschen. Die Rechteprüfung (nur Leitung) und die Ausnahme im
+   * Aktivitäts-Riegel prüft die Trockenprobe — der Fake kennt keine Rollen.
+   */
+  function mergeContactsRpc(args: Row): Result {
+    const w = String(args.p_winner)
+    const l = String(args.p_loser)
+    const refMap = (args.p_ref_map ?? {}) as Record<string, string>
+    if (w === l) return { data: null, error: { message: 'Ein Kontakt lässt sich nicht mit sich selbst zusammenführen', code: '22023' } }
+    if (!tables.contacts.some((c) => c.id === w) || !tables.contacts.some((c) => c.id === l)) {
+      return { data: null, error: { message: 'Kontakt nicht gefunden', code: 'P0002' } }
+    }
+    for (const t of ['activities', 'reminders', 'event_notes', 'gift_recipients'] as const) {
+      for (const r of tables[t]) if (r.contact_id === l) r.contact_id = w
+    }
+    for (const g of tables.event_guests) if (g.promoted_contact_id === l) g.promoted_contact_id = w
+    for (const ph of tables.contact_photos) {
+      if (ph.contact_id === l) {
+        ph.contact_id = w
+        ph.url = refMap[String(ph.url)] ?? ph.url
+      }
+    }
+    for (const f of tables.side_facts) if (f.contact_id === l) f.contact_id = w
+    const labels = new Set<string>()
+    tables.side_facts = tables.side_facts.filter((f) => {
+      if (f.contact_id !== w) return true
+      const key = String(f.label ?? '').trim().toLowerCase()
+      if (labels.has(key)) return false
+      labels.add(key)
+      return true
+    })
+    const union = (table: 'contact_customers' | 'contact_regions' | 'event_attendees' | 'favorites', keyCol: string) => {
+      const winnerKeys = new Set(tables[table].filter((r) => r.contact_id === w).map((r) => r[keyCol]))
+      tables[table] = tables[table]
+        .filter((r) => !(r.contact_id === l && winnerKeys.has(r[keyCol])))
+        .map((r) => (r.contact_id === l ? { ...r, contact_id: w } : r))
+    }
+    union('contact_customers', 'customer_id')
+    union('contact_regions', 'region_id')
+    union('event_attendees', 'event_id')
+    union('favorites', 'profile_id')
+    const pair = new Set([w, l])
+    const seen = new Set<string>()
+    tables.contact_links = tables.contact_links
+      .filter((x) => !(pair.has(String(x.from_contact_id)) && pair.has(String(x.to_contact_id))))
+      .map(
+        (x): Row => ({
+          ...x,
+          from_contact_id: x.from_contact_id === l ? w : x.from_contact_id,
+          to_contact_id: x.to_contact_id === l ? w : x.to_contact_id,
+        }),
+      )
+      .filter((x) => {
+        const key = `${x.from_contact_id}|${x.to_contact_id}|${x.kind}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+    const loser = tables.contacts.find((c) => c.id === l)!
+    tables.contacts = tables.contacts.filter((c) => c.id !== l)
+    writeAudit('contacts', 'delete', loser)
+    return { data: null, error: null }
+  }
+
   function callRpc(fn: string, args: Row): Result {
+    if (fn === 'merge_contacts') return mergeContactsRpc(args)
+    // org_unit_names() (0037): nur die Namen der Struktur, ohne Doppel. Die
+    // Rollenprüfung darin prüft die Trockenprobe, der Fake kennt keine Rollen.
+    if (fn === 'org_unit_names') {
+      const seen = new Set<string>()
+      const data = tables.org_units
+        .map((u) => ({ company: u.company, department: u.department, team: u.team ?? null }))
+        .filter((u) => {
+          const key = `${u.company}|${u.department}|${u.team ?? ''}`
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+      return { data, error: null }
+    }
     if (fn !== 'set_contact_photo') {
       return { data: null, error: { message: `fakeSupabase: unknown function ${fn}` } }
     }
@@ -308,6 +444,8 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     private inFilters: [string, unknown[]][] = []
     private orFilters: [string, string][][] = []
     private ilikeFilters: [string, string][] = []
+    private rangeFrom?: number
+    private rangeTo?: number
     private limitRows?: number
     private conflictCols: string[] = []
     private orderBys: { col: string; ascending: boolean; nullsFirst: boolean }[] = []
@@ -363,6 +501,16 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     /** `%`/`_` als Wildcards, `\` als Escape — wie PostgREST/SQL LIKE. */
     ilike(col: string, pattern: string) {
       this.ilikeFilters.push([col, pattern])
+      return this
+    }
+    /**
+     * Seitenweises Lesen wie PostgREST (`range(0, 999)` = die ersten 1000). Der
+     * Adapter lädt größere Listen so, weil der Server pro Abfrage deckeln kann
+     * und den Rest dann stillschweigend weglässt.
+     */
+    range(from: number, to: number) {
+      this.rangeFrom = from
+      this.rangeTo = to
       return this
     }
     limit(n: number) {
@@ -431,6 +579,10 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
             },
           }
         }
+        if (this.op === 'insert') {
+          const giftError = checkGiftConstraints(this.table, items, rows)
+          if (giftError) return giftError
+        }
         const written = items.map((item) => {
           // Upsert mit Konfliktspalten: vorhandene Zeile ergänzen statt eine
           // zweite anzulegen — sonst prüft die Contract-Suite Upsert-Methoden
@@ -444,8 +596,14 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
               return existing
             }
           }
-          const base = this.table === 'contacts' ? contactDefaults(item) : { ...item }
+          const base =
+            this.table === 'contacts'
+              ? contactDefaults(item)
+              : this.table === 'gift_recipients'
+                ? giftRecipientDefaults(item)
+                : { ...item }
           if (base.id === undefined) base.id = `${this.table}-${seq++}`
+          if (base.created_at === undefined && this.table.startsWith('gift_')) base.created_at = AUDIT_AT
           rows.push(base)
           writeAudit(this.table, 'insert', base)
           // Trigger contacts_region_membership (0035): ohne ihn haette ein neu
@@ -485,10 +643,42 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           const blocked = guardActivityUpdate(patch, matched)
           if (blocked) return blocked
         }
+        if (this.table.startsWith('gift_')) {
+          const after = matched.map((r) => ({ ...r, ...patch }))
+          const giftError = checkGiftConstraints(
+            this.table,
+            after,
+            rows.filter((r) => !matched.includes(r)),
+          )
+          if (giftError) return giftError
+        }
         for (const r of matched) {
           const before = { ...r }
           Object.assign(r, patch)
+          // Trigger gift_recipients_status_at (0036): den Zeitpunkt des Status
+          // führt die Datenbank, nur bei einem echten Wechsel.
+          if (this.table === 'gift_recipients' && patch.status !== undefined && patch.status !== before.status) {
+            r.status_at = FAKE_EDITED_AT
+          }
           writeAudit(this.table, 'update', { ...patch, id: r.id }, before)
+          // Trigger contacts_region_membership_update (0035): wer das fuehrende
+          // Gebiet umsetzt, ist danach auch Mitglied darin. Ohne diese
+          // Nachbildung liefe „Region ersetzen" im Fake in die Regel
+          // „mindestens ein Gebiet" — in Postgres passiert das nicht.
+          if (
+            this.table === 'contacts' &&
+            patch.region_id !== undefined &&
+            patch.region_id !== before.region_id &&
+            !tables.contact_regions.some(
+              (cr) => cr.contact_id === r.id && cr.region_id === patch.region_id,
+            )
+          ) {
+            tables.contact_regions.push({
+              contact_id: r.id,
+              region_id: patch.region_id,
+              created_at: AUDIT_AT,
+            })
+          }
         }
         return this.finish(matched)
       }
@@ -560,6 +750,42 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           tables.activities = tables.activities.filter((a) => !ids.has(a.contact_id))
           tables.attachments = tables.attachments.filter((a) => !removedActivityIds.has(a.activity_id))
         }
+        // Kaskaden der Geschenke (0036).
+        const dropRecipients = (pred: (r: Row) => boolean) => {
+          const gone = new Set(tables.gift_recipients.filter(pred).map((r) => r.id))
+          tables.gift_recipients = tables.gift_recipients.filter((r) => !gone.has(r.id))
+          tables.gift_recipient_senders = tables.gift_recipient_senders.filter(
+            (l) => !gone.has(l.recipient_id),
+          )
+        }
+        if (this.table === 'contacts') {
+          const ids = new Set(removed.map((r) => r.id))
+          // contact_id ON DELETE CASCADE: Recht auf Vergessenwerden.
+          dropRecipients((r) => ids.has(r.contact_id))
+          tables.contact_regions = tables.contact_regions.filter((cr) => !ids.has(cr.contact_id))
+        }
+        if (this.table === 'gift_occasions') {
+          const ids = new Set(removed.map((r) => r.id))
+          tables.gift_products = tables.gift_products.filter((p) => !ids.has(p.occasion_id))
+          dropRecipients((r) => ids.has(r.occasion_id))
+        }
+        if (this.table === 'gift_recipients') {
+          const ids = new Set(removed.map((r) => r.id))
+          tables.gift_recipient_senders = tables.gift_recipient_senders.filter(
+            (l) => !ids.has(l.recipient_id),
+          )
+        }
+        if (this.table === 'gift_senders') {
+          const ids = new Set(removed.map((r) => r.id))
+          tables.gift_recipient_senders = tables.gift_recipient_senders.filter(
+            (l) => !ids.has(l.sender_id),
+          )
+        }
+        if (this.table === 'gift_products') {
+          // product_id ON DELETE SET NULL: der Empfänger bleibt, ohne Produkt.
+          const ids = new Set(removed.map((r) => r.id))
+          for (const r of tables.gift_recipients) if (ids.has(r.product_id)) r.product_id = null
+        }
         // event_notes.guest_id ON DELETE CASCADE (0028): Notizen über den Gast
         // verschwinden mit ihm.
         if (this.table === 'event_guests') {
@@ -591,6 +817,7 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
           return 0
         })
       }
+      if (this.rangeFrom !== undefined) matched = matched.slice(this.rangeFrom, (this.rangeTo ?? matched.length) + 1)
       if (this.limitRows !== undefined) matched = matched.slice(0, this.limitRows)
       return this.finish(matched)
     }

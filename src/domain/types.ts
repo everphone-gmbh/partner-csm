@@ -105,6 +105,13 @@ export interface AppUser {
   regionId?: string
 }
 
+/**
+ * Ebene im Organigramm (Migration 0039, Entscheidung Jannik 2026-09-03).
+ * Reihenfolge ist bedeutsam: von oben nach unten.
+ */
+export const HIERARCHY_LEVELS = ['top_management', 'executive', 'management', 'specialist', 'assistant'] as const
+export type HierarchyLevel = (typeof HIERARCHY_LEVELS)[number]
+
 export interface Contact {
   id: string
   fullName: string
@@ -120,6 +127,10 @@ export interface Contact {
   relationshipManagerId: string
   /** Employer/organization — the tool maps partners across companies (Telekom, Apple, …). */
   company?: string
+  /** Ebene im Organigramm; undefined = noch nicht eingeordnet (0039). */
+  hierarchyLevel?: HierarchyLevel
+  /** Sonderfall: arbeitet auch für weitere Firmen — im Organigramm gestrichelt (0039). */
+  additionalCompanies?: string[]
   team?: string
   email?: string
   /** Dienstliche Festnetznummer — Geschäftsdatum, sichtbar wie die E-Mail. */
@@ -321,4 +332,72 @@ export interface EventNote {
   contactId?: string
   /** Optional: der unbekannte Gast, um den es geht (Alternative zu contactId). */
   guestId?: string
+}
+
+// --- Geschenke (Migration 0036) ---
+//
+// Eigene Empfängerliste, NICHT die Kontakte des Tools: die meisten Empfänger
+// sind Everphone-Kunden außerhalb von Telekom. Ein Empfänger kann optional mit
+// einem Kontakt verknüpft sein — dann erscheint die Historie auf dessen Karte.
+// Muster wie die Event-Gäste. Sichtbar ab Relationship Manager, ohne
+// Regionsfilter (Entscheidung Jannik 2026-09-22).
+
+export type GiftOccasionKind = 'weihnachten' | 'geburtstag' | 'sonstiges'
+
+/** Reihenfolge ist bedeutsam: der Trichter zählt „mindestens bis hierher". */
+export const GIFT_STATUSES = ['geplant', 'bestellt', 'versandt', 'zugestellt'] as const
+export type GiftStatus = (typeof GIFT_STATUSES)[number]
+
+/** Der Versandweg — im Sheet hieß die Spalte irreführend „Sender". */
+export type GiftShipping = 'direkt' | 'via_ep'
+
+export interface GiftOccasion {
+  id: string
+  name: string
+  kind: GiftOccasionKind
+  /** „Versand bis" (YYYY-MM-DD); bei Geburtstagen leer. */
+  shipBy?: string
+  createdAt: string
+}
+
+export interface GiftProduct {
+  id: string
+  occasionId: string
+  name: string
+  description?: string
+  /** Ein Zeichen als Kennung in der Produktkachel, z. B. 🍫. */
+  emoji?: string
+}
+
+/**
+ * Absender sind überwiegend KEINE Tool-Nutzer (45 Schreibweisen im Sheet gegen
+ * 7 Logins) — deshalb eine eigene schlanke Liste statt `profiles`.
+ */
+export interface GiftSender {
+  id: string
+  name: string
+  /** C-Level steht in jeder neuen Zeile schon als Absender drin. */
+  isCLevel: boolean
+}
+
+export interface GiftRecipient {
+  id: string
+  occasionId: string
+  productId?: string
+  /** Optional verknüpfter Kontakt; Name und Firma stehen trotzdem in der Zeile. */
+  contactId?: string
+  firstName?: string
+  lastName?: string
+  company?: string
+  street?: string
+  postalCode?: string
+  city?: string
+  country?: string
+  shipping: GiftShipping
+  status: GiftStatus
+  /** Wann der aktuelle Status gesetzt wurde — die Datenbank führt das selbst. */
+  statusAt?: string
+  note?: string
+  senderIds: string[]
+  createdAt: string
 }

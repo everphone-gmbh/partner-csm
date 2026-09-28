@@ -7,6 +7,11 @@ import type {
   EventGuest,
   EventItem,
   EventNote,
+  GiftOccasion,
+  GiftProduct,
+  GiftRecipient,
+  GiftSender,
+  GiftStatus,
   IntroRequest,
   OrgUnit,
   Region,
@@ -25,12 +30,18 @@ import type {
   BulkAssignPatch,
   ContactPatch,
   EventGuestPatch,
+  GiftOccasionPatch,
+  GiftProductPatch,
+  GiftRecipientPatch,
   NewActivity,
   NewContact,
   NewContactLink,
   NewEvent,
   NewEventGuest,
   NewEventNote,
+  NewGiftOccasion,
+  NewGiftProduct,
+  NewGiftRecipient,
   NewIntroRequest,
   NewReminder,
   Repository,
@@ -43,6 +54,10 @@ import {
   seedEventAttendees,
   seedEventNotes,
   seedEvents,
+  seedGiftOccasions,
+  seedGiftProducts,
+  seedGiftRecipients,
+  seedGiftSenders,
   seedReminders,
   seedOrgUnits,
   seedRegions,
@@ -73,6 +88,11 @@ class MockRepository implements Repository {
   // Favoriten sind pro Nutzer (Migration 0031); der Mock hält sie wie die
   // Tabelle als (profileId, contactId)-Paare.
   private favorites: { profileId: string; contactId: string }[] = []
+  // Geschenke (0036) — erfundene Demo-Daten, Aufbau wie das echte Sheet.
+  private giftOccasions: GiftOccasion[] = clone(seedGiftOccasions)
+  private giftProducts: GiftProduct[] = clone(seedGiftProducts)
+  private giftSenders: GiftSender[] = clone(seedGiftSenders)
+  private giftRecipients: GiftRecipient[] = clone(seedGiftRecipients)
   private seq = 1
   // Im Mock von Hand geführt; produktiv schreiben DB-Trigger (Migration 0019).
   private auditLog: AuditEntry[] = []
@@ -151,6 +171,79 @@ class MockRepository implements Repository {
     this.contacts[idx] = { ...current, regionId: leading, regionIds: wanted }
     this.audit('update', 'contact_region', contactId)
     return clone(this.contacts[idx])
+  }
+
+  /** Spiegelt merge_contacts() aus 0038 — vereinen statt ersetzen, Verlierer weg. */
+  async mergeContacts(winnerId: string, loserId: string, patch: ContactPatch = {}) {
+    if (winnerId === loserId) throw new Error('Ein Kontakt lässt sich nicht mit sich selbst zusammenführen')
+    const loser = this.contacts.find((c) => c.id === loserId)
+    if (!loser || !this.contacts.some((c) => c.id === winnerId)) {
+      throw new Error('Kontakt nicht gefunden oder keine Berechtigung')
+    }
+    const fieldPatch: ContactPatch = { ...patch }
+    delete fieldPatch.sideFacts
+    delete fieldPatch.gallery
+    delete fieldPatch.customers
+    delete fieldPatch.regionIds
+    if (Object.keys(fieldPatch).length > 0) await this.updateContact(winnerId, fieldPatch)
+
+    const move = <T extends { contactId?: string }>(rows: T[]) =>
+      rows.map((r) => (r.contactId === loserId ? { ...r, contactId: winnerId } : r))
+    this.activities = move(this.activities)
+    this.reminders = move(this.reminders)
+    this.eventNotes = move(this.eventNotes)
+    this.giftRecipients = move(this.giftRecipients)
+    this.guests = this.guests.map((g) =>
+      g.promotedContactId === loserId ? { ...g, promotedContactId: winnerId } : g,
+    )
+
+    const idx = this.contacts.findIndex((c) => c.id === winnerId)
+    const w = this.contacts[idx]
+    const labels = new Set(w.sideFacts.map((f) => f.label.trim().toLowerCase()))
+    const customerIds = new Set(w.customers.map((c) => c.id))
+    this.contacts[idx] = {
+      ...w,
+      gallery: [...(w.gallery ?? []), ...(loser.gallery ?? [])],
+      sideFacts: [
+        ...w.sideFacts,
+        ...loser.sideFacts.filter((f) => !labels.has(f.label.trim().toLowerCase())),
+      ],
+      customers: [...w.customers, ...loser.customers.filter((c) => !customerIds.has(c.id))],
+      regionIds: [...new Set([...(w.regionIds ?? [w.regionId]), ...(loser.regionIds ?? [loser.regionId])])],
+    }
+
+    const winnerEvents = new Set(
+      this.attendees.filter((a) => a.contactId === winnerId).map((a) => a.eventId),
+    )
+    this.attendees = this.attendees
+      .filter((a) => !(a.contactId === loserId && winnerEvents.has(a.eventId)))
+      .map((a) => (a.contactId === loserId ? { ...a, contactId: winnerId } : a))
+
+    const favKeys = new Set(this.favorites.filter((f) => f.contactId === winnerId).map((f) => f.profileId))
+    this.favorites = this.favorites
+      .filter((f) => !(f.contactId === loserId && favKeys.has(f.profileId)))
+      .map((f) => (f.contactId === loserId ? { ...f, contactId: winnerId } : f))
+
+    // Verbindungen zwischen den beiden weg, Rest umhängen, Doppel entfernen.
+    const pair = new Set([winnerId, loserId])
+    const seen = new Set<string>()
+    this.links = this.links
+      .filter((l) => !(pair.has(l.fromContactId) && pair.has(l.toContactId)))
+      .map((l) => ({
+        ...l,
+        fromContactId: l.fromContactId === loserId ? winnerId : l.fromContactId,
+        toContactId: l.toContactId === loserId ? winnerId : l.toContactId,
+      }))
+      .filter((l) => {
+        const key = `${l.fromContactId}|${l.toContactId}|${l.kind}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+    this.contacts = this.contacts.filter((c) => c.id !== loserId)
+    this.audit('delete', 'contact', loserId)
+    return clone(this.contacts.find((c) => c.id === winnerId)!)
   }
 
   async listUsers() {
@@ -253,7 +346,14 @@ class MockRepository implements Repository {
     const fields = (Object.keys(patch) as (keyof ContactPatch)[]).filter(
       (k) => JSON.stringify(patch[k]) !== JSON.stringify(before[k as keyof Contact]),
     )
-    this.contacts[idx] = { ...before, ...patch, updatedAt: nowIso() }
+    const next: Contact = { ...before, ...(patch as Partial<Contact>), updatedAt: nowIso() }
+    // null nimmt die Einordnung zurück; im Domänenmodell heißt das undefined.
+    if (patch.hierarchyLevel === null) next.hierarchyLevel = undefined
+    if (patch.additionalCompanies !== undefined) {
+      const list = patch.additionalCompanies.map((c) => c.trim()).filter(Boolean)
+      next.additionalCompanies = list.length ? list : undefined
+    }
+    this.contacts[idx] = next
     if (fields.length > 0) this.audit('update', 'contact', id, fields as string[])
     return clone(this.contacts[idx])
   }
@@ -290,6 +390,8 @@ class MockRepository implements Repository {
     this.eventNotes = this.eventNotes.filter((n) => n.contactId !== id)
     // favorites.contact_id ON DELETE CASCADE (0031): die Sterne aller Nutzer gehen mit.
     this.favorites = this.favorites.filter((f) => f.contactId !== id)
+    // gift_recipients.contact_id ON DELETE CASCADE (0036): Recht auf Vergessenwerden.
+    this.giftRecipients = this.giftRecipients.filter((r) => r.contactId !== id)
     // event_guests.promoted_contact_id ist ON DELETE SET NULL: der Gast bleibt als
     // Messe-Historie erhalten, verliert aber den Verweis auf den gelöschten Kontakt.
     this.guests = this.guests.map((g) =>
@@ -321,9 +423,22 @@ class MockRepository implements Repository {
       matched++
       const next = { ...c }
       const fields: string[] = []
-      if (patch.regionId !== undefined && patch.regionId !== c.regionId) {
-        next.regionId = patch.regionId
-        fields.push('region_id')
+      if (patch.regionId !== undefined) {
+        const current = c.regionIds ?? [c.regionId]
+        if (patch.regionMode === 'add') {
+          // Hinzufügen: führendes Gebiet bleibt, die Menge wächst.
+          if (!current.includes(patch.regionId)) {
+            next.regionIds = [...current, patch.regionId]
+            fields.push('contact_regions')
+          }
+        } else {
+          if (patch.regionId !== c.regionId) fields.push('region_id')
+          if (current.length !== 1 || current[0] !== patch.regionId) {
+            if (!fields.includes('region_id')) fields.push('contact_regions')
+          }
+          next.regionId = patch.regionId
+          next.regionIds = [patch.regionId]
+        }
       }
       if (
         patch.relationshipManagerId !== undefined &&
@@ -556,6 +671,58 @@ class MockRepository implements Repository {
     return clone(this.orgUnits)
   }
 
+  async listOrgUnitNames() {
+    const seen = new Set<string>()
+    return this.orgUnits
+      .map((u) => ({ company: u.company, department: u.department, team: u.team }))
+      .filter((u) => {
+        const key = `${u.company}|${u.department}|${u.team ?? ''}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+  }
+
+  async createOrgUnit(input: { company: string; department: string; team?: string; note?: string }) {
+    const company = input.company.trim()
+    const department = input.department.trim()
+    if (!company || !department) throw new Error('Firma und Abteilung sind Pflicht')
+    const unit: OrgUnit = {
+      id: `ou-local-${this.seq++}`,
+      company,
+      department,
+      team: input.team?.trim() || null,
+      note: input.note?.trim() || undefined,
+    }
+    this.orgUnits.push(unit)
+    return clone(unit)
+  }
+
+  async updateOrgUnit(
+    id: string,
+    patch: { company?: string; department?: string; team?: string | null; note?: string | null },
+  ) {
+    const idx = this.orgUnits.findIndex((u) => u.id === id)
+    if (idx < 0) throw new Error('Einheit nicht gefunden oder keine Berechtigung')
+    const next = { ...this.orgUnits[idx] }
+    if (patch.company !== undefined) {
+      if (!patch.company.trim()) throw new Error('Firma und Abteilung sind Pflicht')
+      next.company = patch.company.trim()
+    }
+    if (patch.department !== undefined) {
+      if (!patch.department.trim()) throw new Error('Firma und Abteilung sind Pflicht')
+      next.department = patch.department.trim()
+    }
+    if (patch.team !== undefined) next.team = patch.team?.trim() || null
+    if (patch.note !== undefined) next.note = patch.note?.trim() || undefined
+    this.orgUnits[idx] = next
+    return clone(next)
+  }
+
+  async deleteOrgUnit(id: string) {
+    this.orgUnits = this.orgUnits.filter((u) => u.id !== id)
+  }
+
   async listFavorites(profileId: string) {
     return this.favorites.filter((f) => f.profileId === profileId).map((f) => f.contactId)
   }
@@ -691,6 +858,236 @@ class MockRepository implements Repository {
       n.guestId === guestId ? { ...n, contactId: contact.id, guestId: undefined } : n,
     )
     return contact
+  }
+  // ---------------------------------------------------------------------------
+  // Geschenke (0036) — dieselben Riegel wie die Datenbank, damit der
+  // Contract-Test beide Zweige gegeneinander halten kann.
+  // ---------------------------------------------------------------------------
+
+  async listGiftOccasions() {
+    return clone(this.giftOccasions)
+  }
+
+  async createGiftOccasion(input: NewGiftOccasion) {
+    const name = input.name.trim()
+    if (!name) throw new Error('Der Anlass braucht einen Namen')
+    if (input.kind === 'geburtstag' && this.giftOccasions.some((o) => o.kind === 'geburtstag')) {
+      throw new Error('duplicate key value violates unique constraint "gift_occasions_one_birthday"')
+    }
+    const occasion: GiftOccasion = {
+      id: `go-local-${this.seq++}`,
+      name,
+      kind: input.kind,
+      shipBy: input.shipBy,
+      createdAt: nowIso(),
+    }
+    this.giftOccasions.push(occasion)
+    return clone(occasion)
+  }
+
+  async updateGiftOccasion(id: string, patch: GiftOccasionPatch) {
+    const idx = this.giftOccasions.findIndex((o) => o.id === id)
+    if (idx < 0) throw new Error('Anlass nicht gefunden oder keine Berechtigung')
+    const next = { ...this.giftOccasions[idx] }
+    if (patch.name !== undefined) {
+      const name = patch.name.trim()
+      if (!name) throw new Error('Der Anlass braucht einen Namen')
+      next.name = name
+    }
+    if (patch.shipBy !== undefined) next.shipBy = patch.shipBy || undefined
+    this.giftOccasions[idx] = next
+    return clone(next)
+  }
+
+  async deleteGiftOccasion(id: string) {
+    this.giftOccasions = this.giftOccasions.filter((o) => o.id !== id)
+    this.giftProducts = this.giftProducts.filter((p) => p.occasionId !== id)
+    this.giftRecipients = this.giftRecipients.filter((r) => r.occasionId !== id)
+  }
+
+  async ensureBirthdayOccasion() {
+    const existing = this.giftOccasions.find((o) => o.kind === 'geburtstag')
+    if (existing) return clone(existing)
+    return this.createGiftOccasion({ name: 'Geburtstage', kind: 'geburtstag' })
+  }
+
+  async listGiftProducts() {
+    return clone(this.giftProducts)
+  }
+
+  async createGiftProduct(input: NewGiftProduct) {
+    const name = input.name.trim()
+    if (!name) throw new Error('Das Produkt braucht einen Namen')
+    const product: GiftProduct = {
+      id: `gp-local-${this.seq++}`,
+      occasionId: input.occasionId,
+      name,
+      description: input.description?.trim() || undefined,
+      emoji: input.emoji?.trim() || undefined,
+    }
+    this.giftProducts.push(product)
+    return clone(product)
+  }
+
+  async updateGiftProduct(id: string, patch: GiftProductPatch) {
+    const idx = this.giftProducts.findIndex((p) => p.id === id)
+    if (idx < 0) throw new Error('Produkt nicht gefunden oder keine Berechtigung')
+    const next = { ...this.giftProducts[idx] }
+    if (patch.name !== undefined) {
+      const name = patch.name.trim()
+      if (!name) throw new Error('Das Produkt braucht einen Namen')
+      next.name = name
+    }
+    if (patch.description !== undefined) next.description = patch.description?.trim() || undefined
+    if (patch.emoji !== undefined) next.emoji = patch.emoji?.trim() || undefined
+    this.giftProducts[idx] = next
+    return clone(next)
+  }
+
+  async deleteGiftProduct(id: string) {
+    this.giftProducts = this.giftProducts.filter((p) => p.id !== id)
+    // product_id ON DELETE SET NULL: der Empfänger bleibt, ohne Produkt.
+    this.giftRecipients = this.giftRecipients.map((r) =>
+      r.productId === id ? { ...r, productId: undefined } : r,
+    )
+  }
+
+  async listGiftSenders() {
+    return clone([...this.giftSenders].sort((a, b) => a.name.localeCompare(b.name)))
+  }
+
+  async createGiftSender(name: string, isCLevel = false) {
+    const trimmed = name.trim().replace(/\s+/g, ' ')
+    if (!trimmed) throw new Error('Der Absender braucht einen Namen')
+    const existing = this.giftSenders.find((s) => s.name.toLowerCase() === trimmed.toLowerCase())
+    if (existing) return clone(existing)
+    const sender: GiftSender = { id: `gs-local-${this.seq++}`, name: trimmed, isCLevel }
+    this.giftSenders.push(sender)
+    return clone(sender)
+  }
+
+  async updateGiftSender(id: string, patch: { name?: string; isCLevel?: boolean }) {
+    const idx = this.giftSenders.findIndex((s) => s.id === id)
+    if (idx < 0) throw new Error('Absender nicht gefunden oder keine Berechtigung')
+    const next = { ...this.giftSenders[idx] }
+    if (patch.name !== undefined) {
+      const name = patch.name.trim().replace(/\s+/g, ' ')
+      if (!name) throw new Error('Der Absender braucht einen Namen')
+      if (this.giftSenders.some((s) => s.id !== id && s.name.toLowerCase() === name.toLowerCase())) {
+        throw new Error('duplicate key value violates unique constraint "gift_senders_name_key"')
+      }
+      next.name = name
+    }
+    if (patch.isCLevel !== undefined) next.isCLevel = patch.isCLevel
+    this.giftSenders[idx] = next
+    return clone(next)
+  }
+
+  async deleteGiftSender(id: string) {
+    this.giftSenders = this.giftSenders.filter((s) => s.id !== id)
+    this.giftRecipients = this.giftRecipients.map((r) => ({
+      ...r,
+      senderIds: r.senderIds.filter((sid) => sid !== id),
+    }))
+  }
+
+  async listGiftRecipients() {
+    return clone(this.giftRecipients)
+  }
+
+  async listContactGifts(contactId: string) {
+    return clone(
+      this.giftRecipients
+        .filter((r) => r.contactId === contactId)
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+    )
+  }
+
+  /** Die Riegel aus 0036: jemand muss benannt sein, das Produkt zum Anlass passen. */
+  private checkGiftRecipient(r: GiftRecipient) {
+    if (!r.firstName?.trim() && !r.lastName?.trim() && !r.company?.trim()) {
+      throw new Error('new row violates check constraint "gift_recipients_names_someone"')
+    }
+    if (r.productId && !this.giftProducts.some((p) => p.id === r.productId && p.occasionId === r.occasionId)) {
+      throw new Error('Das Produkt gehört zu einem anderen Anlass')
+    }
+  }
+
+  private buildRecipient(input: NewGiftRecipient): GiftRecipient {
+    const t = (v?: string) => v?.trim() || undefined
+    return {
+      id: `gr-local-${this.seq++}`,
+      occasionId: input.occasionId,
+      productId: input.productId,
+      contactId: input.contactId,
+      firstName: t(input.firstName),
+      lastName: t(input.lastName),
+      company: t(input.company),
+      street: t(input.street),
+      postalCode: t(input.postalCode),
+      city: t(input.city),
+      country: t(input.country),
+      shipping: input.shipping ?? 'direkt',
+      status: input.status ?? 'geplant',
+      statusAt: input.statusAt,
+      note: t(input.note),
+      senderIds: [...new Set(input.senderIds)],
+      createdAt: nowIso(),
+    }
+  }
+
+  async createGiftRecipient(input: NewGiftRecipient) {
+    const r = this.buildRecipient(input)
+    this.checkGiftRecipient(r)
+    this.giftRecipients.push(r)
+    this.audit('insert', 'gift_recipient', r.id)
+    return clone(r)
+  }
+
+  async updateGiftRecipient(id: string, patch: GiftRecipientPatch) {
+    const idx = this.giftRecipients.findIndex((r) => r.id === id)
+    if (idx < 0) throw new Error('Empfänger nicht gefunden oder keine Berechtigung')
+    const before = this.giftRecipients[idx]
+    const next: GiftRecipient = { ...before }
+    const text = ['firstName', 'lastName', 'company', 'street', 'postalCode', 'city', 'country', 'note'] as const
+    for (const key of text) {
+      if (patch[key] !== undefined) next[key] = patch[key]?.trim() || undefined
+    }
+    if (patch.productId !== undefined) next.productId = patch.productId || undefined
+    if (patch.contactId !== undefined) next.contactId = patch.contactId || undefined
+    if (patch.shipping !== undefined) next.shipping = patch.shipping
+    if (patch.status !== undefined && patch.status !== before.status) {
+      next.status = patch.status
+      next.statusAt = nowIso()
+    }
+    if (patch.senderIds !== undefined) next.senderIds = [...new Set(patch.senderIds)]
+    this.checkGiftRecipient(next)
+    this.giftRecipients[idx] = next
+    this.audit('update', 'gift_recipient', id)
+    return clone(next)
+  }
+
+  async setGiftStatus(ids: string[], status: GiftStatus) {
+    const wanted = new Set(ids)
+    let matched = 0
+    this.giftRecipients = this.giftRecipients.map((r) => {
+      if (!wanted.has(r.id)) return r
+      matched++
+      return r.status === status ? r : { ...r, status, statusAt: nowIso() }
+    })
+    return matched
+  }
+
+  async deleteGiftRecipient(id: string) {
+    this.giftRecipients = this.giftRecipients.filter((r) => r.id !== id)
+  }
+
+  async importGiftRecipients(rows: NewGiftRecipient[]) {
+    const built = rows.map((r) => this.buildRecipient(r))
+    // Wie ein INSERT mehrerer Zeilen: scheitert eine, wird keine geschrieben.
+    built.forEach((r) => this.checkGiftRecipient(r))
+    this.giftRecipients.push(...built)
+    return built.length
   }
 }
 

@@ -7,6 +7,7 @@ import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { useUnsavedChangesEntry } from '@/app/UnsavedChangesScope'
 import { VoiceRecorder } from '@/components/VoiceRecorder'
 import { canApprove, canEditActivity, canViewActivityBody } from '@/domain/roles'
 import {
@@ -266,9 +267,9 @@ function AddActivityForm({
   const [result, setResult] = useState<ApplyResult | null>(null)
   const busy = saving || transcribing || extracting || applying
 
-  const submit = async () => {
+  const submit = async (): Promise<boolean> => {
     const text = body.trim()
-    if (!text) return
+    if (!text) return true
     setSaving(true)
     try {
       await repository.addActivity({
@@ -283,12 +284,22 @@ function AddActivityForm({
       // gehört zur Karte, nicht zur gespeicherten Notiz.
       setBody('')
       onAdded()
+      return true
     } catch (err) {
       toast(saveErrorMessage(err)) // keep the typed text so nothing is lost
+      return false
     } finally {
       setSaving(false)
     }
   }
+
+  // Ein diktiertes Sprachmemo steht im Feld, bis man „Eintrag speichern" drückt.
+  // Wer vorher wegklickt, verlor bisher das ganze Transkript — ausgerechnet den
+  // Text, den man nicht einfach noch einmal tippt.
+  useUnsavedChangesEntry('aktivitaet', {
+    isDirty: !saving && body.trim() !== '',
+    onSave: submit,
+  })
 
   const notConfigured = () => {
     toast('KI-Endpoint ist noch nicht freigeschaltet.')
@@ -432,7 +443,7 @@ function AddActivityForm({
       )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">wird als {user.name} gespeichert</span>
-        <Button size="sm" onClick={submit} disabled={!body.trim() || saving}>
+        <Button size="sm" onClick={() => void submit()} disabled={!body.trim() || saving}>
           {saving ? 'Speichern…' : 'Eintrag speichern'}
         </Button>
       </div>

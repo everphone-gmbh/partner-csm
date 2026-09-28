@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, FileText, HandHelping, LayoutGrid, LogOut, Search, Target, UserCog, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, Gift, HandHelping, LayoutGrid, LogOut, Search, Target, UserCog, Users } from 'lucide-react'
 import { useSession } from '@/app/SessionContext'
 import { useCommandPalette } from '@/app/CommandPaletteContext'
 import { useDueReminderCount } from '@/app/useDueReminders'
-import { canManageTeam, canViewAnalytics, ROLE_LABEL } from '@/domain/roles'
+import { canManageGifts, canManageTeam, canViewAnalytics, ROLE_LABEL } from '@/domain/roles'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -17,6 +17,10 @@ const NAV = [
 function useNavItems() {
   const { user } = useSession()
   const items = [...NAV]
+  // Geschenke ab Relationship Manager (Entscheidung 2026-09-22, Migration 0036).
+  if (canManageGifts(user.role)) {
+    items.push({ to: '/gifts', label: 'Geschenke', icon: Gift })
+  }
   // Auswertungen (Abdeckung, Bericht, Monitoring) nur für den Head — RMs
   // pflegen und bearbeiten, sehen aber keine Team-Auswertungen (Lennart).
   if (canViewAnalytics(user.role)) {

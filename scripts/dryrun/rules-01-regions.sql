@@ -9,12 +9,6 @@
 
 \set QUIET on
 
-grant usage on schema public to authenticated;
-grant select on all tables in schema public to authenticated;
-grant select, insert, update, delete on contacts, contact_regions, activities to authenticated;
--- Die Views bleiben nur lesbar (Invariante aus 0023).
-revoke insert, update, delete on contact_cards, activity_cards from authenticated;
-
 insert into regions (id, name) values
   ('a0000000-0000-0000-0000-000000000001','Gebiet Sued'),
   ('a0000000-0000-0000-0000-000000000002','Gebiet West');
@@ -143,4 +137,3 @@ select assert(
     where not exists (select 1 from contacts c where c.id = cr.contact_id)),
   'Kontakt loeschbar, keine verwaisten Zuordnungen');
 
-\echo 'Alle Zugriffspruefungen bestanden.'

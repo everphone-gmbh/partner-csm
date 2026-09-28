@@ -47,5 +47,9 @@ done
 echo "Alle Migrationen sauber durchgelaufen."
 
 # Zugriffsregeln gegen echte Rollen — das deckt die Vitest-Suite bewusst nicht
-# ab (fakeSupabase kennt keine RLS).
-p -f "$DIR/scripts/dryrun/access-rules.sql"
+# ab (fakeSupabase kennt keine RLS). Die Dateien bauen aufeinander auf und
+# laufen in Namensreihenfolge; rules-01 legt die Grundausstattung an.
+for f in "$DIR"/scripts/dryrun/rules-*.sql; do
+  p -f "$f" || { echo "FEHLER in $(basename "$f")"; exit 1; }
+done
+echo "Alle Zugriffspruefungen bestanden."

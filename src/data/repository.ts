@@ -14,6 +14,14 @@ import type {
   EventItem,
   EventNote,
   GalleryPhoto,
+  GiftOccasion,
+  GiftOccasionKind,
+  GiftProduct,
+  GiftRecipient,
+  GiftSender,
+  GiftShipping,
+  GiftStatus,
+  HierarchyLevel,
   IntroRequest,
   LinkedInInfo,
   NoteAttachment,
@@ -75,6 +83,13 @@ export interface NewContact {
  */
 export interface BulkAssignPatch {
   regionId?: string
+  /**
+   * Was mit den übrigen Gebieten passiert, seit ein Kontakt mehrere haben kann
+   * (Migration 0035). `replace` (Vorgabe): der Kontakt gehört danach NUR zu
+   * `regionId` — so, wie „Region zuordnen" immer gemeint war. `add`: `regionId`
+   * kommt hinzu, vorhandene Gebiete und das führende bleiben.
+   */
+  regionMode?: 'replace' | 'add'
   relationshipManagerId?: string
 }
 
@@ -92,6 +107,10 @@ export interface ContactPatch {
   regionIds?: string[]
   relationshipManagerId?: string
   company?: string
+  /** Ebene im Organigramm; `null` nimmt die Einordnung zurück (0039). */
+  hierarchyLevel?: HierarchyLevel | null
+  /** Weitere Firmen — ersetzt die Liste (0039). */
+  additionalCompanies?: string[]
   team?: string
   email?: string
   phoneWork?: string
@@ -196,6 +215,72 @@ export interface EventGuestPatch {
   note?: string
 }
 
+// --- Geschenke (Migration 0036) ---
+
+export interface NewGiftOccasion {
+  name: string
+  kind: GiftOccasionKind
+  shipBy?: string
+}
+
+/** Feldweise; `null` leert das Datum, fehlende Schlüssel bleiben. */
+export interface GiftOccasionPatch {
+  name?: string
+  shipBy?: string | null
+}
+
+export interface NewGiftProduct {
+  occasionId: string
+  name: string
+  description?: string
+  emoji?: string
+}
+
+export interface GiftProductPatch {
+  name?: string
+  description?: string | null
+  emoji?: string | null
+}
+
+export interface NewGiftRecipient {
+  occasionId: string
+  productId?: string
+  contactId?: string
+  firstName?: string
+  lastName?: string
+  company?: string
+  street?: string
+  postalCode?: string
+  city?: string
+  country?: string
+  shipping?: GiftShipping
+  status?: GiftStatus
+  /** Nur beim Import sinnvoll (Vorjahr: zugestellt, aber wann?). Sonst führt die DB ihn. */
+  statusAt?: string
+  note?: string
+  senderIds: string[]
+}
+
+/**
+ * Feldweise Änderung eines Empfängers. `null` leert ein optionales Feld,
+ * fehlende Schlüssel bleiben unberührt, `senderIds` ersetzt die Absender.
+ */
+export interface GiftRecipientPatch {
+  productId?: string | null
+  contactId?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  company?: string | null
+  street?: string | null
+  postalCode?: string | null
+  city?: string | null
+  country?: string | null
+  shipping?: GiftShipping
+  status?: GiftStatus
+  note?: string | null
+  senderIds?: string[]
+}
+
 /**
  * Data-access seam. The first draft binds to an in-memory mock; a Supabase
  * implementation will later satisfy the same interface with zero UI changes.
@@ -241,6 +326,18 @@ export interface Repository {
    * Schreibrecht haben serverseitig nur RM+ (`contact_regions_write`).
    */
   setContactRegions(contactId: string, regionIds: string[]): Promise<Contact>
+  /**
+   * Zwei Dubletten zusammenführen (Migration 0038, nur Leitung). `patch` sind
+   * die Felder, die der Gewinner danach tragen soll (in der Oberfläche je Feld
+   * gewählt). Alles, was am Verlierer hängt — Aktivitäten, Reminder,
+   * Event-Notizen und -Teilnahmen, Fotos, Anknüpfungspunkte, Kunden, Gebiete,
+   * Verknüpfungen, Favoriten, Geschenke — zieht zum Gewinner um; Anknüpfungs-
+   * punkte, Kunden und Gebiete werden vereint, nicht ersetzt. Danach ist der
+   * Verlierer gelöscht.
+   *
+   * Scheitert der letzte Schritt, existieren beide Kontakte weiter.
+   */
+  mergeContacts(winnerId: string, loserId: string, patch?: ContactPatch): Promise<Contact>
   listUsers(): Promise<AppUser[]>
   /** Rolle und/oder Region eines vorhandenen Kontos setzen (Migration 0033).
    *  Serverseitig nur für overall_admin; der Trigger verhindert die Änderung der
@@ -390,7 +487,20 @@ export interface Repository {
    */
   listAuditLog(limit?: number): Promise<AuditEntry[]>
   /** Soll-Organisationsstruktur der Partner — Maßstab der Abdeckungsanalyse. */
+  /** Die ganze Telekom-Struktur samt Notiz — seit 0037 nur für die Leitung lesbar. */
   listOrgUnits(): Promise<OrgUnit[]>
+  /**
+   * Nur die Namen (Firma, Abteilung, Team) für die Vorschläge beim Tippen —
+   * für RM+ über die Funktion org_unit_names() (0037), ohne die Tabelle selbst.
+   */
+  listOrgUnitNames(): Promise<Pick<OrgUnit, 'company' | 'department' | 'team'>[]>
+  /** Pflege der Struktur — serverseitig nur die Leitung (0037). */
+  createOrgUnit(input: { company: string; department: string; team?: string; note?: string }): Promise<OrgUnit>
+  updateOrgUnit(
+    id: string,
+    patch: { company?: string; department?: string; team?: string | null; note?: string | null },
+  ): Promise<OrgUnit>
+  deleteOrgUnit(id: string): Promise<void>
 
   // Favoriten (Migration 0031) sind persönlich: jede Zeile gehört genau einem
   // Profil. Die Oberfläche reicht die eigene Nutzer-ID herein (wie authorId in
@@ -400,4 +510,49 @@ export interface Repository {
   /** Idempotent: doppeltes Markieren ist kein Fehler. */
   addFavorite(profileId: string, contactId: string): Promise<void>
   removeFavorite(profileId: string, contactId: string): Promise<void>
+
+  // --- Geschenke (Migration 0036) — lesen und schreiben ab RM, ohne Regionsfilter ---
+  listGiftOccasions(): Promise<GiftOccasion[]>
+  createGiftOccasion(input: NewGiftOccasion): Promise<GiftOccasion>
+  updateGiftOccasion(id: string, patch: GiftOccasionPatch): Promise<GiftOccasion>
+  /** Samt Produkten und Empfängern (Kaskade). Die Oberfläche fragt vorher nach. */
+  deleteGiftOccasion(id: string): Promise<void>
+  /**
+   * Der laufende Geburtstags-Anlass — angelegt beim ersten Bedarf. Die
+   * Datenbank lässt genau einen zu; zwei gleichzeitige erste Aufrufe liefern
+   * denselben.
+   */
+  ensureBirthdayOccasion(): Promise<GiftOccasion>
+
+  listGiftProducts(): Promise<GiftProduct[]>
+  createGiftProduct(input: NewGiftProduct): Promise<GiftProduct>
+  updateGiftProduct(id: string, patch: GiftProductPatch): Promise<GiftProduct>
+  /** Empfänger mit diesem Produkt bleiben, nur ohne Produkt. */
+  deleteGiftProduct(id: string): Promise<void>
+
+  listGiftSenders(): Promise<GiftSender[]>
+  /**
+   * Finden ODER anlegen, Groß-/Kleinschreibung egal — sonst entstünden die 45
+   * Schreibweisen des Sheets neu. Gibt es den Namen schon, bleibt dessen
+   * C-Level-Kennzeichen, wie es ist.
+   */
+  createGiftSender(name: string, isCLevel?: boolean): Promise<GiftSender>
+  updateGiftSender(id: string, patch: { name?: string; isCLevel?: boolean }): Promise<GiftSender>
+  deleteGiftSender(id: string): Promise<void>
+
+  /** Alle Empfänger aller Anlässe — ein paar hundert Zeilen, gezählt wird im Browser. */
+  listGiftRecipients(): Promise<GiftRecipient[]>
+  /** Geschenkhistorie eines Kontakts für seine Karte. */
+  listContactGifts(contactId: string): Promise<GiftRecipient[]>
+  createGiftRecipient(input: NewGiftRecipient): Promise<GiftRecipient>
+  updateGiftRecipient(id: string, patch: GiftRecipientPatch): Promise<GiftRecipient>
+  /** Status für mehrere auf einmal; liefert die Zahl der getroffenen Zeilen. */
+  setGiftStatus(ids: string[], status: GiftStatus): Promise<number>
+  deleteGiftRecipient(id: string): Promise<void>
+  /**
+   * Viele Empfänger auf einmal (Import einer Liste). Legt in Blöcken an, damit
+   * weder Anfrage noch Adresszeile zu lang werden. Liefert die Zahl der
+   * angelegten Zeilen.
+   */
+  importGiftRecipients(rows: NewGiftRecipient[]): Promise<number>
 }

@@ -18,6 +18,7 @@ import {
   type CoverageStatus,
 } from '@/domain/coverage'
 import { cn } from '@/lib/utils'
+import { StructureCard } from './StructureCard'
 
 const FILTERS: { value: CoverageStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'Alle' },
@@ -167,9 +168,12 @@ export function CoveragePage() {
         </CardContent>
       </Card>
 
+      <StructureCard units={units} onChanged={retry} />
+
       <p className="text-xs text-muted-foreground">
         Die Soll-Struktur stammt aus dem Vertriebsstruktur-Sheet. Ändert sie sich bei einem Partner,
-        muss sie nachgezogen werden — sonst zeigt die Analyse Lücken, die es nicht mehr gibt.
+        wird sie oben unter „Telekom-Struktur pflegen" nachgezogen — sonst zeigt die Analyse Lücken,
+        die es nicht mehr gibt.
         Kontakte mit abweichender Team-Angabe erscheinen als „außerhalb" und fließen nicht in die
         Quote ein. <Link to="/contacts" className="text-primary hover:underline">Zu den Kontakten</Link>
       </p>

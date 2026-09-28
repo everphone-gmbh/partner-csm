@@ -13,6 +13,14 @@ import type {
   EventGuest,
   EventItem,
   EventNote,
+  GiftOccasion,
+  GiftOccasionKind,
+  GiftProduct,
+  GiftRecipient,
+  GiftSender,
+  GiftShipping,
+  GiftStatus,
+  HierarchyLevel,
   IntroRequest,
   IntroRequestStatus,
   LinkedInStatus,
@@ -37,12 +45,18 @@ import type {
   BulkAssignPatch,
   ContactPatch,
   EventGuestPatch,
+  GiftOccasionPatch,
+  GiftProductPatch,
+  GiftRecipientPatch,
   NewActivity,
   NewContact,
   NewContactLink,
   NewEvent,
   NewEventGuest,
   NewEventNote,
+  NewGiftOccasion,
+  NewGiftProduct,
+  NewGiftRecipient,
   NewIntroRequest,
   NewReminder,
   Repository,
@@ -65,7 +79,8 @@ const ACTIVITY_READ = 'activity_cards'
 const ACTIVITY_SELECT = 'id, contact_id, type, occurred_at, author_id, body, ai_summary, edited_at'
 
 const CONTACT_SELECT =
-  'id, full_name, position, photo_url, region_id, region_ids, relationship_manager_id, company, team, email, ' +
+  'id, full_name, position, photo_url, region_id, region_ids, relationship_manager_id, company, ' +
+  'hierarchy_level, additional_companies, team, email, ' +
   'phone_work, phone_mobile, phone_private, ' +
   'phone_direct, email_private, business_address, assistant_name, assistant_contact, social_links, ' +
   'birthday, location, family_status, children, pets, linkedin_status, linkedin_url, ' +
@@ -85,6 +100,9 @@ export interface ContactRow {
   region_ids?: string[] | null
   relationship_manager_id: string | null
   company: string | null
+  /** Organigramm (0039). */
+  hierarchy_level?: HierarchyLevel | null
+  additional_companies?: string[] | null
   team: string | null
   email: string | null
   phone_work: string | null
@@ -144,6 +162,8 @@ export function mapRowToContact(row: ContactRow, resolveName: NameResolver = () 
     regionIds: row.region_ids ?? undefined,
     relationshipManagerId: row.relationship_manager_id ?? '',
     company: row.company ?? undefined,
+    hierarchyLevel: row.hierarchy_level ?? undefined,
+    additionalCompanies: row.additional_companies?.length ? row.additional_companies : undefined,
     team: row.team ?? undefined,
     email: row.email ?? undefined,
     phoneWork: row.phone_work ?? undefined,
@@ -213,6 +233,146 @@ export function mapRowToActivity(row: ActivityRow, resolveName: NameResolver = (
   }
 }
 
+// --- Geschenke (0036) ---
+
+const GIFT_OCCASION_SELECT = 'id, name, kind, ship_by, created_at'
+const GIFT_PRODUCT_SELECT = 'id, occasion_id, name, description, emoji'
+const GIFT_SENDER_SELECT = 'id, name, is_c_level'
+const GIFT_RECIPIENT_SELECT =
+  'id, occasion_id, product_id, contact_id, first_name, last_name, company, street, ' +
+  'postal_code, city, country, shipping, status, status_at, note, created_at'
+
+interface GiftOccasionRow {
+  id: string
+  name: string
+  kind: GiftOccasionKind
+  ship_by: string | null
+  created_at: string
+}
+interface GiftProductRow {
+  id: string
+  occasion_id: string
+  name: string
+  description: string | null
+  emoji: string | null
+}
+interface GiftSenderRow {
+  id: string
+  name: string
+  is_c_level: boolean
+}
+interface GiftRecipientRow {
+  id: string
+  occasion_id: string
+  product_id: string | null
+  contact_id: string | null
+  first_name: string | null
+  last_name: string | null
+  company: string | null
+  street: string | null
+  postal_code: string | null
+  city: string | null
+  country: string | null
+  shipping: GiftShipping
+  status: GiftStatus
+  status_at: string | null
+  note: string | null
+  created_at: string
+}
+
+const mapGiftOccasion = (r: GiftOccasionRow): GiftOccasion => ({
+  id: r.id,
+  name: r.name,
+  kind: r.kind,
+  shipBy: r.ship_by ?? undefined,
+  createdAt: r.created_at,
+})
+const mapGiftProduct = (r: GiftProductRow): GiftProduct => ({
+  id: r.id,
+  occasionId: r.occasion_id,
+  name: r.name,
+  description: r.description ?? undefined,
+  emoji: r.emoji ?? undefined,
+})
+const mapGiftSender = (r: GiftSenderRow): GiftSender => ({
+  id: r.id,
+  name: r.name,
+  isCLevel: Boolean(r.is_c_level),
+})
+function mapGiftRecipient(r: GiftRecipientRow, senderIds: string[]): GiftRecipient {
+  return {
+    id: r.id,
+    occasionId: r.occasion_id,
+    productId: r.product_id ?? undefined,
+    contactId: r.contact_id ?? undefined,
+    firstName: r.first_name ?? undefined,
+    lastName: r.last_name ?? undefined,
+    company: r.company ?? undefined,
+    street: r.street ?? undefined,
+    postalCode: r.postal_code ?? undefined,
+    city: r.city ?? undefined,
+    country: r.country ?? undefined,
+    shipping: r.shipping,
+    status: r.status,
+    statusAt: r.status_at ?? undefined,
+    note: r.note ?? undefined,
+    senderIds,
+    createdAt: r.created_at,
+  }
+}
+
+/** Leere Texte gehören als NULL in die Datenbank, nicht als '' (Fallstrick 10). */
+const textOrNull = (v: string | null | undefined): string | null => {
+  const t = v?.trim()
+  return t ? t : null
+}
+
+function recipientRow(input: NewGiftRecipient, id: string): Record<string, unknown> {
+  return {
+    id,
+    occasion_id: input.occasionId,
+    product_id: input.productId ?? null,
+    contact_id: input.contactId ?? null,
+    first_name: textOrNull(input.firstName),
+    last_name: textOrNull(input.lastName),
+    company: textOrNull(input.company),
+    street: textOrNull(input.street),
+    postal_code: textOrNull(input.postalCode),
+    city: textOrNull(input.city),
+    country: textOrNull(input.country),
+    shipping: input.shipping ?? 'direkt',
+    status: input.status ?? 'geplant',
+    status_at: input.statusAt ?? null,
+    note: textOrNull(input.note),
+  }
+}
+
+/** In Stücke schneiden — lange .in()-Listen sprengen sonst die Adresszeile. */
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
+
+/**
+ * Alle Zeilen einer Abfrage, seitenweise. PostgREST kann pro Abfrage deckeln
+ * (Supabase-Vorgabe: 1000) und lässt den Rest dann OHNE Fehler weg — bei ~460
+ * Empfängern mit je zwei Absendern liegt die Zuordnungstabelle genau dort.
+ */
+async function fetchAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+  size = 1000,
+): Promise<T[]> {
+  const out: T[] = []
+  for (let from = 0; ; from += size) {
+    const { data, error } = await page(from, from + size - 1)
+    if (error) throw new Error(error.message)
+    const rows = (data ?? []) as T[]
+    out.push(...rows)
+    if (rows.length < size) return out
+  }
+}
+
 /**
  * Pure mapper: ContactPatch -> DB column patch. Exhaustive over ContactPatch:
  * the switch narrows `key` to never, so adding a field to ContactPatch without
@@ -245,6 +405,15 @@ export function patchToRow(patch: ContactPatch): Record<string, unknown> {
         break
       case 'company':
         row.company = patch.company ?? null
+        break
+      case 'hierarchyLevel':
+        row.hierarchy_level = patch.hierarchyLevel ?? null
+        break
+      case 'additionalCompanies':
+        // NOT NULL mit Vorgabe '{}' — leer heißt leere Liste, nie NULL.
+        row.additional_companies = (patch.additionalCompanies ?? [])
+          .map((c) => c.trim())
+          .filter(Boolean)
         break
       case 'team':
         row.team = patch.team ?? null
@@ -660,6 +829,72 @@ export class SupabaseRepository implements Repository {
     return contact
   }
 
+  async mergeContacts(winnerId: string, loserId: string, patch: ContactPatch = {}): Promise<Contact> {
+    if (winnerId === loserId) throw new Error('Ein Kontakt lässt sich nicht mit sich selbst zusammenführen')
+    const [winner, loser] = await Promise.all([this.getContact(winnerId), this.getContact(loserId)])
+    if (!winner || !loser) throw new Error('Kontakt nicht gefunden oder keine Berechtigung')
+    const { fileStore } = await import('@/lib/fileStore')
+
+    // Beziehungen vereint die Datenbankfunktion — sie gehören nicht in das
+    // Feld-Speichern, das sie sonst ERSETZEN würde.
+    const fieldPatch: ContactPatch = { ...patch }
+    delete fieldPatch.sideFacts
+    delete fieldPatch.gallery
+    delete fieldPatch.customers
+    delete fieldPatch.regionIds
+
+    const galleryCopies: string[] = []
+    let avatarCopy: string | undefined
+    let avatarCommitted = false
+    try {
+      // 1. Dateien des Verlierers in den Ordner des Gewinners kopieren (Fallstrick 3).
+      const refMap: Record<string, string> = {}
+      for (const photo of loser.gallery ?? []) {
+        const copy = await fileStore.copyToContact(photo.url, winnerId)
+        if (copy !== photo.url) {
+          refMap[photo.url] = copy
+          galleryCopies.push(copy)
+        }
+      }
+      const takesLoserPhoto = patch.photoUrl !== undefined && !!loser.photoUrl && patch.photoUrl === loser.photoUrl
+      if (takesLoserPhoto) {
+        const copy = await fileStore.copyToContact(loser.photoUrl!, winnerId)
+        if (copy !== loser.photoUrl) avatarCopy = copy
+        fieldPatch.photoUrl = copy
+      }
+
+      // 2. Felder des Gewinners über den normalen Weg setzen.
+      if (Object.keys(fieldPatch).length > 0) {
+        await this.updateContact(winnerId, fieldPatch)
+        avatarCommitted = takesLoserPhoto
+      }
+
+      // 3. Verweise umhängen, Verlierer löschen — eine Transaktion in der Datenbank.
+      const { error } = await this.client.rpc('merge_contacts', {
+        p_winner: winnerId,
+        p_loser: loserId,
+        p_ref_map: refMap,
+      })
+      if (error) throw new Error(error.message)
+    } catch (err) {
+      // Nur Kopien entfernen, auf die noch nichts zeigt. Ein bereits gespeichertes
+      // Foto des Gewinners bleibt — es ist jetzt seins.
+      for (const c of galleryCopies) await fileStore.remove(c).catch(() => undefined)
+      if (avatarCopy && !avatarCommitted) await fileStore.remove(avatarCopy).catch(() => undefined)
+      throw err
+    }
+
+    // 4. Aufräumen: die Originale des Verlierers, und ein ersetztes Foto des Gewinners.
+    await fileStore.removeContactFiles(loserId).catch(() => undefined)
+    if (avatarCommitted && winner.photoUrl && winner.photoUrl !== fieldPatch.photoUrl) {
+      await fileStore.remove(winner.photoUrl).catch(() => undefined)
+    }
+
+    const merged = await this.getContact(winnerId)
+    if (!merged) throw new Error('Zusammengeführter Kontakt nicht lesbar')
+    return merged
+  }
+
   async createRegion(name: string): Promise<Region> {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Regionsname darf nicht leer sein')
@@ -985,20 +1220,70 @@ export class SupabaseRepository implements Repository {
     if (contactIds.length === 0) return 0
     // Teil-Update: nur die übergebenen Spalten. KEIN upsert — der schriebe die
     // ganze Zeile und setzte alles Nichtübergebene auf NULL (siehe setAttendee).
+    const addRegion = patch.regionId !== undefined && patch.regionMode === 'add'
     const row: Record<string, string> = {}
-    if (patch.regionId !== undefined) row.region_id = patch.regionId
+    // Beim Hinzufügen bleibt das führende Gebiet stehen — die Spalte wird dann
+    // gar nicht angefasst, die neue Zuordnung geht direkt in contact_regions.
+    if (patch.regionId !== undefined && !addRegion) row.region_id = patch.regionId
     if (patch.relationshipManagerId !== undefined) {
       row.relationship_manager_id = patch.relationshipManagerId
     }
-    if (Object.keys(row).length === 0) return 0
+    if (Object.keys(row).length === 0 && !addRegion) return 0
 
-    const { data, error } = await this.client
-      .from('contacts')
-      .update(row)
-      .in('id', contactIds)
-      .select('id')
-    if (error) throw new Error(error.message)
-    return ((data ?? []) as { id: string }[]).length
+    let matched: number
+    if (Object.keys(row).length > 0) {
+      const { data, error } = await this.client
+        .from('contacts')
+        .update(row)
+        .in('id', contactIds)
+        .select('id')
+      if (error) throw new Error(error.message)
+      matched = ((data ?? []) as { id: string }[]).length
+    } else {
+      const { data, error } = await this.client.from('contacts').select('id').in('id', contactIds)
+      if (error) throw new Error(error.message)
+      matched = ((data ?? []) as { id: string }[]).length
+    }
+
+    if (patch.regionId !== undefined) {
+      const target = patch.regionId
+      const { data: rows, error: readError } = await this.client
+        .from('contact_regions')
+        .select('contact_id, region_id')
+        .in('contact_id', contactIds)
+      if (readError) throw new Error(readError.message)
+      const memberships = (rows ?? []) as unknown as { contact_id: string; region_id: string }[]
+
+      if (addRegion) {
+        // Nur fehlende Zuordnungen schreiben. Kein upsert (Fallstrick 1), und ein
+        // zweites INSERT auf dasselbe Paar liefe in den Primärschlüssel.
+        const has = new Set(
+          memberships.filter((m) => m.region_id === target).map((m) => m.contact_id),
+        )
+        const missing = contactIds.filter((id) => !has.has(id))
+        if (missing.length > 0) {
+          const { error } = await this.client
+            .from('contact_regions')
+            .insert(missing.map((contact_id) => ({ contact_id, region_id: target })))
+          if (error) throw new Error(error.message)
+        }
+      } else {
+        // Ersetzen: region_id ist oben schon gesetzt, der Trigger hat die
+        // Mitgliedschaft angelegt. Jetzt die übrigen Gebiete dieser Kontakte
+        // entfernen. Das führende ist bereits `target`, der Nachrück-Trigger
+        // greift also nicht.
+        const others = [...new Set(memberships.map((m) => m.region_id))].filter((r) => r !== target)
+        if (others.length > 0) {
+          const { error } = await this.client
+            .from('contact_regions')
+            .delete()
+            .in('contact_id', contactIds)
+            .in('region_id', others)
+          if (error) throw new Error(error.message)
+        }
+      }
+    }
+    return matched
   }
 
   async deleteContact(id: string): Promise<void> {
@@ -1410,6 +1695,64 @@ export class SupabaseRepository implements Repository {
     return ((data ?? []) as unknown as OrgUnitRow[]).map(mapRowToOrgUnit)
   }
 
+  async listOrgUnitNames(): Promise<Pick<OrgUnit, 'company' | 'department' | 'team'>[]> {
+    // Die Tabelle liest seit 0037 nur die Leitung; die Vorschläge brauchen nur
+    // die Namen, und die liefert org_unit_names() jedem RM+.
+    const { data, error } = await this.client.rpc('org_unit_names')
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as { company: string; department: string; team: string | null }[]).map((r) => ({
+      company: r.company,
+      department: r.department,
+      team: r.team,
+    }))
+  }
+
+  async createOrgUnit(input: { company: string; department: string; team?: string; note?: string }): Promise<OrgUnit> {
+    const company = input.company.trim()
+    const department = input.department.trim()
+    if (!company || !department) throw new Error('Firma und Abteilung sind Pflicht')
+    const { data, error } = await this.client
+      .from('org_units')
+      .insert({ company, department, team: textOrNull(input.team), note: textOrNull(input.note) })
+      .select('id, company, department, team, note')
+      .single()
+    if (error) throw new Error(error.message)
+    return mapRowToOrgUnit(data as unknown as OrgUnitRow)
+  }
+
+  async updateOrgUnit(
+    id: string,
+    patch: { company?: string; department?: string; team?: string | null; note?: string | null },
+  ): Promise<OrgUnit> {
+    const row: Record<string, unknown> = {}
+    if (patch.company !== undefined) {
+      if (!patch.company.trim()) throw new Error('Firma und Abteilung sind Pflicht')
+      row.company = patch.company.trim()
+    }
+    if (patch.department !== undefined) {
+      if (!patch.department.trim()) throw new Error('Firma und Abteilung sind Pflicht')
+      row.department = patch.department.trim()
+    }
+    if (patch.team !== undefined) row.team = textOrNull(patch.team)
+    if (patch.note !== undefined) row.note = textOrNull(patch.note)
+    if (Object.keys(row).length > 0) {
+      const { error } = await this.client.from('org_units').update(row).eq('id', id)
+      if (error) throw new Error(error.message)
+    }
+    const { data, error } = await this.client
+      .from('org_units')
+      .select('id, company, department, team, note')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('Einheit nicht gefunden oder keine Berechtigung')
+    return mapRowToOrgUnit(data as unknown as OrgUnitRow)
+  }
+
+  async deleteOrgUnit(id: string): Promise<void> {
+    await this.deleteAndVerify('org_units', id, 'Einheit konnte nicht gelöscht werden')
+  }
+
   async listFavorites(profileId: string): Promise<string[]> {
     // RLS (favorites_select, 0031) liefert ohnehin nur eigene Zeilen; der Filter
     // macht die Absicht explizit und hält Mock und Adapter gleich.
@@ -1678,5 +2021,366 @@ export class SupabaseRepository implements Repository {
     if (noteErr) throw new Error(noteErr.message)
 
     return contact
+  }
+
+  // ---------------------------------------------------------------------------
+  // Geschenke (Migration 0036). RLS: alles is_privileged(), keine Region.
+  // ---------------------------------------------------------------------------
+
+  async listGiftOccasions(): Promise<GiftOccasion[]> {
+    const { data, error } = await this.client
+      .from('gift_occasions')
+      .select(GIFT_OCCASION_SELECT)
+      .order('created_at', { ascending: true })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as GiftOccasionRow[]).map(mapGiftOccasion)
+  }
+
+  async createGiftOccasion(input: NewGiftOccasion): Promise<GiftOccasion> {
+    const name = input.name.trim()
+    if (!name) throw new Error('Der Anlass braucht einen Namen')
+    const { data, error } = await this.client
+      .from('gift_occasions')
+      .insert({ name, kind: input.kind, ship_by: input.shipBy ?? null })
+      .select(GIFT_OCCASION_SELECT)
+      .single()
+    if (error) throw new Error(error.message)
+    return mapGiftOccasion(data as unknown as GiftOccasionRow)
+  }
+
+  async updateGiftOccasion(id: string, patch: GiftOccasionPatch): Promise<GiftOccasion> {
+    const row: Record<string, unknown> = {}
+    if (patch.name !== undefined) {
+      const name = patch.name.trim()
+      if (!name) throw new Error('Der Anlass braucht einen Namen')
+      row.name = name
+    }
+    if (patch.shipBy !== undefined) row.ship_by = patch.shipBy || null
+    if (Object.keys(row).length > 0) {
+      const { error } = await this.client.from('gift_occasions').update(row).eq('id', id)
+      if (error) throw new Error(error.message)
+    }
+    const { data, error } = await this.client
+      .from('gift_occasions')
+      .select(GIFT_OCCASION_SELECT)
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('Anlass nicht gefunden oder keine Berechtigung')
+    return mapGiftOccasion(data as unknown as GiftOccasionRow)
+  }
+
+  async deleteGiftOccasion(id: string): Promise<void> {
+    await this.deleteAndVerify('gift_occasions', id, 'Anlass konnte nicht gelöscht werden')
+  }
+
+  async ensureBirthdayOccasion(): Promise<GiftOccasion> {
+    const find = async () => {
+      const { data, error } = await this.client
+        .from('gift_occasions')
+        .select(GIFT_OCCASION_SELECT)
+        .eq('kind', 'geburtstag')
+        .limit(1)
+      if (error) throw new Error(error.message)
+      const rows = (data ?? []) as unknown as GiftOccasionRow[]
+      return rows[0] ? mapGiftOccasion(rows[0]) : undefined
+    }
+    const existing = await find()
+    if (existing) return existing
+    try {
+      return await this.createGiftOccasion({ name: 'Geburtstage', kind: 'geburtstag' })
+    } catch (err) {
+      // Wettlauf: der eindeutige Index hat einen zweiten verhindert — dann gilt der erste.
+      const raced = await find()
+      if (raced) return raced
+      throw err
+    }
+  }
+
+  async listGiftProducts(): Promise<GiftProduct[]> {
+    const { data, error } = await this.client
+      .from('gift_products')
+      .select(GIFT_PRODUCT_SELECT)
+      .order('created_at', { ascending: true })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as GiftProductRow[]).map(mapGiftProduct)
+  }
+
+  async createGiftProduct(input: NewGiftProduct): Promise<GiftProduct> {
+    const name = input.name.trim()
+    if (!name) throw new Error('Das Produkt braucht einen Namen')
+    const { data, error } = await this.client
+      .from('gift_products')
+      .insert({
+        occasion_id: input.occasionId,
+        name,
+        description: textOrNull(input.description),
+        emoji: textOrNull(input.emoji),
+      })
+      .select(GIFT_PRODUCT_SELECT)
+      .single()
+    if (error) throw new Error(error.message)
+    return mapGiftProduct(data as unknown as GiftProductRow)
+  }
+
+  async updateGiftProduct(id: string, patch: GiftProductPatch): Promise<GiftProduct> {
+    const row: Record<string, unknown> = {}
+    if (patch.name !== undefined) {
+      const name = patch.name.trim()
+      if (!name) throw new Error('Das Produkt braucht einen Namen')
+      row.name = name
+    }
+    if (patch.description !== undefined) row.description = textOrNull(patch.description)
+    if (patch.emoji !== undefined) row.emoji = textOrNull(patch.emoji)
+    if (Object.keys(row).length > 0) {
+      const { error } = await this.client.from('gift_products').update(row).eq('id', id)
+      if (error) throw new Error(error.message)
+    }
+    const { data, error } = await this.client
+      .from('gift_products')
+      .select(GIFT_PRODUCT_SELECT)
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('Produkt nicht gefunden oder keine Berechtigung')
+    return mapGiftProduct(data as unknown as GiftProductRow)
+  }
+
+  async deleteGiftProduct(id: string): Promise<void> {
+    await this.deleteAndVerify('gift_products', id, 'Produkt konnte nicht gelöscht werden')
+  }
+
+  async listGiftSenders(): Promise<GiftSender[]> {
+    const { data, error } = await this.client
+      .from('gift_senders')
+      .select(GIFT_SENDER_SELECT)
+      .order('name', { ascending: true })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as unknown as GiftSenderRow[]).map(mapGiftSender)
+  }
+
+  async createGiftSender(name: string, isCLevel = false): Promise<GiftSender> {
+    const trimmed = name.trim().replace(/\s+/g, ' ')
+    if (!trimmed) throw new Error('Der Absender braucht einen Namen')
+    const find = async () => {
+      const pattern = trimmed.replace(/[\\%_]/g, (c) => `\\${c}`)
+      const { data, error } = await this.client
+        .from('gift_senders')
+        .select(GIFT_SENDER_SELECT)
+        .ilike('name', pattern)
+        .limit(1)
+      if (error) throw new Error(error.message)
+      const rows = (data ?? []) as unknown as GiftSenderRow[]
+      return rows[0] ? mapGiftSender(rows[0]) : undefined
+    }
+    const existing = await find()
+    if (existing) return existing
+    const { data, error } = await this.client
+      .from('gift_senders')
+      .insert({ name: trimmed, is_c_level: isCLevel })
+      .select(GIFT_SENDER_SELECT)
+      .single()
+    if (error) {
+      const raced = await find()
+      if (raced) return raced
+      throw new Error(error.message)
+    }
+    return mapGiftSender(data as unknown as GiftSenderRow)
+  }
+
+  async updateGiftSender(id: string, patch: { name?: string; isCLevel?: boolean }): Promise<GiftSender> {
+    const row: Record<string, unknown> = {}
+    if (patch.name !== undefined) {
+      const name = patch.name.trim().replace(/\s+/g, ' ')
+      if (!name) throw new Error('Der Absender braucht einen Namen')
+      row.name = name
+    }
+    if (patch.isCLevel !== undefined) row.is_c_level = patch.isCLevel
+    if (Object.keys(row).length > 0) {
+      const { error } = await this.client.from('gift_senders').update(row).eq('id', id)
+      if (error) throw new Error(error.message)
+    }
+    const { data, error } = await this.client
+      .from('gift_senders')
+      .select(GIFT_SENDER_SELECT)
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('Absender nicht gefunden oder keine Berechtigung')
+    return mapGiftSender(data as unknown as GiftSenderRow)
+  }
+
+  async deleteGiftSender(id: string): Promise<void> {
+    await this.deleteAndVerify('gift_senders', id, 'Absender konnte nicht gelöscht werden')
+  }
+
+  /** Absender-Zuordnungen, gruppiert je Empfänger. Ohne Filter = alle (seitenweise). */
+  private async giftSenderLinks(recipientIds?: string[]): Promise<Map<string, string[]>> {
+    const rows: { recipient_id: string; sender_id: string }[] = []
+    if (recipientIds) {
+      for (const part of chunk(recipientIds, 50)) {
+        const { data, error } = await this.client
+          .from('gift_recipient_senders')
+          .select('recipient_id, sender_id')
+          .in('recipient_id', part)
+        if (error) throw new Error(error.message)
+        rows.push(...((data ?? []) as { recipient_id: string; sender_id: string }[]))
+      }
+    } else {
+      rows.push(
+        ...(await fetchAllPages<{ recipient_id: string; sender_id: string }>((from, to) =>
+          this.client
+            .from('gift_recipient_senders')
+            .select('recipient_id, sender_id')
+            .order('recipient_id', { ascending: true })
+            .range(from, to),
+        )),
+      )
+    }
+    const byRecipient = new Map<string, string[]>()
+    for (const l of rows) {
+      byRecipient.set(l.recipient_id, [...(byRecipient.get(l.recipient_id) ?? []), l.sender_id])
+    }
+    return byRecipient
+  }
+
+  async listGiftRecipients(): Promise<GiftRecipient[]> {
+    const [rows, links] = await Promise.all([
+      fetchAllPages<GiftRecipientRow>((from, to) =>
+        this.client
+          .from('gift_recipients')
+          .select(GIFT_RECIPIENT_SELECT)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
+      this.giftSenderLinks(),
+    ])
+    return rows.map((r) => mapGiftRecipient(r, links.get(r.id) ?? []))
+  }
+
+  async listContactGifts(contactId: string): Promise<GiftRecipient[]> {
+    const { data, error } = await this.client
+      .from('gift_recipients')
+      .select(GIFT_RECIPIENT_SELECT)
+      .eq('contact_id', contactId)
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    const rows = (data ?? []) as unknown as GiftRecipientRow[]
+    const links = await this.giftSenderLinks(rows.map((r) => r.id))
+    return rows.map((r) => mapGiftRecipient(r, links.get(r.id) ?? []))
+  }
+
+  private async getGiftRecipient(id: string): Promise<GiftRecipient> {
+    const { data, error } = await this.client
+      .from('gift_recipients')
+      .select(GIFT_RECIPIENT_SELECT)
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('Empfänger nicht gefunden oder keine Berechtigung')
+    const links = await this.giftSenderLinks([id])
+    return mapGiftRecipient(data as unknown as GiftRecipientRow, links.get(id) ?? [])
+  }
+
+  private async writeGiftSenderLinks(recipientId: string, senderIds: string[]): Promise<void> {
+    const { error: delError } = await this.client
+      .from('gift_recipient_senders')
+      .delete()
+      .eq('recipient_id', recipientId)
+    if (delError) throw new Error(delError.message)
+    const unique = [...new Set(senderIds)]
+    if (unique.length === 0) return
+    const { error } = await this.client
+      .from('gift_recipient_senders')
+      .insert(unique.map((sender_id) => ({ recipient_id: recipientId, sender_id })))
+    if (error) throw new Error(error.message)
+  }
+
+  async createGiftRecipient(input: NewGiftRecipient): Promise<GiftRecipient> {
+    // Die ID vergibt der Browser — so hängen die Absender sicher an der richtigen
+    // Zeile, ohne sich auf die Reihenfolge einer RETURNING-Liste zu verlassen.
+    const id = crypto.randomUUID()
+    const { error } = await this.client.from('gift_recipients').insert(recipientRow(input, id))
+    if (error) throw new Error(error.message)
+    await this.writeGiftSenderLinks(id, input.senderIds)
+    return this.getGiftRecipient(id)
+  }
+
+  async updateGiftRecipient(id: string, patch: GiftRecipientPatch): Promise<GiftRecipient> {
+    const row: Record<string, unknown> = {}
+    const text: [keyof GiftRecipientPatch, string][] = [
+      ['firstName', 'first_name'],
+      ['lastName', 'last_name'],
+      ['company', 'company'],
+      ['street', 'street'],
+      ['postalCode', 'postal_code'],
+      ['city', 'city'],
+      ['country', 'country'],
+      ['note', 'note'],
+    ]
+    for (const [key, col] of text) {
+      if (patch[key] !== undefined) row[col] = textOrNull(patch[key] as string | null)
+    }
+    if (patch.productId !== undefined) row.product_id = patch.productId || null
+    if (patch.contactId !== undefined) row.contact_id = patch.contactId || null
+    if (patch.shipping !== undefined) row.shipping = patch.shipping
+    if (patch.status !== undefined) row.status = patch.status
+    // KEIN upsert (Fallstrick 1): gezielt ändern, dann neu lesen.
+    if (Object.keys(row).length > 0) {
+      const { error } = await this.client.from('gift_recipients').update(row).eq('id', id)
+      if (error) throw new Error(error.message)
+    }
+    if (patch.senderIds !== undefined) await this.writeGiftSenderLinks(id, patch.senderIds)
+    return this.getGiftRecipient(id)
+  }
+
+  async setGiftStatus(ids: string[], status: GiftStatus): Promise<number> {
+    let matched = 0
+    for (const part of chunk([...new Set(ids)], 50)) {
+      const { data, error } = await this.client
+        .from('gift_recipients')
+        .update({ status })
+        .in('id', part)
+        .select('id')
+      if (error) throw new Error(error.message)
+      matched += ((data ?? []) as { id: string }[]).length
+    }
+    return matched
+  }
+
+  async deleteGiftRecipient(id: string): Promise<void> {
+    await this.deleteAndVerify('gift_recipients', id, 'Empfänger konnte nicht gelöscht werden')
+  }
+
+  async importGiftRecipients(rows: NewGiftRecipient[]): Promise<number> {
+    const withIds = rows.map((r) => ({ input: r, id: crypto.randomUUID() }))
+    for (const part of chunk(withIds, 100)) {
+      const { error } = await this.client
+        .from('gift_recipients')
+        .insert(part.map(({ input, id }) => recipientRow(input, id)))
+      if (error) throw new Error(error.message)
+    }
+    const links = withIds.flatMap(({ input, id }) =>
+      [...new Set(input.senderIds)].map((sender_id) => ({ recipient_id: id, sender_id })),
+    )
+    for (const part of chunk(links, 200)) {
+      const { error } = await this.client.from('gift_recipient_senders').insert(part)
+      if (error) throw new Error(error.message)
+    }
+    return withIds.length
+  }
+
+  /**
+   * Löschen und nachprüfen: eine von der RLS gefilterte Löschung liefert 0
+   * Zeilen und KEINEN Fehler. Was es nicht (mehr) gibt, ist dagegen kein
+   * Fehler — wie ein DELETE in Postgres.
+   */
+  private async deleteAndVerify(table: string, id: string, failure: string): Promise<void> {
+    const { error } = await this.client.from(table).delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    const { data, error: readError } = await this.client.from(table).select('id').eq('id', id)
+    if (readError) throw new Error(readError.message)
+    if (((data ?? []) as unknown[]).length > 0) throw new Error(failure)
   }
 }

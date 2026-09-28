@@ -8,6 +8,10 @@ import type {
   EventAttendee,
   EventItem,
   EventNote,
+  GiftOccasion,
+  GiftProduct,
+  GiftRecipient,
+  GiftSender,
   IntroRequest,
   Region,
   Reminder,
@@ -40,6 +44,7 @@ export const seedContacts: Contact[] = [
     id: 'c-anke',
     fullName: 'Anke Richter',
     position: 'Leiterin Partner Management',
+    hierarchyLevel: 'executive',
     regionId: 'r-nord',
     relationshipManagerId: 'u-alex',
     company: 'Deutsche Telekom',
@@ -75,6 +80,7 @@ export const seedContacts: Contact[] = [
     id: 'c-thomas',
     fullName: 'Thomas Berger',
     position: 'Head of Procurement',
+    hierarchyLevel: 'executive',
     regionId: 'r-sued',
     relationshipManagerId: 'u-olaf',
     company: 'Deutsche Telekom',
@@ -105,6 +111,7 @@ export const seedContacts: Contact[] = [
     id: 'c-sandra',
     fullName: 'Sandra Vogel',
     position: 'Key Account Lead',
+    hierarchyLevel: 'management',
     regionId: 'r-west',
     relationshipManagerId: 'u-mehmet',
     company: 'Samsung',
@@ -124,6 +131,7 @@ export const seedContacts: Contact[] = [
     id: 'c-michael',
     fullName: 'Michael Krause',
     position: 'IT Director',
+    hierarchyLevel: 'executive',
     regionId: 'r-ost',
     relationshipManagerId: 'u-olaf',
     company: 'Deutsche Telekom',
@@ -155,6 +163,7 @@ export const seedContacts: Contact[] = [
     id: 'c-julia',
     fullName: 'Julia Hoffmann',
     position: 'VP Sales Telekom Business',
+    hierarchyLevel: 'top_management',
     regionId: 'r-mitte',
     relationshipManagerId: 'u-alex',
     company: 'Deutsche Telekom',
@@ -186,6 +195,7 @@ export const seedContacts: Contact[] = [
     id: 'c-stefan',
     fullName: 'Stefan Lang',
     position: 'Procurement Manager',
+    hierarchyLevel: 'management',
     regionId: 'r-nord',
     relationshipManagerId: 'u-alex',
     company: 'Deutsche Telekom',
@@ -208,6 +218,8 @@ export const seedContacts: Contact[] = [
     id: 'c-nicole',
     fullName: 'Nicole Wagner',
     position: 'Partner Development Manager',
+    hierarchyLevel: 'specialist',
+    additionalCompanies: ['T-Systems'],
     regionId: 'r-sued',
     relationshipManagerId: 'u-olaf',
     company: 'Deutsche Telekom',
@@ -237,6 +249,7 @@ export const seedContacts: Contact[] = [
     id: 'c-peter',
     fullName: 'Peter Schulz',
     position: 'Strategic Sourcing Lead',
+    hierarchyLevel: 'management',
     regionId: 'r-west',
     relationshipManagerId: 'u-mehmet',
     company: 'Lenovo',
@@ -369,6 +382,9 @@ export const seedEventNotes: EventNote[] = [
 // Beziehungsnetz: who reports to / knows / influences whom (fictional).
 export const seedContactLinks: ContactLink[] = [
   { id: 'link-1', fromContactId: 'c-stefan', toContactId: 'c-anke', kind: 'reports_to' },
+  { id: 'link-4', fromContactId: 'c-nicole', toContactId: 'c-thomas', kind: 'reports_to' },
+  // Führung über die Regionsgrenze: im Organigramm West als Hinweis statt Linie.
+  { id: 'link-5', fromContactId: 'c-sandra', toContactId: 'c-julia', kind: 'reports_to' },
   { id: 'link-2', fromContactId: 'c-anke', toContactId: 'c-julia', kind: 'knows', note: 'kennen sich von der Digital X 2025' },
   { id: 'link-3', fromContactId: 'c-julia', toContactId: 'c-michael', kind: 'influences', note: 'Budgetfreigaben' },
 ]
@@ -422,4 +438,40 @@ export const seedEverphoneAccounts: EverphoneAccount[] = [
   { salesforceId: 'sf-demo-4', name: 'Schwaben Tech GmbH', status: 'inactive' },
   { salesforceId: 'sf-demo-5', name: 'Hanse Logistik GmbH', status: 'prospect' },
   { salesforceId: 'sf-demo-6', name: 'Ruhr Mobility SE', status: 'prospect' },
+]
+
+// --- Geschenke (Demo) -------------------------------------------------------
+// Aufbau wie das echte Sheet (zwei Weihnachtsjahre, zwei Produkte in diesem
+// Jahr, C-Level als Absender vorbelegt). Alle Personennamen erfunden; Anke
+// Richter ist ein Demo-KONTAKT und zeigt die Verknüpfung samt Historie.
+
+export const seedGiftOccasions: GiftOccasion[] = [
+  { id: 'go-2026', name: 'Weihnachten 2026/27', kind: 'weihnachten', shipBy: '2026-12-12', createdAt: '2026-09-22T09:00:00.000Z' },
+  { id: 'go-2025', name: 'Weihnachten 2025/26', kind: 'weihnachten', createdAt: '2025-10-01T09:00:00.000Z' },
+]
+
+export const seedGiftProducts: GiftProduct[] = [
+  { id: 'gp-schoki', occasionId: 'go-2026', name: 'Schokolade', description: 'Manufaktur-Tafel, 3er-Set', emoji: '🍫' },
+  { id: 'gp-gin', occasionId: 'go-2026', name: 'Berliner Brandstifter', description: 'Gin 0,7 l, Geschenkkarton', emoji: '🍸' },
+  { id: 'gp-box', occasionId: 'go-2025', name: 'Geschenkbox', emoji: '🎁' },
+]
+
+export const seedGiftSenders: GiftSender[] = [
+  { id: 'gs-jonas', name: 'Jonas', isCLevel: true },
+  { id: 'gs-mira', name: 'Mira', isCLevel: true },
+  { id: 'gs-tim', name: 'Tim', isCLevel: false },
+  { id: 'gs-moritz', name: 'Moritz', isCLevel: false },
+  { id: 'gs-sina', name: 'Sina', isCLevel: false },
+]
+
+const giftBase = { createdAt: '2026-09-22T09:00:00.000Z', country: 'DE' }
+
+export const seedGiftRecipients: GiftRecipient[] = [
+  { ...giftBase, id: 'gr-1', occasionId: 'go-2026', productId: 'gp-schoki', contactId: 'c-anke', firstName: 'Anke', lastName: 'Richter', company: 'Deutsche Telekom', street: 'Friedrich-Ebert-Allee 140', postalCode: '53113', city: 'Bonn', shipping: 'via_ep', status: 'zugestellt', statusAt: '2026-12-05T10:00:00.000Z', senderIds: ['gs-jonas', 'gs-tim'] },
+  { ...giftBase, id: 'gr-2', occasionId: 'go-2026', productId: 'gp-schoki', firstName: 'Mara', lastName: 'Feldberg', company: 'Nordlicht AG', street: 'Hafenstraße 12', postalCode: '20457', city: 'Hamburg', shipping: 'direkt', status: 'versandt', statusAt: '2026-12-01T10:00:00.000Z', senderIds: ['gs-jonas', 'gs-moritz'] },
+  { ...giftBase, id: 'gr-3', occasionId: 'go-2026', productId: 'gp-gin', firstName: 'Tilo', lastName: 'Brenner', company: 'Brenner & Söhne GmbH', street: 'Am Markt 3', postalCode: '80331', city: 'München', shipping: 'direkt', status: 'bestellt', senderIds: ['gs-mira', 'gs-moritz'] },
+  { ...giftBase, id: 'gr-4', occasionId: 'go-2026', productId: 'gp-schoki', firstName: 'Nele', lastName: 'Kaiser', company: 'Kaiser Werke', street: 'Werkstraße 1', postalCode: '44135', city: 'Dortmund', shipping: 'via_ep', status: 'bestellt', senderIds: ['gs-jonas', 'gs-sina'] },
+  { ...giftBase, id: 'gr-5', occasionId: 'go-2026', productId: 'gp-gin', firstName: 'Paul', lastName: 'Linde', company: 'Lindenhof KG', shipping: 'direkt', status: 'geplant', senderIds: ['gs-mira', 'gs-sina'] },
+  { ...giftBase, id: 'gr-6', occasionId: 'go-2025', productId: 'gp-box', contactId: 'c-anke', firstName: 'Anke', lastName: 'Richter', company: 'Deutsche Telekom', shipping: 'via_ep', status: 'zugestellt', statusAt: '2025-12-09T10:00:00.000Z', senderIds: ['gs-jonas', 'gs-tim'], createdAt: '2025-10-01T09:00:00.000Z' },
+  { ...giftBase, id: 'gr-7', occasionId: 'go-2025', productId: 'gp-box', firstName: 'Ida', lastName: 'Sommer', company: 'Sommer Logistik', street: 'Ringweg 7', postalCode: '1010', city: 'Wien', country: 'AT', shipping: 'direkt', status: 'zugestellt', senderIds: ['gs-jonas'], createdAt: '2025-10-01T09:00:00.000Z' },
 ]

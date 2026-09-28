@@ -54,3 +54,21 @@ describe('AppShell — Navigation nach Rolle', () => {
     expect(screen.getAllByRole('link', { name: 'Kontakte' }).length).toBeGreaterThan(0)
   })
 })
+
+describe('AppShell — Geschenke (ab Relationship Manager, 0036)', () => {
+  it('zeigt „Geschenke" dem Relationship Manager', async () => {
+    renderPage(shell(), { route: '/dashboard', as: 'sub_admin' })
+    expect(await screen.findAllByRole('link', { name: 'Geschenke' })).not.toHaveLength(0)
+  })
+
+  it('zeigt „Geschenke" der Leitung', async () => {
+    renderPage(shell(), { route: '/dashboard', as: 'overall_admin' })
+    expect(await screen.findAllByRole('link', { name: 'Geschenke' })).not.toHaveLength(0)
+  })
+
+  it('verbirgt „Geschenke" vor dem Account Manager', async () => {
+    renderPage(shell(), { route: '/dashboard', as: 'account_manager' })
+    await screen.findAllByRole('link', { name: 'Kontakte' })
+    expect(screen.queryByRole('link', { name: 'Geschenke' })).toBeNull()
+  })
+})

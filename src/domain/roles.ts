@@ -153,3 +153,26 @@ export function redactContactForRole(contact: Contact, role: Role): Contact {
   }
   return out
 }
+
+/**
+ * Die Sektion „Geschenke" — sichtbar und bearbeitbar ab Relationship Manager,
+ * innerhalb der Sektion ohne Regionsfilter (Entscheidung Jannik 2026-09-22):
+ * Geschenke werden firmen-, nicht gebietsbezogen geplant.
+ *
+ * Eigenes Prädikat statt `canApprove`, obwohl beide heute bei RM beginnen — so
+ * lässt sich die Sektion später enger oder weiter fassen, ohne das Bearbeiten
+ * von Kontakten mitzuverschieben. Serverseitig: alle gift_*-Tabellen verlangen
+ * is_privileged() (Migration 0036).
+ */
+export function canManageGifts(role: Role): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK.sub_admin
+}
+
+/**
+ * Dubletten zusammenführen — nur die Leitung, wie das Löschen eines Kontakts:
+ * am Ende wird der Verlierer gelöscht, und das ist nicht rückgängig zu machen.
+ * Serverseitig prüft merge_contacts() dasselbe (Migration 0038).
+ */
+export function canMergeContacts(role: Role): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK.overall_admin
+}

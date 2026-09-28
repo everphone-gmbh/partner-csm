@@ -1,6 +1,6 @@
 import { useMemo, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { AlarmClock, Bell, Cake, ChevronRight, TrendingUp, Users } from 'lucide-react'
+import { AlarmClock, Bell, Cake, ChevronRight, Network, TrendingUp, Users } from 'lucide-react'
 import type { Activity, Contact, Region, Reminder } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -199,11 +199,11 @@ export function Dashboard() {
             // (Feedback #8a); die Regionsseite mit Organigramm folgt in Phase 3.
             <div className="-mx-1.5">
               {coverage.map((r) => (
+                <div key={r.regionId} className="flex items-start gap-1">
                 <Link
-                  key={r.regionId}
                   to={`/contacts?region=${encodeURIComponent(r.regionId)}`}
                   title={`Kontakte in Region ${regionName(r.regionId)} anzeigen`}
-                  className="group block space-y-1.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/[0.05]"
+                  className="group block min-w-0 flex-1 space-y-1.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/[0.05]"
                 >
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="font-medium transition-colors group-hover:text-primary">
@@ -221,6 +221,16 @@ export function Dashboard() {
                     <Seg n={r.bySentiment.neutral} total={r.total} cls="bg-status-neutral/40" />
                   </div>
                 </Link>
+                {/* Neben der Zeile, nicht darin: ein Link im Link ist ungültiges Markup. */}
+                <Link
+                  to={`/regions/${encodeURIComponent(r.regionId)}`}
+                  title={`Organigramm ${regionName(r.regionId)}`}
+                  aria-label={`Organigramm ${regionName(r.regionId)}`}
+                  className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
+                >
+                  <Network className="size-3.5" />
+                </Link>
+                </div>
               ))}
             </div>
           )}

@@ -68,6 +68,15 @@ export interface FileStore {
   remove(ref: string): Promise<void>
   /** Alle Dateien eines Kontakts entfernen (Recht auf Vergessenwerden). */
   removeContactFiles(contactId: string): Promise<void>
+  /**
+   * Kopiert eine Datei in den Ordner eines anderen Kontakts und gibt die neue
+   * Referenz zurück — gebraucht beim Zusammenführen von Dubletten. Die
+   * Ablageregel prüft den ERSTEN Pfadordner gegen can_see_contact()
+   * (Fallstrick 3): unter dem Ordner des gelöschten Verlierers wäre die Datei
+   * für Account Manager unerreichbar. Liegt sie schon im Zielordner oder ist sie
+   * keine Speicherreferenz, kommt die Eingabe unverändert zurück.
+   */
+  copyToContact(ref: string, contactId: string): Promise<string>
 }
 
 // Aufgelöste signierte Links zwischenspeichern — sonst erzeugt jede
@@ -126,6 +135,17 @@ class SupabaseFileStore implements FileStore {
     urlCache.delete(ref)
   }
 
+  async copyToContact(ref: string, contactId: string): Promise<string> {
+    const parsed = parseStorageRef(ref)
+    if (!parsed || parsed.path.startsWith(`${contactId}/`)) return ref
+    const name = parsed.path.slice(parsed.path.lastIndexOf('/') + 1)
+    const target = `${contactId}/${name}`
+    const client = await this.client()
+    const { error } = await client.storage.from(parsed.bucket).copy(parsed.path, target)
+    if (error) throw new Error(error.message)
+    return buildStorageRef(parsed.bucket, target)
+  }
+
   async removeContactFiles(contactId: string): Promise<void> {
     const client = await this.client()
     for (const bucket of ['contact-avatars', 'contact-gallery'] as StorageBucket[]) {
@@ -151,6 +171,9 @@ class DataUrlFileStore implements FileStore {
   }
   async remove(): Promise<void> {}
   async removeContactFiles(): Promise<void> {}
+  async copyToContact(ref: string): Promise<string> {
+    return ref // Data-URLs gehören keinem Ordner
+  }
 }
 
 export const fileStore: FileStore =

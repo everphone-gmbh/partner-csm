@@ -1,11 +1,13 @@
 import { useId, useMemo, useState } from 'react'
-import { AtSign, Briefcase, Building, Building2, Cake, Heart, Home, Link2, Mail, MapPin, PawPrint, Phone, PhoneCall, Plus, Repeat, Smartphone, Trophy, UserRound, Users, X } from 'lucide-react'
-import type { AppUser, BuyingRole, Contact, Region, SocialLink } from '@/domain/types'
+import { AtSign, Briefcase, Building, Building2, Cake, Heart, Home, Link2, Mail, MapPin, Network, PawPrint, Phone, PhoneCall, Plus, Repeat, Smartphone, Trophy, UserRound, Users, X } from 'lucide-react'
+import type { AppUser, BuyingRole, Contact, HierarchyLevel, Region, SocialLink } from '@/domain/types'
+import { HIERARCHY_LEVELS } from '@/domain/types'
+import { HIERARCHY_LABEL } from '@/domain/orgChart'
 import type { ContactPatch } from '@/data/repository'
 import { ROLE_LABEL } from '@/domain/roles'
 import { contactRegionIds } from '@/domain/contactRegions'
 import { BUYING_ROLE_OPTIONS } from '@/domain/buyingCenter'
-import { useUnsavedChangesGuard } from '@/app/useUnsavedChangesGuard'
+import { useUnsavedChangesEntry } from '@/app/UnsavedChangesScope'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +24,9 @@ interface StammDraft {
   regionIds: string[]
   relationshipManagerId: string
   company: string
+  /** '' = noch nicht eingeordnet (0039). */
+  hierarchyLevel: HierarchyLevel | ''
+  additionalCompanies: string[]
   team: string
   email: string
   phoneWork: string
@@ -60,6 +65,8 @@ function toStammDraft(c: Contact): StammDraft {
     regionIds: contactRegionIds(c),
     relationshipManagerId: c.relationshipManagerId,
     company: c.company ?? '',
+    hierarchyLevel: c.hierarchyLevel ?? '',
+    additionalCompanies: c.additionalCompanies ?? [],
     team: c.team ?? '',
     email: c.email ?? '',
     phoneWork: c.phoneWork ?? '',
@@ -172,6 +179,8 @@ export function StammdatenCard({
         regionIds: draft.regionIds,
         relationshipManagerId: draft.relationshipManagerId,
         company: draft.company.trim() || undefined,
+        hierarchyLevel: draft.hierarchyLevel || null,
+        additionalCompanies: draft.additionalCompanies.map((c) => c.trim()).filter(Boolean),
         team: draft.team.trim() || undefined,
         email: draft.email.trim() || undefined,
         phoneWork: draft.phoneWork.trim() || undefined,
@@ -204,7 +213,7 @@ export function StammdatenCard({
   // Seitenwechsel mit ungespeichertem Entwurf abfangen (Feedback #1). „Speichern“
   // im Dialog ruft dasselbe submit; schlägt es fehl, bleibt die Karte im
   // Bearbeiten (onSave wirft nach dem Toast weiter).
-  const { dialog } = useUnsavedChangesGuard({ isDirty, onSave: submit })
+  useUnsavedChangesEntry('stammdaten', { isDirty, onSave: submit })
 
   return (
     <Card>
@@ -343,6 +352,56 @@ export function StammdatenCard({
                   aria-label="Firma"
                 />
                 <SuggestionDatalist id={companyListId} options={suggestions.companies} />
+                {/*
+                  Weitere Firma nur in Sonderfällen (Entscheidung 2026-09-03):
+                  per Klick freischalten, dann im Organigramm gestrichelt.
+                */}
+                {draft.additionalCompanies.map((co, i) => (
+                  <div key={i} className="mt-1.5 flex items-center gap-1.5">
+                    <Input
+                      list={companyListId}
+                      value={co}
+                      onChange={(e) =>
+                        set(
+                          'additionalCompanies',
+                          draft.additionalCompanies.map((x, j) => (j === i ? e.target.value : x)),
+                        )
+                      }
+                      aria-label={`Weitere Firma ${i + 1}`}
+                      placeholder="Weitere Firma"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => set('additionalCompanies', draft.additionalCompanies.filter((_, j) => j !== i))}
+                      aria-label={`Weitere Firma ${i + 1} entfernen`}
+                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => set('additionalCompanies', [...draft.additionalCompanies, ''])}
+                  className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="size-3.5" /> weitere Firma
+                </button>
+              </EditField>
+              <EditField label="Ebene im Organigramm">
+                <select
+                  className={selectCls}
+                  value={draft.hierarchyLevel}
+                  onChange={(e) => set('hierarchyLevel', e.target.value as HierarchyLevel | '')}
+                  aria-label="Ebene im Organigramm"
+                >
+                  <option value="">Noch nicht eingeordnet</option>
+                  {HIERARCHY_LEVELS.map((l) => (
+                    <option key={l} value={l}>
+                      {HIERARCHY_LABEL[l]}
+                    </option>
+                  ))}
+                </select>
               </EditField>
               <EditField label="Team">
                 <Input
@@ -531,6 +590,12 @@ export function StammdatenCard({
           <>
             <FieldRow icon={Building2} label="Firma">
               {contact.company || '—'}
+              {contact.additionalCompanies?.length ? (
+                <span className="text-muted-foreground"> · auch bei {contact.additionalCompanies.join(', ')}</span>
+              ) : null}
+            </FieldRow>
+            <FieldRow icon={Network} label="Ebene im Organigramm">
+              {contact.hierarchyLevel ? HIERARCHY_LABEL[contact.hierarchyLevel] : '—'}
             </FieldRow>
             <FieldRow icon={Briefcase} label="Team">
               {contact.team || '—'}
@@ -650,7 +715,6 @@ export function StammdatenCard({
           </>
         )}
       </CardContent>
-      {dialog}
     </Card>
   )
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useUnsavedChangesEntry } from '@/app/UnsavedChangesScope'
 import { Plus, X } from 'lucide-react'
 import type { Contact, SideFact } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
@@ -20,17 +21,33 @@ export function FactsCard({
   onSave: (patch: ContactPatch) => Promise<void>
 }) {
   const [newFact, setNewFact] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const add = () => {
+  const add = async (): Promise<boolean> => {
     const label = newFact.trim()
-    if (!label) return
+    if (!label) return true
     const next: SideFact[] = [
       ...contact.sideFacts,
       { id: crypto.randomUUID(), label, category: 'other' },
     ]
-    setNewFact('')
-    void onSave({ sideFacts: next })
+    setSaving(true)
+    try {
+      await onSave({ sideFacts: next })
+      setNewFact('')
+      return true
+    } catch {
+      return false // Toast kommt von ContactProfile, die Eingabe bleibt stehen
+    } finally {
+      setSaving(false)
+    }
   }
+
+  // Ein getippter, aber noch nicht hinzugefügter Anknüpfungspunkt ging beim
+  // Wegklicken bisher still verloren.
+  useUnsavedChangesEntry('anknuepfungspunkte', {
+    isDirty: canEdit && canSensitive && !saving && newFact.trim() !== '',
+    onSave: add,
+  })
   const remove = (factId: string) =>
     void onSave({ sideFacts: contact.sideFacts.filter((f) => f.id !== factId) })
 
@@ -73,12 +90,12 @@ export function FactsCard({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
-                      add()
+                      void add()
                     }
                   }}
                   placeholder="z. B. Segeln"
                 />
-                <Button type="button" variant="outline" onClick={add}>
+                <Button type="button" variant="outline" onClick={() => void add()}>
                   <Plus className="size-4" /> Hinzufügen
                 </Button>
               </div>

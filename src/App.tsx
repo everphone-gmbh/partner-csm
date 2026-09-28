@@ -48,6 +48,18 @@ const ReportPage = lazy(() =>
 const BoardPage = lazy(() =>
   import('@/features/board/BoardPage').then((m) => ({ default: m.BoardPage })),
 )
+const RegionPage = lazy(() =>
+  import('@/features/regions/RegionPage').then((m) => ({ default: m.RegionPage })),
+)
+const MergePage = lazy(() =>
+  import('@/features/contacts/MergePage').then((m) => ({ default: m.MergePage })),
+)
+const GiftsPage = lazy(() =>
+  import('@/features/gifts/GiftsPage').then((m) => ({ default: m.GiftsPage })),
+)
+const GiftImportPage = lazy(() =>
+  import('@/features/gifts/GiftImportPage').then((m) => ({ default: m.GiftImportPage })),
+)
 const TeamPage = lazy(() =>
   import('@/features/team/TeamPage').then((m) => ({ default: m.TeamPage })),
 )
@@ -91,6 +103,7 @@ const router = createBrowserRouter(
       <Route path="/contacts" element={<ContactList />} />
       <Route path="/contacts/new" element={<ContactFormPage />} />
       <Route path="/contacts/import" element={<ContactImportPage />} />
+      <Route path="/contacts/merge" element={<MergePage />} />
       <Route path="/contacts/:id" element={<ContactProfile />} />
       <Route path="/contacts/:id/edit" element={<ContactFormPage />} />
       <Route path="/events" element={<EventsList />} />
@@ -102,6 +115,9 @@ const router = createBrowserRouter(
       <Route path="/account" element={<AccountPage />} />
       <Route path="/board" element={<BoardPage />} />
       <Route path="/team" element={<TeamPage />} />
+      <Route path="/regions/:id" element={<RegionPage />} />
+      <Route path="/gifts" element={<GiftsPage />} />
+      <Route path="/gifts/import" element={<GiftImportPage />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Route>,
   ),

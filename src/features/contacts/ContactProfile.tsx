@@ -8,10 +8,13 @@ import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { UnsavedChangesScope } from '@/app/UnsavedChangesScope'
+import { GeschenkeCard } from './profile/GeschenkeCard'
 import { contactRegionIds } from '@/domain/contactRegions'
 import {
   canApprove,
   canManageContactPhoto,
+  canManageGifts,
   canViewSensitiveFields,
   redactContactForRole,
 } from '@/domain/roles'
@@ -175,6 +178,9 @@ export function ContactProfile() {
   }
 
   return (
+    // Ein Wächter für alle Karten der Seite (Router erlaubt nur einen Blocker):
+    // Stammdaten, Notiz, Anknüpfungspunkte und Aktivitäts-Composer melden sich an.
+    <UnsavedChangesScope>
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -264,6 +270,8 @@ export function ContactProfile() {
           <NetworkCard contact={view} canEdit={canEdit} />
           <IntroPathCard contact={view} />
           <KundenCard contact={view} canEdit={canEdit} onSave={save} />
+          {/* Geschenkhistorie, sobald ein Empfänger verknüpft ist (0036, ab RM). */}
+          {canManageGifts(user.role) && <GeschenkeCard contact={view} />}
           {/* Private photos are sensitive-tier data — hidden from Account Managers. */}
           {canSensitive && <FotogalerieCard contact={view} canEdit={canEdit} onSave={save} />}
           <NotizCard contact={view} canEdit={canEdit} canSensitive={canSensitive} onSave={save} />
@@ -285,5 +293,6 @@ export function ContactProfile() {
         />
       </div>
     </div>
+    </UnsavedChangesScope>
   )
 }

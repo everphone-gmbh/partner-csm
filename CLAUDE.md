@@ -56,7 +56,7 @@ Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
 
 ```bash
-npm test                 # 596 Tests
+npm test                 # 731 Tests
 npx tsc -b --noEmit      # App
 npx tsc -p tsconfig.test.json --noEmit   # Tests (App-Config schließt sie aus)
 npm run build
@@ -87,8 +87,15 @@ Seit 2026-09-03 läuft die App auf dem **Daten-Router** (`createBrowserRouter` +
 `RouterProvider`, bewusst **ohne** Loader/Actions) — Grundlage für den
 Speichern/Verwerfen-Wächter (`useBlocker` in `useUnsavedChangesGuard`).
 `pageHarness` nutzt entsprechend `createMemoryRouter`. Komponenten, die den
-Wächter einsetzen (`ContactFormPage`, `StammdatenCard`), brauchen im Test
-`renderPage`, kein nacktes `render`.
+Wächter einsetzen, brauchen im Test `renderPage`, kein nacktes `render`.
+
+**Ein Wächter pro Seite.** Der Router kennt nur einen aktiven Blocker. Das
+Kontaktprofil hält ihn deshalb in `UnsavedChangesScope`; die Karten (Stammdaten,
+Notiz, Anknüpfungspunkte, Aktivitäts-Composer) melden sich nur mit
+`useUnsavedChangesEntry` an. Nie `useUnsavedChangesGuard` direkt in einer Karte
+aufrufen — dann gewinnt der zuletzt registrierte Blocker und die übrigen Karten
+verlieren wieder still ihre Eingaben. Karten-Tests wickeln die Karte in die
+Klammer (siehe `StammdatenCard.test.tsx`).
 
 **Was diese Tests nicht abdecken:** Anmeldung, Rollenherleitung und alles
 Serverseitige — RLS, die redigierenden Views, Storage-Regeln. Dafür bleibt es bei
@@ -129,6 +136,11 @@ ersten Einsatz fand der Lauf drei Fehler in 0035, darunter einen, der jeden neu
 angelegten Kontakt für Account Manager unsichtbar gemacht hätte. Eine neue
 Migration ohne diesen Lauf anzuwenden ist seitdem nicht mehr nötig.
 `KEEP=1` lässt die Instanz zum Nachsehen stehen.
+
+Die Prüfungen liegen in `scripts/dryrun/rules-*.sql` und laufen in
+Namensreihenfolge; rules-01 legt die Grundausstattung an. **Neue Migration =
+neue Prüfdatei.** Das Gerüst vergibt Rechte wie Supabase — per default privileges
+auf jedes neue Objekt —, damit ein vergessenes `revoke` auf einer View auffällt.
 
 **Ist-Stand prüfen** statt der Dateinummern vertrauen — Einzelabfragen gehen
 über das MCP `execute_sql` (dasselbe `project_id`), z. B.
@@ -329,6 +341,28 @@ prüfen: siehe `CLAUDE.local.md` — dort steht auch, warum ein
     Liste fallen — genau der Fall, für den die Änderung gebaut wurde. In der
     Datenbank ist `contact_regions` die Wahrheit, `contacts.region_id` wird per
     Trigger daraus abgeleitet und ist immer Mitglied der Menge.
+
+14. **Protokoll und Telekom-Struktur liest nur die Leitung** (Migration 0037).
+    `audit_log` und `org_units` sind für RMs gesperrt; die Vorschläge beim Tippen
+    holen sich nur die Namen über `org_unit_names()` (`listOrgUnitNames`). Wer
+    eine Prüfung oder ein Skript als RM gegen das Protokoll laufen lässt, sieht
+    NICHTS — das ist die Regel, kein Fehler.
+
+15. **Aktivitäten wechseln den Kontakt nur beim Zusammenführen** (0034/0038).
+    Der Riegel `guard_activity_change` lässt eine Verschiebung nur zu, wenn
+    `merge_contacts()` sie vorher in `contact_merges` eingetragen hat. Niemals eine
+    Ausnahme über eine Sitzungsvariable bauen: die darf jede Sitzung setzen.
+
+16. **Geschenke hängen per CASCADE am Kontakt** (0036). Einen Kontakt löschen
+    heißt hier Recht auf Vergessenwerden — seine Geschenkhistorie geht mit.
+    Dubletten deshalb zusammenführen, nicht löschen: `merge_contacts()` hängt die
+    Geschenke vorher um. Die Geschenk-Tabellen sind RM+ ohne Regionsfilter.
+
+17. **Das Organigramm zeichnet Linien aus der Lage der Karten** (`RegionPage`).
+    Im Testumfeld (jsdom) haben Karten keine Lage — Linien lassen sich dort nicht
+    prüfen, nur Bänder und Inhalte. Darstellung immer im Browser ansehen: eine
+    Linie, die eine Ebene überspringt, lief zuerst hinter der Karte dazwischen
+    durch und zeigte eine falsche Hierarchie.
 
 ## Datenpflege-Skripte
 

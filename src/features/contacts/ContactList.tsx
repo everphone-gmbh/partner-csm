@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Check, X, HelpCircle, Plus, Upload, Map as MapIcon, List as ListIcon } from 'lucide-react'
+import { Check, HelpCircle, List as ListIcon, Map as MapIcon, Network, Plus, Search, Upload, X } from 'lucide-react'
 import type { Activity, AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
 import type { BulkAssignPatch } from '@/data/repository'
 import { repository } from '@/data/repositoryProvider'
@@ -77,6 +77,8 @@ export function ContactList() {
   // Firma B, dann einmal zuordnen.
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [bulkRegion, setBulkRegion] = useState('')
+  // Seit ein Kontakt mehrere Gebiete haben kann (0035): ersetzen oder dazutun.
+  const [bulkRegionMode, setBulkRegionMode] = useState<'replace' | 'add'>('replace')
   const [bulkManager, setBulkManager] = useState('')
   const [applying, setApplying] = useState(false)
   const { toast } = useToast()
@@ -210,14 +212,21 @@ export function ContactList() {
   const applyBulk = async () => {
     const ids = [...selected]
     const patch: BulkAssignPatch = {}
-    if (bulkRegion) patch.regionId = bulkRegion
+    if (bulkRegion) {
+      patch.regionId = bulkRegion
+      patch.regionMode = bulkRegionMode
+    }
     if (bulkManager) patch.relationshipManagerId = bulkManager
     if (ids.length === 0 || (!patch.regionId && !patch.relationshipManagerId)) return
 
     // Rückfrage ab 25: eine Massenzuordnung ist nicht einzeln rückgängig zu
     // machen, und der Knopf sitzt neben harmlosen Filtern.
     const what = [
-      patch.regionId ? `Region → ${regionName(patch.regionId)}` : null,
+      patch.regionId
+        ? patch.regionMode === 'add'
+          ? `Region hinzufügen: ${regionName(patch.regionId)}`
+          : `Region → ${regionName(patch.regionId)} (ersetzt die bisherigen)`
+        : null,
       patch.relationshipManagerId ? `Betreuer → ${userName(patch.relationshipManagerId)}` : null,
     ]
       .filter(Boolean)
@@ -230,6 +239,7 @@ export function ContactList() {
       toast(`${changed} ${changed === 1 ? 'Kontakt' : 'Kontakte'} zugeordnet.`, 'success')
       setSelected(new Set())
       setBulkRegion('')
+      setBulkRegionMode('replace')
       setBulkManager('')
       retry() // neu laden, sonst zeigt die Liste die alte Zuordnung
     } catch (err) {
@@ -287,6 +297,14 @@ export function ContactList() {
               <X className="size-3" />
             </button>
           ))}
+          {regionFilter && (
+            <Link
+              to={`/regions/${encodeURIComponent(regionFilter)}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Network className="size-3" /> Organigramm
+            </Link>
+          )}
         </div>
       )}
 
@@ -440,6 +458,39 @@ export function ContactList() {
                     ))}
                   </select>
                 </label>
+                {bulkRegion && (
+                  <div
+                    role="radiogroup"
+                    aria-label="Wie mit den bisherigen Regionen umgehen"
+                    className="flex flex-col gap-1 text-xs text-muted-foreground"
+                  >
+                    Bisherige Regionen
+                    <div className="inline-flex h-9 rounded-[10px] bg-secondary p-0.5">
+                      {(
+                        [
+                          ['replace', 'ersetzen'],
+                          ['add', 'behalten + hinzufügen'],
+                        ] as const
+                      ).map(([mode, label]) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="radio"
+                          aria-checked={bulkRegionMode === mode}
+                          onClick={() => setBulkRegionMode(mode)}
+                          className={cn(
+                            'rounded-[8px] px-2.5 text-xs font-medium transition-colors',
+                            bulkRegionMode === mode
+                              ? 'bg-card text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                   Betreuer
                   <select
@@ -467,7 +518,8 @@ export function ContactList() {
                 <p className="w-full text-xs text-muted-foreground">
                   Wirkt nur auf die ausgewählten Kontakte. „unverändert“ lässt das Feld, wie es ist —
                   so lässt sich eine Region an einen anderen Betreuer übergeben, ohne die Region
-                  anzufassen.
+                  anzufassen. Bei der Region entscheidet „ersetzen“ oder „behalten + hinzufügen“,
+                  was aus bereits zugeordneten Regionen wird.
                 </p>
               </CardContent>
             </Card>

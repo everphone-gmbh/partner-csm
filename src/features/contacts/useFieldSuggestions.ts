@@ -37,7 +37,10 @@ export function uniqueSorted(values: (string | null | undefined)[]): string[] {
  * Team“ bzw. „Abteilung“ (siehe `unitLabel` in domain/coverage.ts). Nur so
  * passen die vorgeschlagenen Werte später zur Abdeckungsanalyse.
  */
-export function collectSuggestions(contacts: Contact[], orgUnits: OrgUnit[]): FieldSuggestions {
+export function collectSuggestions(
+  contacts: Contact[],
+  orgUnits: Pick<OrgUnit, 'company' | 'department' | 'team'>[],
+): FieldSuggestions {
   return {
     teams: uniqueSorted([
       ...orgUnits.map((u) => unitLabel(u.department, u.team)),
@@ -54,7 +57,9 @@ export function collectSuggestions(contacts: Contact[], orgUnits: OrgUnit[]): Fi
  */
 export function useFieldSuggestions(): FieldSuggestions {
   const { data } = useRepoQuery(
-    () => Promise.all([repository.listContacts(), repository.listOrgUnits()]),
+    // Nur die Namen der Telekom-Struktur — die Tabelle selbst liest seit 0037
+    // nur die Leitung (org_unit_names()).
+    () => Promise.all([repository.listContacts(), repository.listOrgUnitNames()]),
     [],
   )
   return useMemo(() => (data ? collectSuggestions(data[0], data[1]) : EMPTY_SUGGESTIONS), [data])

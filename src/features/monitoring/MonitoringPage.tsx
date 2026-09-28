@@ -280,6 +280,12 @@ export function MonitoringPage() {
                     <Badge variant="warning" className="ml-auto">
                       {reason}
                     </Badge>
+                    <Link
+                      to={`/contacts/merge?a=${a.id}&b=${b.id}`}
+                      className="rounded-md border border-border bg-card px-2 py-0.5 text-xs font-medium hover:bg-secondary"
+                    >
+                      Zusammenführen
+                    </Link>
                   </li>
                 ))}
               </ul>
