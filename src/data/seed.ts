@@ -13,6 +13,7 @@ import type {
   GiftRecipient,
   GiftSender,
   IntroRequest,
+  PendingAccount,
   Region,
   Reminder,
 } from '@/domain/types'
@@ -37,6 +38,15 @@ export const seedUsers: AppUser[] = [
   { id: 'u-olaf', name: 'Olaf Gründel', role: 'sub_admin', regionId: 'r-sued' },
   { id: 'u-mehmet', name: 'Mehmet Yıldız', role: 'account_manager', regionId: 'r-west' },
   { id: 'u-tomira', name: 'Tomira Falk', role: 'account_manager', regionId: 'r-nord' },
+]
+
+/**
+ * Ein Konto, das sich per Google angemeldet hat und auf Freischaltung wartet
+ * (Migration 0040) — damit sich das Freischalten im Demo-Modus ausprobieren
+ * lässt. Erfundener Name.
+ */
+export const seedPendingAccounts: PendingAccount[] = [
+  { id: 'p-lena', email: 'lena.kramer@everphone.de', name: 'Lena Kramer', createdAt: '2026-09-29T08:15:00.000Z' },
 ]
 
 export const seedContacts: Contact[] = [

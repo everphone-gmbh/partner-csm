@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AppUser, Region, Role } from '@/domain/types'
+import type { AppUser, PendingAccount, Region, Role } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
 import { canManageTeam, ROLE_LABEL } from '@/domain/roles'
@@ -8,6 +8,8 @@ import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { selectCls } from '@/features/contacts/profile/shared'
+import { Button } from '@/components/ui/button'
+import { formatDate } from '@/lib/format'
 
 const ROLES: Role[] = ['overall_admin', 'sub_admin', 'account_manager']
 
@@ -17,9 +19,11 @@ const ROLES: Role[] = ['overall_admin', 'sub_admin', 'account_manager']
  * Bis hierher war jede Personalie ein Zuruf: `profiles` hatte nur eine
  * SELECT-Policy, Rollen liessen sich ausschliesslich per SQL ändern.
  *
- * Bewusst KEIN Anlegen neuer Logins: das braucht die Supabase-Admin-API und
- * damit den Service-Role-Key, der nie im Browser liegen darf. Dafür kommt
- * Google SSO (Entscheidung 2026-09-17).
+ * Neue Logins entstehen nicht hier, sondern mit der Google-Anmeldung: wer sich
+ * mit seinem Everphone-Konto anmeldet, erscheint unter „Wartet auf
+ * Freischaltung" und sieht bis dahin nichts (0040). Die Leitung vergibt Rolle
+ * und Region in einem Schritt. Konten von Hand anzulegen bräuchte den
+ * Service-Role-Key, der nie im Browser liegen darf.
  *
  * Die beiden Selbstsperren des Triggers `profiles_guard_change` spiegelt die
  * Oberfläche, damit niemand erst in eine Fehlermeldung klickt: das eigene
@@ -36,7 +40,7 @@ export function TeamPage() {
   const { data, loading, error, retry } = useRepoQuery(
     () =>
       allowed
-        ? Promise.all([repository.listUsers(), repository.listRegions()])
+        ? Promise.all([repository.listUsers(), repository.listRegions(), repository.listPendingAccounts()])
         : Promise.resolve(undefined),
     [allowed],
   )
@@ -45,10 +49,25 @@ export function TeamPage() {
   // soll (wie der Favoritenstern) — die Liste wird beim Speichern fortgeschrieben
   // statt neu geladen.
   const [users, setUsers] = useState<AppUser[] | undefined>(undefined)
+  const [pending, setPending] = useState<PendingAccount[]>([])
   useEffect(() => {
-    if (data) setUsers(data[0])
+    if (data) {
+      setUsers(data[0])
+      setPending(data[2])
+    }
   }, [data])
   const regions: Region[] = data?.[1] ?? []
+
+  const approve = async (account: PendingAccount, role: Role, regionId: string) => {
+    try {
+      const saved = await repository.approveAccount(account.id, role, regionId || undefined)
+      setPending((list) => list.filter((p) => p.id !== account.id))
+      setUsers((list) => [...(list ?? []), saved])
+      toast(`${saved.name} ist freigeschaltet.`, 'success')
+    } catch (err) {
+      toast(saveErrorMessage(err))
+    }
+  }
 
   const sorted = useMemo(
     () => [...(users ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'de')),
@@ -97,14 +116,33 @@ export function TeamPage() {
         <p className="text-sm text-muted-foreground">Rollen und Regionen der Konten</p>
       </div>
 
+      {pending.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Wartet auf Freischaltung ({pending.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Diese Konten haben sich mit Google angemeldet und sehen noch nichts. Mit Rolle und
+              Region freischalten — Account Manager brauchen eine Region.
+            </p>
+            <ul className="divide-y divide-border">
+              {pending.map((p) => (
+                <PendingRow key={p.id} account={p} regions={regions} onApprove={approve} />
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Team &amp; Rechte</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Neue Logins lassen sich hier noch nicht anlegen — das kommt mit Google SSO; bis dahin
-            legt Jannik sie an.
+            Neue Kolleg:innen melden sich mit ihrem Everphone-Google-Konto an und erscheinen dann
+            oben zur Freischaltung — bis dahin sehen sie nichts.
           </p>
 
           <ul className="divide-y divide-border">
@@ -157,5 +195,69 @@ export function TeamPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function PendingRow({
+  account,
+  regions,
+  onApprove,
+}: {
+  account: PendingAccount
+  regions: Region[]
+  onApprove: (account: PendingAccount, role: Role, regionId: string) => Promise<void>
+}) {
+  const [role, setRole] = useState<Role>('account_manager')
+  const [regionId, setRegionId] = useState('')
+  const [busy, setBusy] = useState(false)
+  const needsRegion = role === 'account_manager' && !regionId
+
+  return (
+    <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{account.name}</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {account.email} · angemeldet am {formatDate(account.createdAt)}
+        </span>
+      </span>
+      <select
+        className={`${selectCls} sm:w-44`}
+        aria-label={`Rolle für ${account.name}`}
+        value={role}
+        onChange={(e) => setRole(e.target.value as Role)}
+      >
+        {ROLES.map((r) => (
+          <option key={r} value={r}>
+            {ROLE_LABEL[r]}
+          </option>
+        ))}
+      </select>
+      <select
+        className={`${selectCls} sm:w-40`}
+        aria-label={`Region für ${account.name}`}
+        value={regionId}
+        onChange={(e) => setRegionId(e.target.value)}
+      >
+        <option value="">{role === 'account_manager' ? 'Region wählen' : 'Keine Region'}</option>
+        {regions.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </select>
+      <Button
+        type="button"
+        size="sm"
+        disabled={busy || needsRegion}
+        title={needsRegion ? 'Account Manager brauchen eine Region' : undefined}
+        onClick={async () => {
+          setBusy(true)
+          await onApprove(account, role, regionId)
+          setBusy(false)
+        }}
+      >
+        {busy ? 'Schaltet frei…' : 'Freischalten'}
+      </Button>
+    </li>
   )
 }

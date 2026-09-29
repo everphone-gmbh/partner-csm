@@ -12,9 +12,9 @@
 insert into regions (id, name) values
   ('a0000000-0000-0000-0000-000000000001','Gebiet Sued'),
   ('a0000000-0000-0000-0000-000000000002','Gebiet West');
-insert into auth.users (id) values
-  ('b0000000-0000-0000-0000-000000000001'),
-  ('b0000000-0000-0000-0000-000000000002');
+insert into auth.users (id, email) values
+  ('b0000000-0000-0000-0000-000000000001','leitung@everphone.de'),
+  ('b0000000-0000-0000-0000-000000000002','am.west@everphone.de');
 insert into profiles (id, full_name, role, region_id) values
   ('b0000000-0000-0000-0000-000000000001','Leitung','overall_admin',null),
   ('b0000000-0000-0000-0000-000000000002','AM West','account_manager','a0000000-0000-0000-0000-000000000002');

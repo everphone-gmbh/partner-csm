@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { AppUser } from '@/domain/types'
 import { activeBackend, repository } from '@/data/repositoryProvider'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { PendingAccessPage } from '@/features/auth/PendingAccessPage'
 
 interface SessionValue {
   user: AppUser
@@ -31,6 +32,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [authUserId, setAuthUserId] = useState<string | undefined>(undefined)
   const [authEmail, setAuthEmail] = useState<string | undefined>(undefined)
   const [users, setUsers] = useState<AppUser[]>([])
+  // Getrennt von `users`: eine leere Liste heißt nicht „lädt noch". Ein Konto
+  // ohne Profil (per Google angemeldet, noch nicht freigeschaltet, 0040) sieht
+  // keine Profile — vorher blieb die App dann für immer bei „Lädt…".
+  const [usersLoaded, setUsersLoaded] = useState(false)
   const [userId, setUserId] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
 
@@ -52,7 +57,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setAuthUserId(session?.user.id)
         setAuthEmail(session?.user.email ?? undefined)
         setAuth(session ? 'signedIn' : 'signedOut')
-        if (!session) setUsers([])
+        if (!session) {
+          setUsers([])
+          setUsersLoaded(false)
+        }
       })
       unsubscribe = () => data.subscription.unsubscribe()
     })
@@ -70,6 +78,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       (u) => {
         if (!active) return
         setUsers(u)
+        setUsersLoaded(true)
         setUserId((id) => id ?? (supabaseMode ? authUserId : u[0]?.id))
       },
       (err: unknown) => {
@@ -116,15 +125,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       </p>
     )
   }
-  if (auth === 'loading' || users.length === 0) {
+  if (auth === 'loading' || !usersLoaded) {
     return <p className="py-16 text-center text-sm text-muted-foreground">Lädt…</p>
   }
   if (!user) {
-    return (
-      <p className="py-16 text-center text-sm text-muted-foreground">
-        Für dieses Konto existiert kein Profil. Bitte bei Jannik Heeland melden.
-      </p>
-    )
+    // Angemeldet, aber ohne Profil: wartet auf Freischaltung durch die Leitung.
+    return <PendingAccessPage email={authEmail} onSignOut={() => void signOut()} />
   }
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }

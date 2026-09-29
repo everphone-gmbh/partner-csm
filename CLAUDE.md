@@ -56,7 +56,7 @@ Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
 
 ```bash
-npm test                 # 737 Tests
+npm test                 # 751 Tests
 npx tsc -b --noEmit      # App
 npx tsc -p tsconfig.test.json --noEmit   # Tests (App-Config schließt sie aus)
 npm run build
@@ -247,9 +247,18 @@ gibt es ein nummeriertes Release und einen Post im Chat.
 
 ## Anmelden
 
-Sechs Konten (E-Mail/Passwort), Rollen: `overall_admin`, `sub_admin`
-(= Relationship Manager), `account_manager`. Google-SSO ist vorbereitet, aber
-devops-blockiert.
+Sieben Konten (E-Mail/Passwort), Rollen: `overall_admin`, `sub_admin`
+(= Relationship Manager), `account_manager`.
+
+**Google-Anmeldung (Stand 29.09.):** in Supabase eingeschaltet; es fehlt nur der
+Rücksprung auf dem Google-Client (devops). Bis dahin ist der Knopf nur mit
+`?google=1` in der Adresse sichtbar — `GOOGLE_LOGIN_LIVE` in
+`src/features/auth/googleLogin.ts` auf `true`, sobald der Eintrag steht.
+**Neue Konten warten auf Freischaltung** (Migration 0040): wer sich mit Google
+anmeldet, hat eine Sitzung, aber kein Profil — sieht nichts und erscheint im
+Bereich „Team" unter „Wartet auf Freischaltung". Die Leitung vergibt dort Rolle
+und Region (`approve_account()`). Konten legen nur everphone.de-Adressen an, auch
+über die Admin-API.
 
 **Passwörter stehen absichtlich nicht hier** (öffentliches Repo) — bei Jannik
 bzw. im Passwortmanager. Zum Testen einer anderen Rolle: abmelden und mit dem
@@ -363,6 +372,13 @@ prüfen: siehe `CLAUDE.local.md` — dort steht auch, warum ein
     prüfen, nur Bänder und Inhalte. Darstellung immer im Browser ansehen: eine
     Linie, die eine Ebene überspringt, lief zuerst hinter der Karte dazwischen
     durch und zeigte eine falsche Hierarchie.
+
+18. **„Angemeldet" heißt nicht „darf"** (0040). Seit sich Konten per Google
+    selbst anlegen, gibt es Sitzungen ohne Profil. Eine Policy prüft deshalb nie
+    nur `auth.uid() is not null`, sondern eine Rolle (`auth_role() is not null`,
+    `is_privileged()`, …); „für sich selbst anlegen" (`created_by = auth.uid()`)
+    ebenso nur mit Rolle. Die App zeigt einem Konto ohne Profil die Seite
+    „wartet auf Freischaltung" — vorher blieb sie still bei „Lädt…" stehen.
 
 ## Datenpflege-Skripte
 

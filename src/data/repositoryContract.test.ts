@@ -8,7 +8,7 @@ import type { NewContact, Repository } from './repository'
 import { createMockRepository } from './mockRepository'
 import { SupabaseRepository } from './supabaseRepository'
 import { createFakeSupabase } from '@/test/fakeSupabase'
-import { seedEverphoneAccounts, seedOrgUnits } from './seed'
+import { seedEverphoneAccounts, seedOrgUnits, seedPendingAccounts } from './seed'
 import { normalizeCompanyName, type EverphoneStatus } from '@/domain/everphoneAccounts'
 
 // Rolle und Region gehören dazu, seit `updateUser` sie setzen kann: ohne sie
@@ -73,6 +73,13 @@ const IMPLEMENTATIONS: [string, () => Repository][] = [
           everphone_accounts: EVERPHONE_ROWS,
           // Gleiche Quelle wie der Mock, damit der Contract identische Daten prüft.
           org_units: seedOrgUnits.map((u) => ({ ...u, note: null })),
+          // Wartende Konten (0040) aus derselben Quelle wie der Mock.
+          auth_users: seedPendingAccounts.map((p) => ({
+            id: p.id,
+            email: p.email,
+            raw_user_meta_data: { full_name: p.name },
+            created_at: p.createdAt,
+          })),
         }) as unknown as SupabaseClient,
       ),
   ],
@@ -1081,6 +1088,29 @@ for (const [name, makeRepo] of IMPLEMENTATIONS) {
         const units = await repo.listOrgUnits()
         expect(units.some((u) => u.team === null)).toBe(true)
         expect(units.some((u) => u.team !== null)).toBe(true)
+      })
+    })
+
+    describe('Neue Konten (listPendingAccounts / approveAccount, 0040)', () => {
+      it('listet wartende Konten und schaltet eines mit Rolle und Region frei', async () => {
+        expect(await repo.listPendingAccounts()).toEqual([
+          expect.objectContaining({ id: 'p-lena', email: 'lena.kramer@everphone.de', name: 'Lena Kramer' }),
+        ])
+        const user = await repo.approveAccount('p-lena', 'account_manager', 'r-unbekannt')
+        expect(user).toMatchObject({ id: 'p-lena', name: 'Lena Kramer', role: 'account_manager', regionId: 'r-unbekannt' })
+        expect(await repo.listPendingAccounts()).toEqual([])
+        expect((await repo.listUsers()).find((u) => u.id === 'p-lena')).toMatchObject({ role: 'account_manager' })
+      })
+
+      it('Account Manager brauchen eine Region — sonst sähen sie nichts', async () => {
+        await expect(repo.approveAccount('p-lena', 'account_manager')).rejects.toThrow(/Region/)
+        expect(await repo.listPendingAccounts()).toHaveLength(1)
+      })
+
+      it('schaltet ein Konto nur einmal frei und kein unbekanntes', async () => {
+        await repo.approveAccount('p-lena', 'sub_admin')
+        await expect(repo.approveAccount('p-lena', 'overall_admin')).rejects.toThrow(/bereits freigeschaltet/)
+        await expect(repo.approveAccount('gibt-es-nicht', 'sub_admin')).rejects.toThrow(/nicht gefunden/)
       })
     })
 

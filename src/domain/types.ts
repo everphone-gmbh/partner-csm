@@ -106,6 +106,20 @@ export interface AppUser {
 }
 
 /**
+ * Ein Konto, das sich (per Google) angemeldet hat, aber noch kein Profil hat —
+ * es wartet auf Freischaltung durch die Leitung und sieht bis dahin nichts
+ * (Migration 0040).
+ */
+export interface PendingAccount {
+  id: string
+  email: string
+  /** Von Google, sonst aus der Adresse („vorname.nachname"). */
+  name: string
+  createdAt: string
+  lastSignInAt?: string
+}
+
+/**
  * Ebene im Organigramm (Migration 0039, Entscheidung Jannik 2026-09-03).
  * Reihenfolge ist bedeutsam: von oben nach unten.
  */

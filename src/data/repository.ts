@@ -26,6 +26,7 @@ import type {
   LinkedInInfo,
   NoteAttachment,
   OrgUnit,
+  PendingAccount,
   Region,
   Reminder,
   Role,
@@ -350,6 +351,14 @@ export interface Repository {
    *  Ein leerer Patch schreibt nicht und liefert den unveränderten Stand —
    *  PostgREST lehnt einen leeren PATCH-Rumpf ohnehin ab. */
   updateUser(id: string, patch: { role?: Role; regionId?: string | null }): Promise<AppUser>
+  /** Konten, die sich per Google angemeldet haben und auf Freischaltung warten
+   *  (Migration 0040). Ohne Profil sehen sie nichts. Serverseitig nur für
+   *  overall_admin. */
+  listPendingAccounts(): Promise<PendingAccount[]>
+  /** Wartendes Konto freischalten: Profil mit Rolle und Region anlegen.
+   *  Account Manager brauchen eine Region — ohne sähen sie nichts. Serverseitig
+   *  nur für overall_admin; ein Konto wird nur einmal freigeschaltet. */
+  approveAccount(id: string, role: Role, regionId?: string): Promise<AppUser>
   listContacts(): Promise<Contact[]>
   getContact(id: string): Promise<Contact | undefined>
   createContact(input: NewContact): Promise<Contact>

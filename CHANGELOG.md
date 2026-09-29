@@ -70,12 +70,15 @@ Bündelt den Freitagsstand (25.09.) und den Ausbau vom Montag: die Sektion „Ge
 ## Unreleased → 1.2 (Freitag 2026-10-02)
 
 ### Neu
+- **Neue Konten freischalten**: wer sich mit seinem Everphone-Google-Konto anmeldet, erscheint im Bereich „Team" unter „Wartet auf Freischaltung" und sieht bis dahin nichts. Die Leitung vergibt Rolle und Region in einem Schritt. Die Google-Anmeldung selbst folgt, sobald devops den letzten Eintrag gesetzt hat. (Team)
 
 ### Behoben
+- **Ein Konto ohne Freischaltung blieb bei „Lädt…" hängen** — jetzt steht dort, dass der Zugang auf Freischaltung wartet, mit Abmelden-Knopf. (Allgemein)
 - **Der Geschenke-Import liest das umgebaute Sheet**: seit jede Liste auf einem eigenen Blatt steht und die Fußzeile („in 2025/26") rechts neben der letzten Zeile, erkennt der Import Saison und Status wieder selbst. Bei Listen ohne Kopfzeile lässt sich die Spaltenerkennung nicht mehr von einer fast leeren Spalte in die Irre führen. (Geschenke)
 - **Ein neuer Anlass entstand doppelt**, wenn zwei eingefügte Listen dazugehörten — etwa Gin und Schokolade, beide 2026/27. Jetzt landen beide im selben Anlass, gleichnamige Produkte ebenso. (Geschenke)
 - **Gleichnamige Kontakte werden nur noch verknüpft, wenn die Firma passt**: ein Empfänger bei einer anderen Firma landet nicht mehr auf der Karte des gleichnamigen Telekom-Kontakts. (Geschenke)
 
 ### Intern
 - CHANGELOG aufgeräumt: doppelte Abschnitte entfernt, 1.1 nennt jetzt Freitag und Montag.
-- 737 automatische Tests. Testwerkzeug vitest auf 4.1.11 — schließt die zwei offenen Dependabot-Meldungen (betrafen nur die Entwicklung, nicht das ausgelieferte Tool).
+- Datenbank 0040: Lesen und Schreiben verlangt überall eine Rolle, nicht nur eine Anmeldung; Konten legen nur everphone.de-Adressen an; Freischalten nur durch die Leitung, protokolliert. Die Trockenprobe prüft das mit 32 neuen Fällen (jetzt 102).
+- 751 automatische Tests. Testwerkzeug vitest auf 4.1.11 — schließt die zwei offenen Dependabot-Meldungen (betrafen nur die Entwicklung, nicht das ausgelieferte Tool).

@@ -26,6 +26,7 @@ import type {
   LinkedInStatus,
   NoteAttachment,
   OrgUnit,
+  PendingAccount,
   Region,
   Reminder,
   Role,
@@ -707,6 +708,15 @@ export function mapRowToUser(row: ProfileRow): AppUser {
   }
 }
 
+/** Zeile aus pending_accounts() (Migration 0040). */
+interface PendingAccountRow {
+  id: string
+  email: string
+  full_name: string | null
+  created_at: string
+  last_sign_in_at: string | null
+}
+
 const EVERPHONE_SELECT = 'salesforce_id, name, account_type, active_rentals'
 
 export interface EverphoneAccountRow {
@@ -1026,6 +1036,37 @@ export class SupabaseRepository implements Repository {
       throw new Error('Nur der Administrator darf Rollen und Regionen ändern.')
     }
     return mapRowToUser(rows[0])
+  }
+
+  async listPendingAccounts(): Promise<PendingAccount[]> {
+    const { data, error } = await this.client.rpc('pending_accounts')
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as PendingAccountRow[]).map((r) => ({
+      id: r.id,
+      email: r.email,
+      name: r.full_name ?? r.email,
+      createdAt: r.created_at,
+      lastSignInAt: r.last_sign_in_at ?? undefined,
+    }))
+  }
+
+  async approveAccount(id: string, role: Role, regionId?: string): Promise<AppUser> {
+    // Die Funktion prüft Leitung, Region für Account Manager und „nur einmal";
+    // danach das neue Profil lesen, damit die Seite den echten Stand zeigt.
+    const { error } = await this.client.rpc('approve_account', {
+      p_user: id,
+      p_role: role,
+      p_region: regionId ?? null,
+    })
+    if (error) throw new Error(error.message)
+    const { data, error: readError } = await this.client
+      .from('profiles')
+      .select(PROFILE_SELECT)
+      .eq('id', id)
+      .maybeSingle()
+    if (readError) throw new Error(readError.message)
+    if (!data) throw new Error('Konto nicht gefunden.')
+    return mapRowToUser(data as unknown as ProfileRow)
   }
 
   async listContacts(): Promise<Contact[]> {

@@ -100,4 +100,38 @@ describe('TeamPage — Team & Rechte', () => {
     ).toBeInTheDocument()
     expect(screen.queryByLabelText(/^Rolle von/)).toBeNull()
   })
+
+  describe('Wartet auf Freischaltung (0040)', () => {
+    it('schaltet ein per Google angemeldetes Konto mit Rolle und Region frei', async () => {
+      const { repo } = renderPage(<TeamPage />, { route: '/team', as: 'overall_admin' })
+
+      expect(await screen.findByText('Wartet auf Freischaltung (1)')).toBeInTheDocument()
+      expect(screen.getByText(/lena\.kramer@everphone\.de/)).toBeInTheDocument()
+      // Vorgabe Account Manager — ohne Region geht es nicht.
+      const button = screen.getByRole('button', { name: 'Freischalten' })
+      expect(button).toBeDisabled()
+
+      await userEvent.selectOptions(screen.getByLabelText('Region für Lena Kramer'), 'r-west')
+      await userEvent.click(button)
+
+      await waitFor(async () => {
+        const saved = (await repo.listUsers()).find((u) => u.name === 'Lena Kramer')
+        expect(saved).toMatchObject({ role: 'account_manager', regionId: 'r-west' })
+      })
+      expect(await repo.listPendingAccounts()).toEqual([])
+      // Die Karte verschwindet, das Konto steht in der Liste darunter.
+      await waitFor(() => expect(screen.queryByText(/Wartet auf Freischaltung/)).toBeNull())
+      expect(screen.getByLabelText('Rolle von Lena Kramer')).toHaveValue('account_manager')
+    })
+
+    it('braucht für einen Relationship Manager keine Region', async () => {
+      const { repo } = renderPage(<TeamPage />, { route: '/team', as: 'overall_admin' })
+      await userEvent.selectOptions(await screen.findByLabelText('Rolle für Lena Kramer'), 'sub_admin')
+      await userEvent.click(screen.getByRole('button', { name: 'Freischalten' }))
+      await waitFor(async () => {
+        const saved = (await repo.listUsers()).find((u) => u.name === 'Lena Kramer')
+        expect(saved).toMatchObject({ role: 'sub_admin' })
+      })
+    })
+  })
 })

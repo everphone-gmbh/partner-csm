@@ -60,6 +60,7 @@ import {
   seedGiftSenders,
   seedReminders,
   seedOrgUnits,
+  seedPendingAccounts,
   seedRegions,
   seedUsers,
 } from './seed'
@@ -75,6 +76,7 @@ function nowIso(): string {
 class MockRepository implements Repository {
   private regions = clone(seedRegions)
   private users = clone(seedUsers)
+  private pendingAccounts = clone(seedPendingAccounts)
   private contacts = clone(seedContacts)
   private activities = clone(seedActivities)
   private events = clone(seedEvents)
@@ -289,6 +291,23 @@ class MockRepository implements Repository {
     this.users[idx] = next
     if (fields.length > 0) this.audit('update', 'profile', id, fields.sort())
     return clone(next)
+  }
+
+  async listPendingAccounts() {
+    return clone(this.pendingAccounts)
+  }
+
+  async approveAccount(id: string, role: Role, regionId?: string) {
+    // Dieselben Regeln wie approve_account() (0040), in derselben Reihenfolge.
+    if (this.users.some((u) => u.id === id)) throw new Error('Das Konto ist bereits freigeschaltet')
+    const pending = this.pendingAccounts.find((p) => p.id === id)
+    if (!pending) throw new Error('Konto nicht gefunden')
+    if (role === 'account_manager' && !regionId) throw new Error('Account Manager brauchen eine Region')
+    const user: AppUser = { id, name: pending.name, role, regionId: regionId || undefined }
+    this.users.push(user)
+    this.pendingAccounts = this.pendingAccounts.filter((p) => p.id !== id)
+    this.audit('insert', 'profile', id)
+    return clone(user)
   }
 
   async listContacts() {

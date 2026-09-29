@@ -29,6 +29,8 @@ function likeToRegExp(pattern: string): RegExp {
 
 export interface FakeSupabaseSeed {
   profiles?: Row[]
+  /** auth.users — nur die Spalten, die pending_accounts() liest (0040). */
+  auth_users?: Row[]
   regions?: Row[]
   everphone_accounts?: Row[]
   org_units?: Row[]
@@ -91,6 +93,7 @@ const VIEW_SOURCE: Record<string, string> = {
 export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
   const tables: Record<string, Row[]> = Object.fromEntries(TABLES.map((t) => [t, []]))
   tables.profiles = (seed.profiles ?? []).map((r) => ({ ...r }))
+  const authUsers = (seed.auth_users ?? []).map((r) => ({ ...r }))
   tables.regions = (seed.regions ?? []).map((r) => ({ ...r }))
   tables.everphone_accounts = (seed.everphone_accounts ?? []).map((r) => ({ ...r }))
   tables.org_units = (seed.org_units ?? []).map((r) => ({ ...r }))
@@ -394,8 +397,52 @@ export function createFakeSupabase(seed: FakeSupabaseSeed = {}) {
     return { data: null, error: null }
   }
 
+  /** Name wie in 0040: von Google, sonst aus der Adresse (initcap). */
+  function accountName(u: Row): string {
+    const meta = (u.raw_user_meta_data ?? {}) as Row
+    const fromMeta = [meta.full_name, meta.name].map((v) => String(v ?? '').trim()).find(Boolean)
+    if (fromMeta) return fromMeta
+    return String(u.email ?? '')
+      .split('@')[0]
+      .split('.')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ')
+  }
+
+  /**
+   * pending_accounts() und approve_account() aus 0040 auf den Rohtabellen. Die
+   * Rollenprüfung darin prüft die Trockenprobe — der Fake kennt keine Rollen.
+   */
+  function accountRpc(fn: string, args: Row): Result {
+    const hasProfile = (id: unknown) => tables.profiles.some((p) => p.id === id)
+    if (fn === 'pending_accounts') {
+      const data = authUsers
+        .filter((u) => !hasProfile(u.id))
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+        .map((u) => ({
+          id: u.id,
+          email: u.email,
+          full_name: accountName(u),
+          created_at: u.created_at,
+          last_sign_in_at: u.last_sign_in_at ?? null,
+        }))
+      return { data, error: null }
+    }
+    const user = authUsers.find((u) => u.id === args.p_user)
+    if (!user) return { data: null, error: { message: 'Konto nicht gefunden' } }
+    if (hasProfile(user.id)) return { data: null, error: { message: 'Das Konto ist bereits freigeschaltet' } }
+    if (args.p_role === 'account_manager' && !args.p_region) {
+      return { data: null, error: { message: 'Account Manager brauchen eine Region' } }
+    }
+    const row = { id: user.id, full_name: accountName(user), role: args.p_role, region_id: args.p_region ?? null }
+    tables.profiles.push(row)
+    writeAudit('profiles', 'insert', row)
+    return { data: null, error: null }
+  }
+
   function callRpc(fn: string, args: Row): Result {
     if (fn === 'merge_contacts') return mergeContactsRpc(args)
+    if (fn === 'pending_accounts' || fn === 'approve_account') return accountRpc(fn, args)
     // org_unit_names() (0037): nur die Namen der Struktur, ohne Doppel. Die
     // Rollenprüfung darin prüft die Trockenprobe, der Fake kennt keine Rollen.
     if (fn === 'org_unit_names') {

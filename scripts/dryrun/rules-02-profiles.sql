@@ -8,7 +8,7 @@
 -- Baut auf rules-01 auf: dort sind Leitung (…001) und AM West (…002) angelegt.
 
 \set QUIET on
-insert into auth.users (id) values ('b0000000-0000-0000-0000-000000000003');
+insert into auth.users (id, email) values ('b0000000-0000-0000-0000-000000000003','rm.sued@everphone.de');
 insert into profiles (id, full_name, role, region_id) values
   ('b0000000-0000-0000-0000-000000000003','RM Sued','sub_admin','a0000000-0000-0000-0000-000000000001');
 create or replace function as_rm() returns void language sql as $$
@@ -57,7 +57,7 @@ end $$;
 --    zweiten Admin anlegen, der den ersten herabstuft, dann den zweiten allein
 --    lassen und pruefen, dass ER nicht mehr herabstufbar ist.
 reset role;
-insert into auth.users (id) values ('b0000000-0000-0000-0000-000000000009');
+insert into auth.users (id, email) values ('b0000000-0000-0000-0000-000000000009','zweite.leitung@everphone.de');
 insert into profiles (id, full_name, role) values
   ('b0000000-0000-0000-0000-000000000009','Zweite Leitung','overall_admin');
 set role authenticated;
