@@ -250,10 +250,14 @@ gibt es ein nummeriertes Release und einen Post im Chat.
 Sieben Konten (E-Mail/Passwort), Rollen: `overall_admin`, `sub_admin`
 (= Relationship Manager), `account_manager`.
 
-**Google-Anmeldung (Stand 29.09.):** in Supabase eingeschaltet; es fehlt nur der
-Rücksprung auf dem Google-Client (devops). Bis dahin ist der Knopf nur mit
-`?google=1` in der Adresse sichtbar — `GOOGLE_LOGIN_LIVE` in
-`src/features/auth/googleLogin.ts` auf `true`, sobald der Eintrag steht.
+**Google-Anmeldung — live seit 29.09.** Supabase-seitig eingeschaltet, Rücksprung
+auf dem Google-Client eingetragen (devops), Client steht auf „Intern", Site-URL und
+Rücksprungadressen per Terraform im Infra-Repo (gcpdev). Wer sich mit Google
+anmeldet und schon ein Konto mit derselben Adresse hat, landet in diesem Konto.
+`GOOGLE_LOGIN_LIVE` in `src/features/auth/googleLogin.ts` blendet den Knopf aus
+(dann nur mit `?google=1` sichtbar) — der Weg zum Testen, falls am Client etwas
+umgebaut wird. Die Adresse bleibt vorerst github.io (eigene Subdomain laut devops
+später).
 **Neue Konten warten auf Freischaltung** (Migration 0040): wer sich mit Google
 anmeldet, hat eine Sitzung, aber kein Profil — sieht nichts und erscheint im
 Bereich „Team" unter „Wartet auf Freischaltung". Die Leitung vergibt dort Rolle

@@ -70,7 +70,8 @@ Bündelt den Freitagsstand (25.09.) und den Ausbau vom Montag: die Sektion „Ge
 ## Unreleased → 1.2 (Freitag 2026-10-02)
 
 ### Neu
-- **Neue Konten freischalten**: wer sich mit seinem Everphone-Google-Konto anmeldet, erscheint im Bereich „Team" unter „Wartet auf Freischaltung" und sieht bis dahin nichts. Die Leitung vergibt Rolle und Region in einem Schritt. Die Google-Anmeldung selbst folgt, sobald devops den letzten Eintrag gesetzt hat. (Team)
+- **Mit Google anmelden**: auf der Login-Seite gibt es jetzt „Mit Google anmelden" — mit dem Everphone-Konto, ohne eigenes Passwort. Wer schon ein Konto hat, landet darin; das Passwort funktioniert weiter. (Anmeldung)
+- **Neue Konten freischalten**: wer sich zum ersten Mal mit Google anmeldet, erscheint im Bereich „Team" unter „Wartet auf Freischaltung" und sieht bis dahin nichts. Die Leitung vergibt Rolle und Region in einem Schritt. Nur everphone.de-Konten kommen überhaupt hinein. (Team)
 
 ### Behoben
 - **Ein Konto ohne Freischaltung blieb bei „Lädt…" hängen** — jetzt steht dort, dass der Zugang auf Freischaltung wartet, mit Abmelden-Knopf. (Allgemein)

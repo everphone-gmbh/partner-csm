@@ -2,12 +2,13 @@
 // nur die Komponente exportiert.
 
 /**
- * Google-Anmeldung. In Supabase ist Google eingeschaltet; bis devops den
- * Rücksprung auf dem Google-Client eingetragen hat, liefe der Knopf in einen
- * Google-Fehler. Deshalb vorerst nur mit `?google=1` in der Adresse sichtbar —
- * zum Testen. Steht der Eintrag, hier auf true.
+ * Google-Anmeldung — für alle sichtbar seit 29.09. (Rücksprung auf dem
+ * Google-Client von devops eingetragen, Client steht auf „Intern", Test mit
+ * Janniks Konto: landet im bestehenden Konto). Auf false gestellt wäre der Knopf
+ * wieder nur mit `?google=1` in der Adresse zu sehen — der Weg zum Testen, falls
+ * am Google-Client etwas umgebaut wird.
  */
-export const GOOGLE_LOGIN_LIVE = false
+export const GOOGLE_LOGIN_LIVE = true
 
 export function googleLoginVisible(): boolean {
   return GOOGLE_LOGIN_LIVE || new URLSearchParams(window.location.search).has('google')

@@ -21,11 +21,13 @@ describe('LoginPage — Google-Anmeldung (0040)', () => {
     signInWithOAuth.mockClear()
   })
 
-  it('zeigt den Google-Knopf erst, wenn er freigeschaltet ist — zum Testen mit ?google=1', async () => {
+  it('zeigt den Google-Knopf, sobald er freigeschaltet ist — sonst nur mit ?google=1', async () => {
     const { LoginPage, GOOGLE_LOGIN_LIVE } = await loadAt('/')
     render(<LoginPage />)
     expect(screen.getByRole('button', { name: 'Anmelden' })).toBeInTheDocument()
-    if (!GOOGLE_LOGIN_LIVE) expect(screen.queryByRole('button', { name: 'Mit Google anmelden' })).toBeNull()
+    const google = screen.queryByRole('button', { name: 'Mit Google anmelden' })
+    if (GOOGLE_LOGIN_LIVE) expect(google).toBeInTheDocument()
+    else expect(google).toBeNull()
   })
 
   it('schickt mit ?google=1 zu Google und zurück in die App', async () => {
