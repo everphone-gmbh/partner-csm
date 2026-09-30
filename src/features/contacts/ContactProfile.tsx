@@ -200,7 +200,7 @@ export function ContactProfile() {
             />
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <FavoriteToggle
             name={view.fullName}
             active={favorites.ids.has(view.id)}

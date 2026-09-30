@@ -49,7 +49,8 @@ export function TrafficLightPicker({
 }) {
   const options: TrafficLight[] = ['green', 'amber', 'red', 'neutral']
   return (
-    <div className="inline-flex items-center gap-1 rounded-lg border border-border p-1">
+    // flex-wrap: am Handy lief „Neutral" sonst über den Kartenrand.
+    <div className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg border border-border p-1">
       {options.map((opt) => (
         <button
           key={opt}

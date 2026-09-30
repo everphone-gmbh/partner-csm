@@ -272,7 +272,8 @@ export function ContactList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-2">
+      {/* flex-wrap: am Handy lief „Neuer Kontakt" sonst rechts aus dem Bild. */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">Kontakte</h1>
           <p className="text-sm text-muted-foreground">
@@ -281,7 +282,7 @@ export function ContactList() {
           </p>
         </div>
         {canApprove(user.role) && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link to="/contacts/import" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
               <Upload className="size-4" /> Importieren
             </Link>

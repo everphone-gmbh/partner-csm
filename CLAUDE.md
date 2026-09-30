@@ -56,7 +56,7 @@ Tests laufen **immer** im Mock-Modus (in `vite.config.ts` per `test.env`
 festgenagelt), unabhängig von `.env.local`.
 
 ```bash
-npm test                 # 751 Tests
+npm test                 # 757 Tests
 npx tsc -b --noEmit      # App
 npx tsc -p tsconfig.test.json --noEmit   # Tests (App-Config schließt sie aus)
 npm run build
@@ -100,6 +100,35 @@ Klammer (siehe `StammdatenCard.test.tsx`).
 **Was diese Tests nicht abdecken:** Anmeldung, Rollenherleitung und alles
 Serverseitige — RLS, die redigierenden Views, Storage-Regeln. Dafür bleibt es bei
 der Prüfung von Hand mit echtem Token.
+
+## Oberfläche — Regeln und Bausteine (seit 2026-09-30)
+
+Seit dem Umbau auf den ruhigeren Stil gelten auf allen Seiten dieselben Regeln.
+Neue Oberflächen halten sich daran, sonst wird die App wieder uneinheitlich:
+
+- **Gefülltes Magenta nur für die eine Hauptaktion** einer Ansicht. Auswahl
+  (Filter, Reiter, Umschalter, Navigation) zeigt sich leise: `FilterChip` und
+  `Segmented` aus `components/ui/chip.tsx`, Farben `primary-soft`/`primary-ink`.
+- **Kein still gesperrter Knopf, weil eine Eingabe fehlt.** Der Knopf bleibt
+  klickbar; `useMissingHint` (`lib/`) und `FieldHint` sagen am Feld, was fehlt.
+  Gesperrt nur, solange gespeichert wird. Ein Tooltip allein erklärt nichts —
+  auf Tablet und Handy erscheint er nie.
+- **Rückfragen mit `useConfirm`** (`components/ui/useConfirm.ts`), nie
+  `window.confirm`: Titel als Frage, Text sagt die Folge, der Knopf nennt die
+  Handlung („Kontakt löschen"), beim Löschen `tone: 'danger'` und „Behalten".
+  Ohne `ConfirmProvider` (Seitentests mit `pageHarness`) fällt es auf
+  `window.confirm` zurück — Tests mocken es wie bisher.
+- **Hinweise und Fehler mit `Notice`** (error/warning/info/success), keine
+  selbstgebauten Kästen.
+- **Fehlertexte über `lib/errorText`** (`saveErrorMessage`, `loadErrorMessage`,
+  `knownErrorText`): Technik nie auf den Bildschirm, der Originaltext geht auf
+  die Konsole.
+- **Zustände als helle Fläche mit dunkler Schrift**
+  (`success`/`warning`/`danger`/`info`/`neutral` je `-soft`, `-ink`, `-line`).
+  Die Ampelfarben `status-*` bleiben für Punkte, Balken und Symbole — als
+  Schrift auf ihrer eigenen Tönung sind sie kaum lesbar.
+- **Texte:** du, keine Emoji, keine Ausrufezeichen, „…“, leere Listen nennen den
+  nächsten Schritt. Knöpfe tragen Verb und Objekt („Region löschen", nicht „OK").
 
 ## Migration anwenden
 

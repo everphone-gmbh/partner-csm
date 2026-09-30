@@ -190,7 +190,7 @@ export function IdentityCard({
               )}
               <span>RM: {managerName ?? '—'}</span>
               {canEdit ? (
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex max-w-full flex-wrap items-center gap-2">
                   <span>Beziehung:</span>
                   <TrafficLightPicker value={contact.sentiment} onChange={rateSentiment} />
                 </span>

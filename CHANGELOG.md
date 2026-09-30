@@ -72,14 +72,23 @@ Bündelt den Freitagsstand (25.09.) und den Ausbau vom Montag: die Sektion „Ge
 ### Neu
 - **Mit Google anmelden**: auf der Login-Seite gibt es jetzt „Mit Google anmelden" — mit dem Everphone-Konto, ohne eigenes Passwort. Wer schon ein Konto hat, landet darin; das Passwort funktioniert weiter. (Anmeldung)
 - **Neue Konten freischalten**: wer sich zum ersten Mal mit Google anmeldet, erscheint im Bereich „Team" unter „Wartet auf Freischaltung" und sieht bis dahin nichts. Die Leitung vergibt Rolle und Region in einem Schritt. Nur everphone.de-Konten kommen überhaupt hinein. (Team)
+- **Ruhigerer Look auf allen Seiten**: Magenta gibt es nur noch für die eine Hauptaktion einer Seite, etwa „Neuer Kontakt". Filter, Reiter und Umschalter zeigen die Auswahl in hellem Rosa. Grauer Text und farbige Pillen sind besser lesbar, der Farbverlauf oben im Kontaktprofil ist weg. (Alle Seiten)
+- **Knöpfe sagen, was fehlt**: „Posten", „Speichern", „Anlegen" und Co. sind nicht mehr blass und gesperrt, sondern immer klickbar — fehlt etwas, steht direkt am Feld, was. (Alle Seiten)
+- **Rückfragen mit klaren Knöpfen**: vor dem Löschen oder Übergeben fragt das Tool in einem eigenen Fenster, mit Knöpfen wie „Kontakt löschen" und „Behalten", und sagt, was danach passiert. (Alle Seiten)
+- **Anmeldung neu gestaltet**: Google ist der Weg hinein, die Passwort-Anmeldung liegt eingeklappt darunter. Die Warte-Seite für neue Konten zeigt die drei Schritte bis zum Zugang und geht nach der Freischaltung von selbst weiter. (Anmeldung)
 
 ### Behoben
 - **Ein Konto ohne Freischaltung blieb bei „Lädt…" hängen** — jetzt steht dort, dass der Zugang auf Freischaltung wartet, mit Abmelden-Knopf. (Allgemein)
 - **Der Geschenke-Import liest das umgebaute Sheet**: seit jede Liste auf einem eigenen Blatt steht und die Fußzeile („in 2025/26") rechts neben der letzten Zeile, erkennt der Import Saison und Status wieder selbst. Bei Listen ohne Kopfzeile lässt sich die Spaltenerkennung nicht mehr von einer fast leeren Spalte in die Irre führen. (Geschenke)
 - **Ein neuer Anlass entstand doppelt**, wenn zwei eingefügte Listen dazugehörten — etwa Gin und Schokolade, beide 2026/27. Jetzt landen beide im selben Anlass, gleichnamige Produkte ebenso. (Geschenke)
 - **Gleichnamige Kontakte werden nur noch verknüpft, wenn die Firma passt**: ein Empfänger bei einer anderen Firma landet nicht mehr auf der Karte des gleichnamigen Telekom-Kontakts. (Geschenke)
+- **Fehlermeldungen auf Deutsch, mit nächstem Schritt**: technische, oft englische Meldungen der Datenbank erscheinen nicht mehr auf dem Bildschirm. (Allgemein)
+- **Am Handy lief „Neuer Kontakt" rechts aus dem Bild**, im Profil ebenso die Beziehungs-Ampel — beides bricht jetzt um. (Kontakte)
+- **Der Geschenke-Import zeigte „Choose File"** — jetzt ein deutscher Knopf „CSV-Datei wählen". (Geschenke)
+- **Überall du und deutsche Begriffe**: „Für deine Rolle …" statt „Für Ihre Rolle …", „Aktive Geräte" statt „Active Devices". Leere Listen sagen, wie man anfängt. (Alle Seiten)
 
 ### Intern
 - CHANGELOG aufgeräumt: doppelte Abschnitte entfernt, 1.1 nennt jetzt Freitag und Montag.
 - Datenbank 0040: Lesen und Schreiben verlangt überall eine Rolle, nicht nur eine Anmeldung; Konten legen nur everphone.de-Adressen an; Freischalten nur durch die Leitung, protokolliert. Die Trockenprobe prüft das mit 32 neuen Fällen (jetzt 102).
-- 751 automatische Tests. Testwerkzeug vitest auf 4.1.11 — schließt die zwei offenen Dependabot-Meldungen (betrafen nur die Entwicklung, nicht das ausgelieferte Tool).
+- 757 automatische Tests. Testwerkzeug vitest auf 4.1.11 — schließt die zwei offenen Dependabot-Meldungen (betrafen nur die Entwicklung, nicht das ausgelieferte Tool).
+- Einheitliche Bausteine für die Oberfläche (Hinweisbox, Hinweis am Feld, Auswahl-Chips, Rückfrage-Fenster, deutsche Fehlertexte); die Regeln stehen in CLAUDE.md unter „Oberfläche".
