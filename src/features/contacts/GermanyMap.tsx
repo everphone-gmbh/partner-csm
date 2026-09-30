@@ -133,9 +133,9 @@ export function GermanyMap({
             type="button"
             onClick={() => onSelectRegion(region.id)}
             className={cn(
-              'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              'inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors',
               activeRegion === region.id
-                ? 'border-primary bg-primary/15 text-foreground'
+                ? 'border-transparent bg-primary-soft text-primary-ink'
                 : 'border-border bg-secondary text-muted-foreground hover:text-foreground',
             )}
           >

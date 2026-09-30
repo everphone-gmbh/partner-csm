@@ -111,13 +111,13 @@ export function CoveragePage() {
         <CardHeader>
           <CardTitle className="text-base">Einheiten</CardTitle>
           <p className="text-xs text-muted-foreground">
-            „Angesprochen" zählt Kontakte mit einem protokollierten Kontakt in den letzten{' '}
+            „Angesprochen“ zählt Kontakte mit einem protokollierten Kontakt in den letzten{' '}
             {TOUCH_WINDOW_DAYS} Tagen.
           </p>
         </CardHeader>
         <CardContent>
           {visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Keine Einheiten in dieser Auswahl.</p>
+            <p className="text-sm text-muted-foreground">Keine Einheiten in dieser Auswahl. Wähle oben „Alle“.</p>
           ) : (
             <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
               {visible.map((row) => (
@@ -160,9 +160,9 @@ export function CoveragePage() {
 
       <p className="text-xs text-muted-foreground">
         Die Soll-Struktur stammt aus dem Vertriebsstruktur-Sheet. Ändert sie sich bei einem Partner,
-        wird sie oben unter „Telekom-Struktur pflegen" nachgezogen — sonst zeigt die Analyse Lücken,
+        wird sie oben unter „Telekom-Struktur pflegen“ nachgezogen — sonst zeigt die Analyse Lücken,
         die es nicht mehr gibt.
-        Kontakte mit abweichender Team-Angabe erscheinen als „außerhalb" und fließen nicht in die
+        Kontakte mit abweichender Team-Angabe erscheinen als „außerhalb“ und fließen nicht in die
         Quote ein. <Link to="/contacts" className="text-primary hover:underline">Zu den Kontakten</Link>
       </p>
     </div>

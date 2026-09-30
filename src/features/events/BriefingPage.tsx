@@ -158,7 +158,7 @@ export function BriefingPage() {
           .filter((n) => n.contactId === contact.id)
           .flatMap((n) => [
             ...(n.text ? [n.text] : []),
-            ...n.attachments.filter((a) => a.transcript).map((a) => `🎙 ${a.transcript}`),
+            ...n.attachments.filter((a) => a.transcript).map((a) => `Sprachmemo: ${a.transcript}`),
           ])
           .slice(0, 3)
         return (

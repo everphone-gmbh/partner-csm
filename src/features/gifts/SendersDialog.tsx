@@ -7,6 +7,9 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/useConfirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 
 /**
  * Die Absenderliste pflegen: umbenennen, als C-Level markieren (dann steht der
@@ -26,6 +29,8 @@ export function SendersDialog({
   onChanged: () => void
 }) {
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const addHint = useMissingHint()
   const [list, setList] = useState(() => sortSenders(senders))
   const [names, setNames] = useState<Record<string, string>>(() =>
     Object.fromEntries(senders.map((s) => [s.id, s.name])),
@@ -65,8 +70,17 @@ export function SendersDialog({
 
   const remove = async (s: GiftSender) => {
     const n = usage.get(s.id) ?? 0
-    const msg = n > 0 ? `„${s.name}" entfernen? Steht bei ${n} Geschenken als Absender.` : `„${s.name}" entfernen?`
-    if (!window.confirm(msg)) return
+    const ok = await confirm({
+      title: `„${s.name}“ entfernen?`,
+      message:
+        n > 0
+          ? `Steht bei ${n} Geschenken als Absender; dort fällt der Name weg.`
+          : 'Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Absender entfernen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     setBusyId(s.id)
     try {
       await repository.deleteGiftSender(s.id)
@@ -81,7 +95,7 @@ export function SendersDialog({
 
   const add = async () => {
     const name = newName.trim()
-    if (!name) return
+    if (!addHint.check(!name)) return
     try {
       const s = await repository.createGiftSender(name)
       setList((prev) => (prev.some((p) => p.id === s.id) ? prev : sortSenders([...prev, s])))
@@ -112,7 +126,7 @@ export function SendersDialog({
               onChange={(e) => setNames((prev) => ({ ...prev, [s.id]: e.target.value }))}
               onBlur={() => void rename(s)}
               aria-label={`Name von ${s.name}`}
-              className="h-8 flex-1"
+              className="h-9 flex-1"
               disabled={busyId === s.id}
             />
             <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -139,7 +153,9 @@ export function SendersDialog({
             </button>
           </li>
         ))}
-        {list.length === 0 && <li className="py-3 text-sm text-muted-foreground">Noch keine Absender.</li>}
+        {list.length === 0 && (
+          <li className="py-3 text-sm text-muted-foreground">Noch keine Absender. Unten den ersten anlegen.</li>
+        )}
       </ul>
       <div className="mt-3 flex items-center gap-2">
         <Input
@@ -154,10 +170,11 @@ export function SendersDialog({
           placeholder="Neuer Absender"
           aria-label="Neuer Absender"
         />
-        <Button type="button" variant="outline" onClick={() => void add()} disabled={!newName.trim()}>
+        <Button type="button" variant="outline" onClick={() => void add()}>
           <Plus className="size-4" /> Hinzufügen
         </Button>
       </div>
+      {addHint.tried && !newName.trim() && <FieldHint className="mt-2">Gib einen Namen ein.</FieldHint>}
     </Modal>
   )
 }

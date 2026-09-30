@@ -117,7 +117,10 @@ describe('Geschenke — Empfänger anlegen', () => {
     await openPage()
     await user.click(screen.getByRole('button', { name: 'Empfänger' }))
     const dialog = await screen.findByRole('dialog', { name: 'Neuer Empfänger' })
-    expect(within(dialog).getByRole('button', { name: 'Speichern' })).toBeDisabled()
+    // Speichern bleibt klickbar und sagt, was fehlt.
+    await user.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+    expect(within(dialog).getByText(/Wähle einen Kontakt oder gib einen Namen oder eine Firma ein/)).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Neuer Empfänger' })).toBeInTheDocument()
   })
 
   it('verknüpft einen Kontakt über die Suche und übernimmt Name und Firma', async () => {

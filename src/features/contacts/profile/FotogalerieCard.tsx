@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { fileToResizedBlob } from '@/lib/image'
 import { fileStore } from '@/lib/fileStore'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
-import { useConfirm } from '@/components/ui/confirm'
+import { useConfirm } from '@/components/ui/useConfirm'
 import { useFileUrl } from '@/lib/useFileUrl'
 
 export function FotogalerieCard({

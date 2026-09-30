@@ -7,6 +7,8 @@ import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { FieldHint } from '@/components/ui/notice'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -20,6 +22,7 @@ export function EventsList() {
   const [date, setDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [location, setLocation] = useState('')
+  const createHint = useMissingHint()
 
   const { data, loading, error, retry } = useRepoQuery(async () => {
     const evs = await repository.listEvents()
@@ -103,10 +106,20 @@ export function EventsList() {
               <Button variant="ghost" size="sm" onClick={() => setCreating(false)}>
                 Abbrechen
               </Button>
-              <Button size="sm" onClick={create} disabled={!name.trim() || !date}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (createHint.check(!name.trim() || !date)) void create()
+                }}
+              >
                 Event anlegen
               </Button>
             </div>
+            {createHint.tried && (!name.trim() || !date) && (
+              <FieldHint className="justify-end">
+                {!name.trim() ? 'Gib dem Event einen Namen.' : 'Wähle, wann es beginnt.'}
+              </FieldHint>
+            )}
           </CardContent>
         </Card>
       )}
@@ -145,7 +158,7 @@ export function EventsList() {
             </Link>
           ))}
           {events.length === 0 && (
-            <p className="text-sm text-muted-foreground">Noch keine Events.</p>
+            <p className="text-sm text-muted-foreground">Noch keine Events. Über „Neues Event“ oben das erste anlegen.</p>
           )}
         </div>
       )}

@@ -8,6 +8,7 @@ import { canViewAnalytics } from '@/domain/roles'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/useConfirm'
 import { computeAttentionLevel, daysSinceTouch } from '@/domain/attention'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDateTime } from '@/lib/format'
@@ -18,7 +19,6 @@ import { computeManagerRanking } from './managerStats'
 import { activitiesPerWeek, portfolioSentiment } from './monitoringStats'
 import { CoverageBar, SentimentDonut, WeeklyActivityBars } from './charts'
 
-const MEDALS = ['🥇', '🥈', '🥉']
 const WEEKS = 8
 
 const AUDIT_LABEL: Record<AuditEntry['action'], string> = {
@@ -44,6 +44,7 @@ const AUDIT_ENTITY_LABEL: Record<string, string> = {
 export function MonitoringPage() {
   const { user } = useSession()
   const { toast } = useToast()
+  const confirm = useConfirm()
   const isAdmin = canViewAnalytics(user.role)
   const [reassigning, setReassigning] = useState(false)
 
@@ -98,9 +99,11 @@ export function MonitoringPage() {
   const reassign = async (fromUser: AppUser, toUserId: string) => {
     const toUser = users.find((u) => u.id === toUserId)
     if (!toUser) return
-    const sure = window.confirm(
-      `Alle Kontakte von ${fromUser.name} an ${toUser.name} übergeben?`,
-    )
+    const sure = await confirm({
+      title: `Alle Kontakte von ${fromUser.name} an ${toUser.name} übergeben?`,
+      message: `${toUser.name} wird Relationship Manager für alle Kontakte von ${fromUser.name}. Zurück geht es nur mit einer neuen Übergabe.`,
+      confirmLabel: 'Kontakte übergeben',
+    })
     if (!sure) return
     setReassigning(true)
     try {
@@ -168,7 +171,14 @@ export function MonitoringPage() {
             <p className="text-xs text-muted-foreground">Alle geloggten Kontaktpunkte</p>
           </CardHeader>
           <CardContent>
-            <WeeklyActivityBars weeks={weekly} />
+            {weekly.every((w) => w.count === 0) ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                Noch keine Aktivitäten in den letzten {WEEKS} Wochen. Neue entstehen, wenn im Kontaktprofil
+                Gespräche festgehalten werden.
+              </p>
+            ) : (
+              <WeeklyActivityBars weeks={weekly} />
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -262,13 +272,13 @@ export function MonitoringPage() {
               Mögliche Duplikate ({duplicates.length})
             </h3>
             {duplicates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Keine Duplikate erkannt. ✨</p>
+              <p className="text-sm text-muted-foreground">Keine Duplikate erkannt.</p>
             ) : (
               <ul className="space-y-1.5">
                 {duplicates.map(({ a, b, reason }) => (
                   <li
                     key={`${a.id}-${b.id}`}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-status-amber/40 bg-status-amber/5 px-3 py-2 text-sm"
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
                   >
                     <Link to={`/contacts/${a.id}`} className="font-medium hover:underline">
                       {a.fullName}
@@ -282,7 +292,7 @@ export function MonitoringPage() {
                     </Badge>
                     <Link
                       to={`/contacts/merge?a=${a.id}&b=${b.id}`}
-                      className="rounded-md border border-border bg-card px-2 py-0.5 text-xs font-medium hover:bg-secondary"
+                      className="inline-flex h-8 items-center rounded-full border border-black/[0.08] bg-card px-3 text-xs font-medium hover:bg-secondary dark:border-white/[0.12]"
                     >
                       Zusammenführen
                     </Link>
@@ -296,7 +306,7 @@ export function MonitoringPage() {
               Unvollständigste Profile
             </h3>
             {incomplete.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Alle Profile vollständig. 💯</p>
+              <p className="text-sm text-muted-foreground">Alle Profile vollständig.</p>
             ) : (
               <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.06]">
                 {incomplete.map(({ contact, score }) => (
@@ -328,16 +338,26 @@ export function MonitoringPage() {
           <Card key={s.user.id}>
             <CardContent className="space-y-3 p-5 sm:p-5">
               <div className="flex items-center gap-3">
-                <div className="w-6 shrink-0 text-center text-lg">{MEDALS[i] ?? `#${i + 1}`}</div>
+                <span
+                  aria-label={`Platz ${i + 1}`}
+                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold tabular-nums"
+                >
+                  {i + 1}
+                </span>
                 <Avatar name={s.user.name} className="size-10" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{s.user.name}</div>
                   <div className="text-xs text-muted-foreground">Region {regionName(s.user.regionId)}</div>
                 </div>
+                {s.contactsManaged === 0 ? (
+                  // Statt eines gesperrten Felds mit Tooltip: sagen, warum es nichts gibt.
+                  <span className="text-xs text-muted-foreground">Keine Kontakte zum Übergeben</span>
+                ) : (
                 <select
-                  className="h-8 rounded-[10px] border border-transparent bg-secondary px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`Kontakte von ${s.user.name} übergeben an`}
+                  className="h-9 rounded-[10px] border border-transparent bg-secondary px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   value=""
-                  disabled={reassigning || s.contactsManaged === 0}
+                  disabled={reassigning}
                   onChange={(e) => {
                     if (e.target.value) void reassign(s.user, e.target.value)
                     e.target.value = ''
@@ -353,6 +373,7 @@ export function MonitoringPage() {
                       </option>
                     ))}
                 </select>
+                )}
               </div>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex gap-5">

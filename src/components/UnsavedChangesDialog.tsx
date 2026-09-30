@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { buttonVariants } from '@/components/ui/button'
+import { FieldHint } from '@/components/ui/notice'
 import { cn } from '@/lib/utils'
 
 export interface UnsavedChangesDialogProps {
@@ -30,6 +31,9 @@ export function UnsavedChangesDialog({
   const descriptionId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const stayRef = useRef<HTMLButtonElement>(null)
+  // Nicht speicherbar (Pflichtfeld leer): Knopf bleibt klickbar und sagt es —
+  // der Tooltip am gesperrten Knopf erschien auf dem Tablet nie.
+  const [triedSave, setTriedSave] = useState(false)
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -84,6 +88,9 @@ export function UnsavedChangesDialog({
           Diese Änderungen sind noch nicht gespeichert. Beim Verlassen ohne Speichern gehen sie
           verloren.
         </p>
+        {triedSave && !canSave && (
+          <FieldHint className="mt-3">Ein Pflichtfeld ist leer — füll es aus oder verwirf die Änderungen.</FieldHint>
+        )}
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             ref={stayRef}
@@ -107,9 +114,14 @@ export function UnsavedChangesDialog({
           </button>
           <button
             type="button"
-            onClick={onSave}
-            disabled={saving || !canSave}
-            title={canSave ? undefined : 'Pflichtfelder fehlen — erst ausfüllen oder verwerfen'}
+            onClick={() => {
+              if (!canSave) {
+                setTriedSave(true)
+                return
+              }
+              onSave()
+            }}
+            disabled={saving}
             className={buttonVariants({ size: 'sm' })}
           >
             {saving ? 'Speichern…' : 'Speichern'}

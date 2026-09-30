@@ -129,7 +129,7 @@ export function ReportPage() {
         </CardHeader>
         <CardContent>
           {report.stale.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Alle Kontakte im Rhythmus. 👏</p>
+            <p className="text-sm text-muted-foreground">Alle Kontakte im Rhythmus.</p>
           ) : (
             <ul className="divide-y divide-black/[0.04]">
               {report.stale.map(({ contact, days }) => (

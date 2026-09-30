@@ -8,6 +8,7 @@ import { useRepoQuery } from '@/app/useRepoQuery'
 import { canManageGifts } from '@/domain/roles'
 import { sortOccasions } from '@/domain/gifts'
 import { QueryError } from '@/components/QueryError'
+import { Notice } from '@/components/ui/notice'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
@@ -74,9 +75,7 @@ export function GiftsPage() {
 
   if (!allowed) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        Die Geschenke sind für Relationship Manager und die Leitung sichtbar.
-      </div>
+      <Notice tone="info">Die Geschenke sind für Relationship Manager und die Leitung sichtbar.</Notice>
     )
   }
 

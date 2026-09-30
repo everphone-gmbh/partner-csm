@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/useConfirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { selectCls } from '@/features/contacts/profile/shared'
 import { cn } from '@/lib/utils'
 import { StatusSelect } from './giftUi'
@@ -65,6 +68,9 @@ export function RecipientDialog({
   onSaved: () => void
 }) {
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const someoneHint = useMissingHint()
+  const senderHint = useMissingHint()
   const [knownSenders, setKnownSenders] = useState(senders)
   const [draft, setDraft] = useState<Draft>(() => {
     if (recipient) {
@@ -137,7 +143,7 @@ export function RecipientDialog({
 
   const addNewSender = async () => {
     const name = newSender.trim()
-    if (!name) return
+    if (!senderHint.check(!name)) return
     try {
       const s = await repository.createGiftSender(name)
       setKnownSenders((prev) => (prev.some((p) => p.id === s.id) ? prev : [...prev, s]))
@@ -149,7 +155,7 @@ export function RecipientDialog({
   }
 
   const save = async () => {
-    if (!hasSomeone) return
+    if (!someoneHint.check(!hasSomeone)) return
     setSaving(true)
     try {
       if (recipient) {
@@ -200,7 +206,14 @@ export function RecipientDialog({
 
   const remove = async () => {
     if (!recipient) return
-    if (!window.confirm('Diesen Empfänger aus der Liste löschen?')) return
+    const ok = await confirm({
+      title: 'Diesen Empfänger löschen?',
+      message: 'Das Geschenk verschwindet aus der Liste und von der Karte des Kontakts. Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Empfänger löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     setSaving(true)
     try {
       await repository.deleteGiftRecipient(recipient.id)
@@ -232,6 +245,9 @@ export function RecipientDialog({
       wide
       footer={
         <>
+          {someoneHint.tried && !hasSomeone && (
+            <FieldHint className="w-full justify-end">Wähle einen Kontakt oder gib einen Namen oder eine Firma ein.</FieldHint>
+          )}
           {recipient && (
             <Button type="button" variant="ghost" onClick={remove} disabled={saving} className="mr-auto text-destructive">
               <Trash2 className="size-4" /> Löschen
@@ -240,7 +256,7 @@ export function RecipientDialog({
           <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
             Abbrechen
           </Button>
-          <Button type="button" onClick={save} disabled={saving || !hasSomeone}>
+          <Button type="button" onClick={save} disabled={saving}>
             {saving ? 'Speichern…' : 'Speichern'}
           </Button>
         </>
@@ -273,7 +289,7 @@ export function RecipientDialog({
                 aria-label="Kontakt suchen"
               />
               {contactHits.length > 0 && (
-                <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                   {contactHits.map((c) => (
                     <li key={c.id}>
                       <button
@@ -370,7 +386,7 @@ export function RecipientDialog({
                   type="button"
                   aria-label={`${s.name} als Absender entfernen`}
                   onClick={() => set('senderIds', draft.senderIds.filter((id) => id !== s.id))}
-                  className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground hover:text-destructive"
+                  className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground hover:text-destructive"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -408,11 +424,18 @@ export function RecipientDialog({
                 aria-label="Neuer Absender"
                 className="w-40"
               />
-              <Button type="button" size="sm" variant="outline" onClick={() => void addNewSender()} disabled={!newSender.trim()}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void addNewSender()}
+                aria-label="Absender anlegen"
+              >
                 <Plus className="size-4" />
               </Button>
             </div>
           </div>
+          {senderHint.tried && !newSender.trim() && <FieldHint>Gib einen Namen für den neuen Absender ein.</FieldHint>}
         </section>
 
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">

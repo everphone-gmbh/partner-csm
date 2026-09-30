@@ -184,7 +184,7 @@ export function KundenCard({
                   autoComplete="off"
                 />
                 {suggestions.length > 0 && (
-                  <div className="overflow-hidden rounded-md border border-border bg-card">
+                  <div className="overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                     <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
                       Aus Everphone-Salesforce
                     </div>

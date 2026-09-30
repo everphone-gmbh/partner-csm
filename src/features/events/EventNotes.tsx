@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Send, Trash2, X } from 'lucide-react'
+import { ImagePlus, Mic, Send, Trash2, X } from 'lucide-react'
 import { VoiceRecorder } from '@/components/VoiceRecorder'
 import type { EventNote, NoteAttachment } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/useConfirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { fileToResizedBlob } from '@/lib/image'
 import { fileStore } from '@/lib/fileStore'
 import { useFileUrl } from '@/lib/useFileUrl'
@@ -37,7 +40,7 @@ function AttachmentView({
       attachment.kind === 'image' ? (
         <div className={`${size} animate-pulse rounded-md bg-secondary`} aria-hidden="true" />
       ) : (
-        <span className="text-xs text-muted-foreground">Sprachmemo wird geladen…</span>
+        <span className="text-xs text-muted-foreground">Sprachmemo lädt…</span>
       )
   } else if (attachment.kind === 'image') {
     body = (
@@ -59,12 +62,12 @@ function AttachmentView({
         type="button"
         onClick={onRemove}
         aria-label="Anhang löschen"
-        // Dauerhaft sichtbar statt nur beim Überfahren, und 24px groß — auf
+        // Dauerhaft sichtbar statt nur beim Überfahren, und 32px groß — auf
         // Tablet und Handy gibt es kein Hover, dort wäre der Knopf sonst
         // unauffindbar. Gleiche Gestaltung wie in FotogalerieCard.
         // Beim Bild sitzt er im Thumbnail, beim Sprachmemo daneben: über den
         // Abspielleisten verdeckte er sonst die Bedienknöpfe.
-        className={`absolute rounded-full bg-card/90 p-1 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground ${
+        className={`absolute inline-flex size-8 items-center justify-center rounded-full bg-card/90 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground ${
           attachment.kind === 'image' ? 'right-1 top-1' : '-right-2 -top-2'
         }`}
       >
@@ -89,6 +92,8 @@ export function EventNotes({
 }) {
   const { user } = useSession()
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const saveHint = useMissingHint()
   // Ein Ziel-Wert für beide Arten: '' | `contact:<id>` | `guest:<id>`.
   const [noteTarget, setNoteTarget] = useState('')
   const [toTimeline, setToTimeline] = useState(false)
@@ -135,7 +140,7 @@ export function EventNotes({
   const removePending = (id: string) => setPending((p) => p.filter((a) => a.id !== id))
 
   const save = async () => {
-    if (!text.trim() && pending.length === 0) return
+    if (!saveHint.check(!text.trim() && pending.length === 0)) return
     setSaving(true)
     try {
       await repository.addEventNote({
@@ -183,7 +188,14 @@ export function EventNotes({
   const canManage = (n: EventNote) => canApprove(user.role) || n.authorId === user.id
 
   const removeNote = async (n: EventNote) => {
-    if (!window.confirm('Diese Notiz und alle ihre Anhänge löschen?')) return
+    const ok = await confirm({
+      title: 'Diese Notiz löschen?',
+      message: 'Alle Bilder und Sprachmemos der Notiz werden mit gelöscht. Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Notiz löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await repository.deleteEventNote(n.id)
       refresh()
@@ -193,7 +205,14 @@ export function EventNotes({
   }
 
   const removeAttachment = async (n: EventNote, attachmentId: string) => {
-    if (!window.confirm('Diesen Anhang löschen?')) return
+    const ok = await confirm({
+      title: 'Diesen Anhang löschen?',
+      message: 'Die Datei wird gelöscht. Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Anhang löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await repository.removeEventNoteAttachment(n.id, attachmentId)
       refresh()
@@ -309,16 +328,14 @@ export function EventNotes({
             }}
           />
           <div className="ml-auto">
-            <Button
-              type="button"
-              size="sm"
-              onClick={save}
-              disabled={saving || (!text.trim() && pending.length === 0)}
-            >
+            <Button type="button" size="sm" onClick={save} disabled={saving}>
               <Send className="size-4" /> {saving ? 'Speichern…' : 'Speichern'}
             </Button>
           </div>
         </div>
+        {saveHint.tried && !text.trim() && pending.length === 0 && (
+          <FieldHint className="justify-end">Schreib etwas oder häng ein Bild oder Sprachmemo an.</FieldHint>
+        )}
 
         {notes.length > 0 && (
           <ul className="space-y-3 border-t border-border pt-3">
@@ -342,8 +359,8 @@ export function EventNotes({
                       onClick={() => void removeNote(n)}
                       aria-label="Notiz löschen"
                       title="Notiz löschen"
-                      // Dauerhaft sichtbar und 24px groß (siehe AttachmentView).
-                      className="ml-auto rounded-full bg-card/90 p-1 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                      // Dauerhaft sichtbar und 32px groß (siehe AttachmentView).
+                      className="ml-auto inline-flex size-8 items-center justify-center rounded-full bg-card/90 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -365,8 +382,9 @@ export function EventNotes({
                 {n.attachments
                   .filter((a) => a.transcript)
                   .map((a) => (
-                    <p key={`tr-${a.id}`} className="text-sm italic text-muted-foreground">
-                      🎙 „{a.transcript}“
+                    <p key={`tr-${a.id}`} className="flex items-start gap-1.5 text-sm italic text-muted-foreground">
+                      <Mic className="mt-0.5 size-3.5 shrink-0" aria-label="Sprachmemo" />
+                      <span>„{a.transcript}“</span>
                     </p>
                   ))}
               </li>

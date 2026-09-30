@@ -24,6 +24,9 @@ import { SuggestionReview, type ApplyResult } from '@/features/contacts/transcri
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/useConfirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
@@ -267,6 +270,9 @@ function AddActivityForm({
   const [applying, setApplying] = useState(false)
   const [result, setResult] = useState<ApplyResult | null>(null)
   const busy = saving || transcribing || extracting || applying
+  // Knöpfe bleiben klickbar und sagen, was fehlt.
+  const saveHint = useMissingHint()
+  const factsHint = useMissingHint()
 
   const submit = async (): Promise<boolean> => {
     const text = body.trim()
@@ -419,7 +425,7 @@ function AddActivityForm({
           <VoiceRecorder label="Sprachmemo" onRecorded={(audio) => void transcribeMemo(audio)} />
           {transcribing && (
             <span role="status" className="text-xs text-muted-foreground">
-              Transkribiere …
+              Transkribiere…
             </span>
           )}
           {/*
@@ -432,19 +438,36 @@ function AddActivityForm({
               type="button"
               size="sm"
               variant="outline"
-              onClick={suggestFacts}
-              disabled={body.trim().length < MIN_FACTS_CHARS || busy}
+              onClick={() => {
+                if (factsHint.check(body.trim().length < MIN_FACTS_CHARS)) void suggestFacts()
+              }}
+              disabled={busy}
               className="ml-auto h-auto min-h-9 max-w-full whitespace-normal py-1.5"
             >
               <Sparkles className="size-4" />
-              {extracting ? 'Analysiere …' : 'Fakten für die Karte vorschlagen'}
+              {extracting ? 'Analysiere…' : 'Fakten für die Karte vorschlagen'}
             </Button>
+          )}
+          {factsHint.tried && body.trim().length < MIN_FACTS_CHARS && (
+            <FieldHint className="w-full">
+              Schreib etwas mehr — ab {MIN_FACTS_CHARS} Zeichen kann die KI Fakten vorschlagen.
+            </FieldHint>
           )}
         </div>
       )}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">wird als {user.name} gespeichert</span>
-        <Button size="sm" onClick={() => void submit()} disabled={!body.trim() || saving}>
+        {saveHint.tried && !body.trim() ? (
+          <FieldHint>Schreib zuerst, was passiert ist.</FieldHint>
+        ) : (
+          <span className="text-xs text-muted-foreground">wird als {user.name} gespeichert</span>
+        )}
+        <Button
+          size="sm"
+          onClick={() => {
+            if (saveHint.check(!body.trim())) void submit()
+          }}
+          disabled={saving}
+        >
           {saving ? 'Speichern…' : 'Eintrag speichern'}
         </Button>
       </div>
@@ -489,9 +512,10 @@ function UpcomingReminders({
   const [text, setText] = useState('')
   const [due, setDue] = useState('')
   const [dueTime, setDueTime] = useState('')
+  const addHint = useMissingHint()
 
   const add = async () => {
-    if (!text.trim() || !due) return
+    if (!addHint.check(!text.trim() || !due)) return
     try {
       await repository.addReminder({
         contactId,
@@ -563,7 +587,7 @@ function UpcomingReminders({
                   type="button"
                   onClick={() => remove(r.id)}
                   aria-label="Reminder löschen"
-                  className="text-muted-foreground hover:text-destructive"
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -601,14 +625,10 @@ function UpcomingReminders({
             className="w-24 shrink-0"
           />
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={add}
-          disabled={!text.trim() || !due}
-          className="w-full"
-        >
+        {addHint.tried && (!text.trim() || !due) && (
+          <FieldHint>{!text.trim() ? 'Schreib, woran erinnert werden soll.' : 'Wähle ein Fälligkeitsdatum.'}</FieldHint>
+        )}
+        <Button type="button" size="sm" variant="outline" onClick={add} className="w-full">
           <Plus className="size-4" /> Reminder
         </Button>
       </div>
@@ -694,11 +714,14 @@ function ActivityItem({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(activity.body)
   const [saving, setSaving] = useState(false)
+  const [emptyEdit, setEmptyEdit] = useState(false)
   const { toast } = useToast()
+  const confirm = useConfirm()
   const { label, icon: Icon } = ACTIVITY_META[activity.type]
 
   const startEdit = () => {
     setDraft(activity.body)
+    setEmptyEdit(false)
     setEditing(true)
   }
 
@@ -722,7 +745,14 @@ function ActivityItem({
   }
 
   const remove = async () => {
-    if (!window.confirm('Diesen Eintrag löschen? Das lässt sich nicht rückgängig machen.')) return
+    const ok = await confirm({
+      title: 'Diesen Eintrag löschen?',
+      message: 'Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Eintrag löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await repository.removeActivity(activity.id)
       onChanged()
@@ -735,7 +765,7 @@ function ActivityItem({
   // show a placeholder rather than falling back to the confidential text.
   const summary = canBody
     ? activity.aiSummary || activity.body
-    : activity.aiSummary || 'Für Ihre Rolle nur als KI-Zusammenfassung sichtbar — noch keine vorhanden.'
+    : activity.aiSummary || 'Für deine Rolle nur als KI-Zusammenfassung sichtbar — es gibt noch keine.'
   const hasMore = Boolean(activity.body && activity.aiSummary && activity.body !== activity.aiSummary)
 
   return (
@@ -761,7 +791,7 @@ function ActivityItem({
                 onClick={startEdit}
                 title="Eintrag ändern"
                 aria-label="Eintrag ändern"
-                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Pencil className="size-3.5" />
               </button>
@@ -770,7 +800,7 @@ function ActivityItem({
                 onClick={remove}
                 title="Eintrag löschen"
                 aria-label="Eintrag löschen"
-                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Trash2 className="size-3.5" />
               </button>
@@ -788,7 +818,19 @@ function ActivityItem({
               autoFocus
             />
             <div className="flex items-center gap-2">
-              <Button type="button" size="sm" onClick={save} disabled={saving || !draft.trim()}>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  // Leer speichern hieße still verwerfen — lieber sagen, was geht.
+                  if (!draft.trim()) {
+                    setEmptyEdit(true)
+                    return
+                  }
+                  void save()
+                }}
+                disabled={saving}
+              >
                 {saving ? 'Speichern…' : 'Speichern'}
               </Button>
               <Button
@@ -801,6 +843,9 @@ function ActivityItem({
                 Abbrechen
               </Button>
             </div>
+            {emptyEdit && !draft.trim() && (
+              <FieldHint>Der Text darf nicht leer sein. Zum Löschen den Papierkorb nehmen.</FieldHint>
+            )}
           </div>
         ) : (
           <p className="mt-1 text-sm text-foreground">{summary}</p>
@@ -827,7 +872,7 @@ function ActivityItem({
               )
             : hasMore && (
                 <p className="mt-1 text-xs italic text-muted-foreground">
-                  Volltext für Ihre Rolle nicht sichtbar
+                  Volltext für deine Rolle nicht sichtbar
                 </p>
               ))}
 
@@ -864,7 +909,9 @@ function SentimentItem({ entry, isNew }: { entry: SentimentEntry; isNew?: boolea
 function EmptyState({ hasAny }: { hasAny: boolean }) {
   if (hasAny) {
     return (
-      <p className="py-6 text-center text-sm text-muted-foreground">Keine Einträge für diesen Filter.</p>
+      <p className="py-6 text-center text-sm text-muted-foreground">
+        Keine Einträge für diesen Filter. Wähle oben „Alle“, um alles zu sehen.
+      </p>
     )
   }
   return (

@@ -160,12 +160,14 @@ describe('Timeline — Sprachmemo im Composer', () => {
     renderComposer('sub_admin', onApply)
 
     const facts = screen.getByRole('button', { name: 'Fakten für die Karte vorschlagen' })
-    // Zu kurz für eine Extraktion → Knopf bleibt aus.
+    // Zu kurz für eine Extraktion → der Knopf sagt, was fehlt, statt still aus zu sein.
     fireEvent.change(screen.getByPlaceholderText(/Was ist passiert/), { target: { value: 'kurz' } })
-    expect(facts).toBeDisabled()
+    await user.click(facts)
+    expect(screen.getByText(/Schreib etwas mehr/)).toBeInTheDocument()
+    expect(autoMock.extract).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByPlaceholderText(/Was ist passiert/), { target: { value: NOTE } })
-    expect(facts).toBeEnabled()
+    expect(screen.queryByText(/Schreib etwas mehr/)).toBeNull()
     await user.click(facts)
 
     expect(await screen.findByText('1980-05-04')).toBeInTheDocument()

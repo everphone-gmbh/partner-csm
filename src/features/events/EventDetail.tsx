@@ -15,6 +15,9 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FieldHint, Notice } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/useConfirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { formatDate } from '@/lib/format'
 import { ATTENDANCE_LABEL, ATTENDANCE_ORDER, ATTENDANCE_VARIANT } from './eventMeta'
 import { EventNotes } from './EventNotes'
@@ -35,6 +38,8 @@ export function EventDetail() {
   const { id } = useParams()
   const { user } = useSession()
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const addHint = useMissingHint()
   const [attendees, setAttendees] = useState<EventAttendee[]>([])
   const [guests, setGuests] = useState<EventGuest[]>([])
   const [addId, setAddId] = useState('')
@@ -173,7 +178,7 @@ export function EventDetail() {
     loadAttendees()
   }
   const addAttendee = async () => {
-    if (!id || !addId) return
+    if (!id || !addHint.check(!addId)) return
     try {
       await repository.setAttendee(id, addId, { status: 'invited' })
     } catch (err) {
@@ -203,7 +208,14 @@ export function EventDetail() {
     loadGuests()
   }
   const removeGuest = async (guestId: string) => {
-    if (!window.confirm('Diesen Gast entfernen? Notizen über ihn werden mit gelöscht.')) return
+    const ok = await confirm({
+      title: 'Diesen Gast entfernen?',
+      message: 'Notizen über den Gast werden mit gelöscht. Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Gast entfernen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await repository.removeEventGuest(guestId)
     } catch (err) {
@@ -349,16 +361,15 @@ export function EventDetail() {
         </CardHeader>
         <CardContent className="space-y-3">
           {conflicts.size > 0 && (
-            <div className="flex items-start gap-2 rounded-lg border border-status-amber/40 bg-status-amber/10 px-3 py-2 text-xs text-foreground">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-amber" />
-              <span>
-                {conflicts.size} Termine überschneiden sich zeitlich. Betroffene Gespräche sind
-                unten markiert — bitte entzerren, sonst steht jemand am Stand ohne Ansprechpartner.
-              </span>
-            </div>
+            <Notice tone="warning">
+              {conflicts.size} Termine überschneiden sich zeitlich. Die betroffenen Gespräche sind
+              unten markiert — verschieb sie, sonst steht jemand am Stand ohne Ansprechpartner.
+            </Notice>
           )}
           {sorted.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Noch keine Teilnehmer.</p>
+            <p className="text-sm text-muted-foreground">
+              Noch keine Teilnehmer.{canEdit && notAttending.length > 0 ? ' Unten aus der Liste hinzufügen.' : ''}
+            </p>
           ) : (
             <ul className="space-y-3">
               {sorted.map((a) => {
@@ -439,6 +450,7 @@ export function EventDetail() {
                 className={`${selectCls} flex-1`}
                 value={addId}
                 onChange={(e) => setAddId(e.target.value)}
+                aria-label="Teilnehmer hinzufügen"
               >
                 <option value="">Teilnehmer hinzufügen…</option>
                 {notAttending.map((c) => (
@@ -447,11 +459,12 @@ export function EventDetail() {
                   </option>
                 ))}
               </select>
-              <Button size="sm" variant="outline" onClick={addAttendee} disabled={!addId}>
+              <Button size="sm" variant="outline" onClick={addAttendee}>
                 <Plus className="size-4" /> Hinzufügen
               </Button>
             </div>
           )}
+          {addHint.tried && !addId && <FieldHint>Wähle einen Kontakt aus der Liste.</FieldHint>}
         </CardContent>
       </Card>
 
@@ -464,7 +477,9 @@ export function EventDetail() {
             Unbekannte am Stand — mit „Zu Kontakt machen“ werden sie zu echten Kontakten.
           </p>
           {guests.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Noch keine Gäste erfasst.</p>
+            <p className="text-sm text-muted-foreground">
+              Noch keine Gäste erfasst.{canEdit ? ' Unten den ersten eintragen.' : ''}
+            </p>
           ) : (
             <ul className="space-y-2">
               {guests.map((g) => (
@@ -659,6 +674,7 @@ function GuestRow({
   onRemove: (guestId: string) => void
 }) {
   const [promoting, setPromoting] = useState(false)
+  const promoteHint = useMissingHint()
   const [regionId, setRegionId] = useState(defaultRegionId)
   const [managerId, setManagerId] = useState(defaultManagerId)
   const [busy, setBusy] = useState(false)
@@ -667,7 +683,7 @@ function GuestRow({
   const meta = [guest.company, guest.note].filter(Boolean).join(' · ')
 
   const confirmPromote = async () => {
-    if (!regionId || !managerId) return
+    if (!promoteHint.check(!regionId || !managerId)) return
     setBusy(true)
     try {
       await onPromote(guest.id, regionId, managerId)
@@ -709,7 +725,7 @@ function GuestRow({
               type="button"
               onClick={() => onRemove(guest.id)}
               aria-label="Gast entfernen"
-              className="text-muted-foreground hover:text-destructive"
+              className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-destructive"
             >
               <Trash2 className="size-4" />
             </button>
@@ -744,12 +760,15 @@ function GuestRow({
               </option>
             ))}
           </select>
-          <Button size="sm" onClick={confirmPromote} disabled={busy || !regionId || !managerId}>
+          <Button size="sm" onClick={confirmPromote} disabled={busy}>
             {busy ? 'Übernehme…' : 'Übernehmen'}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setPromoting(false)}>
             Abbrechen
           </Button>
+          {promoteHint.tried && (!regionId || !managerId) && (
+            <FieldHint className="w-full">Wähle Region und Relationship Manager.</FieldHint>
+          )}
         </div>
       )}
     </li>
@@ -766,9 +785,10 @@ function AddGuestForm({
   const [company, setCompany] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const nameHint = useMissingHint()
 
   const submit = async () => {
-    if (!name.trim()) return
+    if (!nameHint.check(!name.trim())) return
     setBusy(true)
     try {
       await onAdd({ name, company, note })
@@ -804,7 +824,8 @@ function AddGuestForm({
         aria-label="Notiz zum Gast"
         placeholder="Notiz (optional), z. B. wo getroffen"
       />
-      <Button size="sm" variant="outline" onClick={submit} disabled={busy || !name.trim()}>
+      {nameHint.tried && !name.trim() && <FieldHint>Gib den Namen des Gastes ein.</FieldHint>}
+      <Button size="sm" variant="outline" onClick={submit} disabled={busy}>
         <Plus className="size-4" /> Gast hinzufügen
       </Button>
     </div>

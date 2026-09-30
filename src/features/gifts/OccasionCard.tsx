@@ -8,6 +8,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/useConfirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { GIFT_STATUS_BAR } from './giftUi'
@@ -92,6 +95,8 @@ function ProductGrid({
   onChanged: () => void
 }) {
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const nameHint = useMissingHint()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ emoji: '', name: '', description: '' })
@@ -115,7 +120,7 @@ function ProductGrid({
   }
 
   const save = async () => {
-    if (!form.name.trim()) return
+    if (!nameHint.check(!form.name.trim())) return
     setSaving(true)
     try {
       if (editingId) {
@@ -138,11 +143,17 @@ function ProductGrid({
 
   const remove = async (p: GiftProduct) => {
     const n = count(p.id)
-    const msg =
-      n > 0
-        ? `„${p.name}" löschen? ${n} Empfänger bleiben in der Liste, nur ohne Produkt.`
-        : `„${p.name}" löschen?`
-    if (!window.confirm(msg)) return
+    const ok = await confirm({
+      title: `„${p.name}“ löschen?`,
+      message:
+        n > 0
+          ? `${n} Empfänger bleiben in der Liste, nur ohne Produkt.`
+          : 'Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Produkt löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await repository.deleteGiftProduct(p.id)
       onChanged()
@@ -175,8 +186,9 @@ function ProductGrid({
         placeholder="Beschreibung (optional)"
         aria-label="Beschreibung"
       />
+      {nameHint.tried && !form.name.trim() && <FieldHint>Gib einen Produktnamen ein.</FieldHint>}
       <div className="flex gap-2">
-        <Button type="button" size="sm" onClick={save} disabled={saving || !form.name.trim()}>
+        <Button type="button" size="sm" onClick={save} disabled={saving}>
           {saving ? 'Speichern…' : 'Speichern'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={cancel} disabled={saving}>
@@ -206,7 +218,7 @@ function ProductGrid({
                   type="button"
                   onClick={() => startEdit(p)}
                   aria-label={`${p.name} bearbeiten`}
-                  className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
                 >
                   <Pencil className="size-3.5" />
                 </button>
@@ -214,7 +226,7 @@ function ProductGrid({
                   type="button"
                   onClick={() => void remove(p)}
                   aria-label={`${p.name} löschen`}
-                  className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-destructive"
+                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-destructive"
                 >
                   <Trash2 className="size-3.5" />
                 </button>

@@ -1,6 +1,6 @@
 import { useMemo, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { AlarmClock, Bell, Cake, ChevronRight, Network, TrendingUp, Users } from 'lucide-react'
+import { AlarmClock, Bell, Cake, ChevronRight, Handshake, Network, TrendingUp, Users } from 'lucide-react'
 import type { Activity, Contact, Region, Reminder } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -193,7 +193,9 @@ export function Dashboard() {
         </CardHeader>
         <CardContent className="space-y-3">
           {coverage.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Keine Daten.</p>
+            <p className="text-sm text-muted-foreground">
+              Noch keine Regionen mit Kontakten. Sobald Kontakte einer Region zugeordnet sind, steht hier die Abdeckung.
+            </p>
           ) : (
             // Jede Zeile führt in die nach dieser Region gefilterte Kontaktliste
             // (Feedback #8a); die Regionsseite mit Organigramm folgt in Phase 3.
@@ -226,7 +228,7 @@ export function Dashboard() {
                   to={`/regions/${encodeURIComponent(r.regionId)}`}
                   title={`Organigramm ${regionName(r.regionId)}`}
                   aria-label={`Organigramm ${regionName(r.regionId)}`}
-                  className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
+                  className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
                 >
                   <Network className="size-3.5" />
                 </Link>
@@ -285,7 +287,9 @@ export function Dashboard() {
                       to={`/contacts/${contact.id}`}
                       className="flex items-center gap-3 rounded-lg px-1.5 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
                     >
-                      <span className="text-base">🎉</span>
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                        <Handshake className="size-4" aria-hidden />
+                      </span>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{contact.fullName}</div>
                         <div className="text-xs text-muted-foreground">
@@ -364,7 +368,7 @@ function StatCard({
       }
     >
       <CardContent className="flex h-full min-h-32 flex-col p-4 sm:p-5">
-        <span className="inline-flex items-center gap-2 text-[13px] font-medium text-foreground/80">
+        <span className="inline-flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
           <span
             className={`flex size-7 shrink-0 items-center justify-center rounded-[8px] ${CHIP_CLS[chip ?? tone]}`}
           >

@@ -106,7 +106,7 @@ export function Modal({
             onClick={onClose}
             disabled={busy}
             aria-label="Schließen"
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50"
           >
             <X className="size-4" />
           </button>

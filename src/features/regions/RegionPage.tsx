@@ -114,7 +114,7 @@ export function RegionPage() {
   }, [chart])
 
   if (q.error) return <QueryError error={q.error} retry={q.retry} />
-  if (!q.data) return <p className="text-sm text-muted-foreground">Lädt …</p>
+  if (!q.data) return <p className="text-sm text-muted-foreground">Lädt…</p>
   if (!region) return <p className="text-sm text-muted-foreground">Diese Region gibt es nicht (mehr).</p>
 
   return (
@@ -142,7 +142,7 @@ export function RegionPage() {
         <CardContent className="pt-5 sm:pt-5">
           {inRegion.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              In dieser Region ist noch niemand. Über „Einordnen" lässt sich ein vorhandener Kontakt hinzufügen.
+              In dieser Region ist noch niemand. Über „Einordnen“ lässt sich ein vorhandener Kontakt hinzufügen.
             </p>
           ) : (
             <div className="overflow-x-auto">

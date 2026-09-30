@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/useConfirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { cn } from '@/lib/utils'
 
 interface Draft {
@@ -27,6 +30,8 @@ interface Draft {
  */
 export function StructureCard({ units, onChanged }: { units: OrgUnit[]; onChanged: () => void }) {
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const saveHint = useMissingHint()
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState<Draft>({ company: '', department: '', team: '', note: '' })
@@ -57,7 +62,7 @@ export function StructureCard({ units, onChanged }: { units: OrgUnit[]; onChange
   }
 
   const save = async () => {
-    if (!draft.company.trim() || !draft.department.trim()) return
+    if (!saveHint.check(!draft.company.trim() || !draft.department.trim())) return
     setSaving(true)
     try {
       if (editingId === 'new') {
@@ -88,9 +93,14 @@ export function StructureCard({ units, onChanged }: { units: OrgUnit[]; onChange
 
   const remove = async (u: OrgUnit) => {
     const label = [u.department, u.team].filter(Boolean).join(' · ')
-    if (!window.confirm(`„${label}" aus der Struktur löschen? Die Abdeckung rechnet danach ohne diese Einheit.`)) {
-      return
-    }
+    const ok = await confirm({
+      title: `„${label}“ aus der Struktur löschen?`,
+      message: 'Die Abdeckung rechnet danach ohne diese Einheit.',
+      confirmLabel: 'Einheit löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await repository.deleteOrgUnit(u.id)
       toast('Einheit gelöscht.', 'success')
@@ -106,8 +116,11 @@ export function StructureCard({ units, onChanged }: { units: OrgUnit[]; onChange
       <Input value={draft.department} onChange={(e) => setDraft((d) => ({ ...d, department: e.target.value }))} placeholder="Abteilung" aria-label="Abteilung" autoFocus />
       <Input value={draft.team} onChange={(e) => setDraft((d) => ({ ...d, team: e.target.value }))} placeholder="Team (optional)" aria-label="Team" />
       <Input value={draft.note} onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))} placeholder="Notiz (optional)" aria-label="Notiz" />
+      {saveHint.tried && (!draft.company.trim() || !draft.department.trim()) && (
+        <FieldHint className="sm:col-span-4">Gib Firma und Abteilung ein.</FieldHint>
+      )}
       <div className="flex gap-2 sm:col-span-4">
-        <Button type="button" size="sm" onClick={save} disabled={saving || !draft.company.trim() || !draft.department.trim()}>
+        <Button type="button" size="sm" onClick={save} disabled={saving}>
           {saving ? 'Speichern…' : 'Speichern'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={saving}>

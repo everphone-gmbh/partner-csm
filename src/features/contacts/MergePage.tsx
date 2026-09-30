@@ -14,7 +14,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Notice } from '@/components/ui/notice'
-import { useConfirm } from '@/components/ui/confirm'
+import { useConfirm } from '@/components/ui/useConfirm'
 import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -192,7 +192,7 @@ export function MergePage() {
           <h2 className="text-sm font-semibold">Felder</h2>
           {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Keine abweichenden Felder — „{loser.fullName}" hat nichts, was „{winner.fullName}" nicht auch hat.
+              Keine abweichenden Felder — „{loser.fullName}“ hat nichts, was „{winner.fullName}“ nicht auch hat.
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -254,7 +254,7 @@ function FieldRow({
       <li className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm">
         <span className="w-44 shrink-0 text-xs text-muted-foreground">{row.label}</span>
         <span className="font-medium">{show(row.key, row.loser)}</span>
-        <span className="text-xs text-info-ink">wird von „{loserName}" übernommen</span>
+        <span className="text-xs text-info-ink">wird von „{loserName}“ übernommen</span>
       </li>
     )
   }
@@ -273,7 +273,7 @@ function FieldRow({
             type="button"
             role="radio"
             aria-checked={choice === c}
-            title={`Wert von „${who}"`}
+            title={`Wert von „${who}“`}
             onClick={() => onChoose(c)}
             className={cn(
               'max-w-72 truncate rounded-lg border px-2.5 py-1 text-left text-sm',

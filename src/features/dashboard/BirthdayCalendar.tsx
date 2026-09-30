@@ -48,7 +48,7 @@ export function BirthdayCalendar({
           type="button"
           onClick={() => step(-1)}
           aria-label="Vorheriger Monat"
-          className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
         </button>
@@ -57,7 +57,7 @@ export function BirthdayCalendar({
           type="button"
           onClick={() => step(1)}
           aria-label="Nächster Monat"
-          className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <ChevronRight className="size-4" />
         </button>
@@ -86,7 +86,7 @@ export function BirthdayCalendar({
                 'relative mx-auto flex size-8 items-center justify-center rounded-full text-xs tabular-nums transition-colors',
                 marked
                   ? 'bg-primary-soft font-semibold text-primary-ink hover:bg-primary/20'
-                  : 'text-foreground/70',
+                  : 'text-muted-foreground',
                 isToday(day) && 'ring-1 ring-primary/50',
               )}
             >

@@ -19,7 +19,7 @@ import { BUYING_ROLE_LABEL, BUYING_ROLE_VARIANT } from '@/domain/buyingCenter'
 import { LinkedInField, LinkedInPicker } from '@/components/LinkedInField'
 import { safeLinkedInUrl } from '@/domain/urls'
 import { formatDate } from '@/lib/format'
-import { useConfirm } from '@/components/ui/confirm'
+import { useConfirm } from '@/components/ui/useConfirm'
 
 function LinkedInLogo({ className }: { className?: string }) {
   return (

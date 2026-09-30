@@ -18,6 +18,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/useConfirm'
 import { selectCls } from '@/features/contacts/profile/shared'
 import { cn } from '@/lib/utils'
 import { SenderChips, StatusSelect } from './giftUi'
@@ -42,6 +43,7 @@ export function RecipientTable({
   onChanged: () => void
 }) {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const [filter, setFilter] = useState<RecipientFilter>({})
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [bulkStatus, setBulkStatus] = useState<GiftStatus>('bestellt')
@@ -71,13 +73,18 @@ export function RecipientTable({
   const applyBulk = async () => {
     const ids = [...selected]
     if (ids.length === 0) return
-    if (ids.length > 25 && !window.confirm(`${ids.length} Geschenke auf „${GIFT_STATUS_LABEL[bulkStatus]}" setzen?`)) {
-      return
+    if (ids.length > 25) {
+      const ok = await confirm({
+        title: `${ids.length} Geschenke auf „${GIFT_STATUS_LABEL[bulkStatus]}“ setzen?`,
+        message: 'Der bisherige Status jedes Geschenks wird überschrieben.',
+        confirmLabel: 'Status setzen',
+      })
+      if (!ok) return
     }
     setBusy(true)
     try {
       const n = await repository.setGiftStatus(ids, bulkStatus)
-      toast(`${n} ${n === 1 ? 'Geschenk' : 'Geschenke'} auf „${GIFT_STATUS_LABEL[bulkStatus]}" gesetzt.`, 'success')
+      toast(`${n} ${n === 1 ? 'Geschenk' : 'Geschenke'} auf „${GIFT_STATUS_LABEL[bulkStatus]}“ gesetzt.`, 'success')
       setSelected(new Set())
       onChanged()
     } catch (err) {
@@ -148,7 +155,7 @@ export function RecipientTable({
             <span className="text-muted-foreground">Status setzen:</span>
             <select
               aria-label="Neuer Status für die Auswahl"
-              className={cn(selectCls, 'h-8 w-auto')}
+              className={cn(selectCls, 'h-9 w-auto')}
               value={bulkStatus}
               onChange={(e) => setBulkStatus(e.target.value as GiftStatus)}
             >
@@ -169,7 +176,7 @@ export function RecipientTable({
 
         {recipients.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            Noch keine Empfänger. Über „+ Empfänger" einzeln anlegen oder eine Liste importieren.
+            Noch keine Empfänger. Über „+ Empfänger“ einzeln anlegen oder eine Liste importieren.
           </p>
         ) : (
           <div className="overflow-x-auto">

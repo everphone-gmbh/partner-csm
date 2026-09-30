@@ -132,14 +132,16 @@ describe('useUnsavedChangesGuard — Navigation in der App', () => {
     expect(screen.getByLabelText('Feld')).toHaveValue('Entwurf')
   })
 
-  it('sperrt „Speichern“, wenn das Formular nicht speicherbar ist', async () => {
+  it('speichert nicht, wenn das Formular nicht speicherbar ist, und sagt warum', async () => {
     renderEditor()
     const user = userEvent.setup()
     await user.type(screen.getByLabelText('Feld'), 'ungültig')
     await user.click(screen.getByRole('link', { name: 'Weg' }))
     await screen.findByRole('dialog')
 
-    expect(screen.getByRole('button', { name: 'Speichern' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Speichern' }))
+    expect(screen.getByText(/Ein Pflichtfeld ist leer/)).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Verwerfen' })).toBeEnabled()
   })
 })

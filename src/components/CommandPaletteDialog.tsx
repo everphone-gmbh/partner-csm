@@ -70,7 +70,7 @@ export function CommandPaletteDialog({ open, onClose }: { open: boolean; onClose
       role="presentation"
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+        className="w-full max-w-lg overflow-hidden rounded-2xl border border-black/[0.05] bg-card shadow-xl dark:border-white/[0.08]"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -92,7 +92,9 @@ export function CommandPaletteDialog({ open, onClose }: { open: boolean; onClose
         </div>
         <ul className="max-h-80 overflow-y-auto p-1.5">
           {results.length === 0 ? (
-            <li className="px-3 py-6 text-center text-sm text-muted-foreground">Keine Treffer.</li>
+            <li className="px-3 py-6 text-center text-sm text-muted-foreground">
+              Keine Treffer. Versuch einen anderen Namen oder einen Teil davon.
+            </li>
           ) : (
             results.map((item, i) => (
               <li key={`${item.type}-${item.id}`}>

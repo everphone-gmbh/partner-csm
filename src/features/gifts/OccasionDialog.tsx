@@ -6,6 +6,9 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/useConfirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { selectCls } from '@/features/contacts/profile/shared'
 
 /**
@@ -24,6 +27,8 @@ export function OccasionDialog({
   onSaved: (occasion?: GiftOccasion) => void
 }) {
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const nameHint = useMissingHint()
   const [name, setName] = useState(occasion?.name ?? `Weihnachten ${new Date().getFullYear()}/${String(new Date().getFullYear() + 1).slice(2)}`)
   const [kind, setKind] = useState<GiftOccasionKind>(occasion?.kind ?? 'weihnachten')
   const [shipBy, setShipBy] = useState(occasion?.shipBy ?? '')
@@ -31,7 +36,7 @@ export function OccasionDialog({
   const isBirthday = occasion?.kind === 'geburtstag'
 
   const save = async () => {
-    if (!name.trim()) return
+    if (!nameHint.check(!name.trim())) return
     setSaving(true)
     try {
       const saved = occasion
@@ -47,11 +52,17 @@ export function OccasionDialog({
 
   const remove = async () => {
     if (!occasion) return
-    const warning =
-      recipientCount > 0
-        ? `„${occasion.name}" löschen? Die ${recipientCount} Empfänger und alle Produkte dieses Anlasses werden mitgelöscht.`
-        : `„${occasion.name}" löschen?`
-    if (!window.confirm(warning)) return
+    const ok = await confirm({
+      title: `„${occasion.name}“ löschen?`,
+      message:
+        recipientCount > 0
+          ? `Die ${recipientCount} Empfänger und alle Produkte dieses Anlasses werden mitgelöscht. Das lässt sich nicht rückgängig machen.`
+          : 'Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Anlass löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     setSaving(true)
     try {
       await repository.deleteGiftOccasion(occasion.id)
@@ -78,7 +89,7 @@ export function OccasionDialog({
           <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
             Abbrechen
           </Button>
-          <Button type="button" onClick={save} disabled={saving || !name.trim()}>
+          <Button type="button" onClick={save} disabled={saving}>
             {saving ? 'Speichern…' : 'Speichern'}
           </Button>
         </>
@@ -87,7 +98,8 @@ export function OccasionDialog({
       <div className="space-y-3">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Name
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <Input value={name} onChange={(e) => setName(e.target.value)} aria-invalid={(nameHint.tried && !name.trim()) || undefined} />
+          {nameHint.tried && !name.trim() && <FieldHint>Gib dem Anlass einen Namen.</FieldHint>}
         </label>
         {!occasion && (
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">

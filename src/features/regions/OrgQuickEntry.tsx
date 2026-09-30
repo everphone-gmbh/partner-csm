@@ -10,6 +10,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { FieldHint } from '@/components/ui/notice'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { selectCls } from '@/features/contacts/profile/shared'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +38,7 @@ export function OrgQuickEntry({
   const [level, setLevel] = useState<HierarchyLevel>('management')
   const [managerId, setManagerId] = useState('')
   const [saving, setSaving] = useState(false)
+  const pickHint = useMissingHint()
 
   const hits = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -54,7 +57,7 @@ export function OrgQuickEntry({
   }
 
   const save = async () => {
-    if (!picked) return
+    if (!pickHint.check(!picked) || !picked) return
     setSaving(true)
     try {
       const joins = !isInRegion(picked, regionId)
@@ -117,7 +120,7 @@ export function OrgQuickEntry({
               />
             )}
             {hits.length > 0 && (
-              <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+              <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                 {hits.map((c) => (
                   <li key={c.id}>
                     <button
@@ -162,10 +165,13 @@ export function OrgQuickEntry({
               </option>
             ))}
           </select>
-          <Button type="button" onClick={save} disabled={!picked || saving}>
+          <Button type="button" onClick={save} disabled={saving}>
             {saving ? 'Ordnet ein…' : 'Einordnen'}
           </Button>
         </div>
+        {pickHint.tried && !picked && (
+          <FieldHint className="mt-2">Such zuerst einen Kontakt und wähle ihn aus der Liste.</FieldHint>
+        )}
       </CardContent>
     </Card>
   )

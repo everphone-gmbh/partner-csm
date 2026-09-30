@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Upload } from 'lucide-react'
 import type { GiftOccasion, GiftOccasionKind, GiftStatus } from '@/domain/types'
 import { GIFT_STATUSES } from '@/domain/types'
 import type { NewGiftRecipient } from '@/data/repository'
@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { FieldHint, Notice } from '@/components/ui/notice'
 import { selectCls } from '@/features/contacts/profile/shared'
 import { cn } from '@/lib/utils'
 
@@ -139,13 +140,12 @@ export function GiftImportPage() {
   const contactMatches = allDrafts.filter((d) => matchContact(d, contacts)).length
 
   const [running, setRunning] = useState(false)
+  const [importHint, setImportHint] = useState(false)
   const [result, setResult] = useState<{ total: number; occasions: GiftOccasion[] } | null>(null)
 
   if (!allowed) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        Der Import ist für Relationship Manager und die Leitung.
-      </div>
+      <Notice tone="info">Der Import ist für Relationship Manager und die Leitung.</Notice>
     )
   }
 
@@ -256,6 +256,13 @@ export function GiftImportPage() {
   }
 
   const includedCount = drafts.reduce((n, d) => n + d.drafts.length, 0)
+  // Was noch fehlt, bevor importiert werden kann — der Knopf bleibt klickbar.
+  const importMissing =
+    includedCount === 0
+      ? 'Wähle mindestens eine Liste mit Empfängern.'
+      : settings.some((st) => st.include && !st.occasionId && !st.newName.trim())
+        ? 'Gib jedem neuen Anlass einen Namen.'
+        : undefined
 
   return (
     <div className="space-y-4">
@@ -283,19 +290,23 @@ export function GiftImportPage() {
             aria-label="Eingefügte Liste"
             className="font-mono text-xs"
           />
-          <input
-            type="file"
-            accept=".csv,.tsv,.txt,text/csv"
-            aria-label="CSV-Datei wählen"
-            className="text-xs text-muted-foreground"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (!f) return
-              const reader = new FileReader()
-              reader.onload = () => setText(String(reader.result ?? ''))
-              reader.readAsText(f)
-            }}
-          />
+          {/* Eigener Knopf statt des Browser-Dateifelds — das zeigte „Choose File“ auf Englisch. */}
+          <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-black/[0.08] bg-card px-4 text-sm font-medium transition-colors hover:bg-secondary focus-within:ring-2 focus-within:ring-ring dark:border-white/[0.12]">
+            <Upload className="size-4" /> CSV-Datei wählen
+            <input
+              type="file"
+              accept=".csv,.tsv,.txt,text/csv"
+              aria-label="CSV-Datei wählen"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (!f) return
+                const reader = new FileReader()
+                reader.onload = () => setText(String(reader.result ?? ''))
+                reader.readAsText(f)
+              }}
+            />
+          </label>
         </CardContent>
       </Card>
 
@@ -331,7 +342,7 @@ export function GiftImportPage() {
                     <span className="w-10 text-xs tabular-nums text-muted-foreground">{count}×</span>
                     <select
                       aria-label={`Zuordnung für ${token}`}
-                      className={cn(selectCls, 'h-8 w-auto')}
+                      className={cn(selectCls, 'h-9 w-auto')}
                       value={c.mode === 'existing' ? c.senderId : c.mode}
                       onChange={(e) => {
                         const v = e.target.value
@@ -354,7 +365,7 @@ export function GiftImportPage() {
                           value={c.name}
                           onChange={(e) => setChoice(token, { ...c, name: e.target.value })}
                           aria-label={`Name für ${token}`}
-                          className="h-8 w-36"
+                          className="h-9 w-36"
                         />
                         <label className="flex items-center gap-1 text-xs text-muted-foreground">
                           <input
@@ -397,13 +408,21 @@ export function GiftImportPage() {
               </span>
               <Button
                 type="button"
-                onClick={runImport}
-                disabled={running || includedCount === 0 || settings.some((s) => s.include && !s.occasionId && !s.newName.trim())}
+                onClick={() => {
+                  if (importMissing) {
+                    setImportHint(true)
+                    return
+                  }
+                  setImportHint(false)
+                  void runImport()
+                }}
+                disabled={running}
                 className="ml-auto"
               >
                 {running ? 'Importiert…' : 'Import starten'}
               </Button>
             </div>
+            {importHint && importMissing && <FieldHint className="justify-end">{importMissing}</FieldHint>}
           </CardContent>
         </Card>
       )}
@@ -438,7 +457,7 @@ function BlockCard({
 }) {
   const sample = block.rows.slice(0, 3)
   return (
-    <Card className={cn(!settings.include && 'opacity-60')}>
+    <Card className={cn(!settings.include && 'bg-secondary/50 shadow-none')}>
       <CardContent className="space-y-3 pt-5 sm:pt-5">
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-sm font-semibold">
@@ -452,7 +471,7 @@ function BlockCard({
           </label>
           <span className="text-xs text-muted-foreground">
             {block.rows.length} Zeilen
-            {block.footer ? ` · „${block.footer}"` : ''}
+            {block.footer ? ` · „${block.footer}“` : ''}
             {block.mappingSource === 'guessed' ? ' · ohne Kopfzeile, Spalten geraten' : ''}
           </span>
         </div>
@@ -497,10 +516,10 @@ function BlockCard({
               </label>
             </div>
             {existingCount > 0 && (
-              <p className="rounded-lg bg-status-amber/10 px-3 py-2 text-xs text-status-amber">
+              <Notice tone="warning">
                 Dieser Anlass hat schon {existingCount} Empfänger. Der Import legt zusätzlich an — wer die Liste ein
                 zweites Mal einliest, hat die Zeilen danach doppelt.
-              </p>
+              </Notice>
             )}
 
             <div className="overflow-x-auto">
@@ -520,7 +539,7 @@ function BlockCard({
                       <th key={j} className="px-1 pb-2 text-left">
                         <select
                           aria-label={`Spalte ${j + 1}`}
-                          className={cn(selectCls, 'h-8 min-w-24 text-xs', f === 'ignore' && 'text-muted-foreground')}
+                          className={cn(selectCls, 'h-9 min-w-24 text-xs', f === 'ignore' && 'text-muted-foreground')}
                           value={f}
                           onChange={(e) =>
                             onChange({

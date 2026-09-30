@@ -34,7 +34,7 @@ export function FavoriteToggle({
       className={cn(
         showLabel
           ? buttonVariants({ variant: 'ghost', size: 'sm' })
-          : 'inline-flex shrink-0 items-center justify-center rounded-full p-1.5 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          : 'inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         !active && 'text-muted-foreground hover:text-foreground',
         className,
       )}

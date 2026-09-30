@@ -66,7 +66,7 @@ describe('EventNotes — Notizen nachträglich löschen', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     await userEvent.click(knopf)
 
-    expect(confirmSpy).toHaveBeenCalledWith('Diese Notiz und alle ihre Anhänge löschen?')
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('Diese Notiz löschen?'))
     await waitFor(() => expect(screen.queryByText('Eigene Notiz')).not.toBeInTheDocument())
 
     // Beleg, dass wirklich das Repository gerufen wurde und nicht nur die
@@ -132,7 +132,7 @@ describe('EventNotes — Notizen nachträglich löschen', () => {
 
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     await userEvent.click(screen.getAllByRole('button', { name: DELETE_ATTACHMENT })[0])
-    expect(confirmSpy).toHaveBeenCalledWith('Diesen Anhang löschen?')
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('Diesen Anhang löschen?'))
 
     await waitFor(() => expect(screen.queryByAltText('eins.png')).not.toBeInTheDocument())
     // Notiz und zweiter Anhang bleiben — es wurde genau ein Anhang entfernt,
