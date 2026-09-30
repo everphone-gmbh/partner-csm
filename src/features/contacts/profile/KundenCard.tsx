@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Building2, ExternalLink, Plus, X } from 'lucide-react'
+import { Building2, ExternalLink, Plus, X } from 'lucide-react'
 import type { Contact, CustomerLink } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { safeHttpsUrl } from '@/domain/urls'
@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { FieldHint, Notice } from '@/components/ui/notice'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { selectCls } from './shared'
 
 /**
@@ -46,6 +48,7 @@ export function KundenCard({
   const [side, setSide] = useState<'with' | 'without'>('with')
   const [sfUrl, setSfUrl] = useState('')
   const [saving, setSaving] = useState(false)
+  const nameHint = useMissingHint()
 
   // Everphone-Status der zugeordneten Kunden. Fehler bleiben still: der
   // Abgleich ist Zusatzinformation und darf die Kundenliste nicht blockieren.
@@ -105,7 +108,7 @@ export function KundenCard({
 
   const add = async (presetName?: string) => {
     const finalName = (presetName ?? name).trim()
-    if (!finalName) return
+    if (!nameHint.check(!finalName)) return
     setSaving(true)
     try {
       const next: CustomerLink = {
@@ -144,15 +147,12 @@ export function KundenCard({
       </CardHeader>
       <CardContent className="space-y-3">
         {alignmentNeeded.length > 0 && (
-          <div className="flex items-start gap-2 rounded-lg border border-status-amber/40 bg-status-amber/10 px-3 py-2 text-xs text-foreground">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-amber" />
-            <span>
-              {alignmentNeeded.length === 1
-                ? `${alignmentNeeded[0].name} ist bereits Everphone-Kunde.`
-                : `${alignmentNeeded.length} dieser Kunden sind bereits Everphone-Kunden.`}{' '}
-              Vor einer Ansprache mit dem zuständigen Everphone-Account-Manager abstimmen.
-            </span>
-          </div>
+          <Notice tone="warning">
+            {alignmentNeeded.length === 1
+              ? `${alignmentNeeded[0].name} ist bereits Everphone-Kunde.`
+              : `${alignmentNeeded.length} dieser Kunden sind bereits Everphone-Kunden.`}{' '}
+            Stimm dich vor einer Ansprache mit dem zuständigen Everphone-Account-Manager ab.
+          </Notice>
         )}
         <CustomerGroup
           title="Mit uns"
@@ -169,7 +169,9 @@ export function KundenCard({
           accountIndex={accountIndex}
         />
         {customers.length === 0 && !adding && (
-          <p className="text-sm text-muted-foreground">Keine Kunden zugeordnet.</p>
+          <p className="text-sm text-muted-foreground">
+            Noch keine Kunden zugeordnet.{canEdit ? ' Über „+ Kunde“ oben den ersten eintragen.' : ''}
+          </p>
         )}
         {adding && (
           <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
@@ -233,10 +235,11 @@ export function KundenCard({
               >
                 Abbrechen
               </Button>
-              <Button size="sm" onClick={() => add()} disabled={!name.trim() || saving}>
+              <Button size="sm" onClick={() => add()} disabled={saving}>
                 {saving ? 'Speichern…' : 'Hinzufügen'}
               </Button>
             </div>
+            {nameHint.tried && !name.trim() && <FieldHint>Gib einen Kundennamen ein.</FieldHint>}
           </div>
         )}
       </CardContent>

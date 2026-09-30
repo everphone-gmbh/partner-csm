@@ -213,8 +213,8 @@ export function BriefingPage() {
               )}
 
               {attendee.purpose && (
-                <div className="rounded-lg bg-primary/5 px-3 py-2">
-                  <div className="text-[10px] font-medium uppercase tracking-wide text-primary">
+                <div className="rounded-lg bg-secondary px-3 py-2">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     Wofür
                   </div>
                   <p className="text-sm">{attendee.purpose}</p>
@@ -222,8 +222,8 @@ export function BriefingPage() {
               )}
 
               <div className="flex gap-2 rounded-lg bg-secondary/60 px-3 py-2">
-                <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                <p className="text-sm text-foreground/90">{intro}</p>
+                <Sparkles className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <p className="text-sm text-foreground">{intro}</p>
               </div>
 
               {canSensitive && view.sideFacts.length > 0 && (
@@ -238,12 +238,12 @@ export function BriefingPage() {
               )}
 
               {personNotes.length > 0 && (
-                <div className="space-y-1 rounded-lg border border-black/[0.04] bg-card px-3 py-2 dark:border-white/[0.06]">
-                  <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="space-y-1 rounded-lg border border-border bg-card px-3 py-2">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     Notizen vom Event
                   </div>
                   {personNotes.map((t, i) => (
-                    <p key={i} className="text-sm text-foreground/90">
+                    <p key={i} className="text-sm text-foreground">
                       {t}
                     </p>
                   ))}

@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { FieldHint, Notice } from '@/components/ui/notice'
 import { LinkedInPicker } from '@/components/LinkedInField'
 import { useFieldSuggestions } from './useFieldSuggestions'
 import { SuggestionDatalist } from './SuggestionDatalist'
@@ -154,6 +155,9 @@ export function ContactFormPage() {
   }, [data])
 
   const canSave = form.fullName.trim().length > 0
+  // Speichern bleibt klickbar; fehlt der Name, sagt die Seite das am Feld und
+  // am Knopf und springt ins Namensfeld.
+  const [nameMissing, setNameMissing] = useState(false)
   // Während des Speicherns nicht „dirty“: sonst würde die Navigation direkt nach
   // dem erfolgreichen Speichern noch einmal abgefangen.
   const isDirty = !saving && !sameForm(form, initial)
@@ -189,7 +193,13 @@ export function ContactFormPage() {
    * und die Eingaben bleiben für einen neuen Versuch stehen.
    */
   const persist = async (): Promise<Contact | undefined> => {
-    if (!canSave || saving) return undefined
+    if (saving) return undefined
+    if (!canSave) {
+      setNameMissing(true)
+      nameRef.current?.focus()
+      return undefined
+    }
+    setNameMissing(false)
     setSaving(true)
     const payload = {
       fullName: form.fullName.trim(),
@@ -266,9 +276,7 @@ export function ContactFormPage() {
         <Link to="/contacts" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> Alle Kontakte
         </Link>
-        <p className="text-sm text-muted-foreground">
-          Für Ihre Rolle ist das Bearbeiten von Kontakten nicht freigegeben.
-        </p>
+        <Notice tone="info">Für deine Rolle ist das Bearbeiten von Kontakten nicht freigegeben.</Notice>
       </div>
     )
   }
@@ -280,7 +288,7 @@ export function ContactFormPage() {
 
   return (
     <>
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={submit} noValidate className="space-y-4">
         <Link
           to={cancelTo}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -302,7 +310,9 @@ export function ContactFormPage() {
                 value={form.fullName}
                 onChange={(e) => set('fullName', e.target.value)}
                 required
+                aria-invalid={(nameMissing && !canSave) || undefined}
               />
+              {nameMissing && !canSave && <FieldHint>Gib einen Namen ein.</FieldHint>}
             </Field>
             <Field label="Funktion" htmlFor={fid('position')}>
               <Input id={fid('position')} value={form.position} onChange={(e) => set('position', e.target.value)} />
@@ -399,7 +409,7 @@ export function ContactFormPage() {
             <Field label="Haustiere" htmlFor={fid('pets')}>
               <Input id={fid('pets')} value={form.pets} onChange={(e) => set('pets', e.target.value)} />
             </Field>
-            <Field label="Active Devices" htmlFor={fid('activeDevices')}>
+            <Field label="Aktive Geräte" htmlFor={fid('activeDevices')}>
               <Input id={fid('activeDevices')} value={form.activeDevices} onChange={(e) => set('activeDevices', e.target.value)} />
             </Field>
             <Field label="Gewonnene Kunden" htmlFor={fid('wonCustomersCount')}>
@@ -491,20 +501,18 @@ export function ContactFormPage() {
         </Card>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {nameMissing && !canSave && (
+            <FieldHint className="mr-auto">Der Name fehlt noch — oben unter „Basis“ eintragen.</FieldHint>
+          )}
           <Link to={cancelTo} className="text-sm text-muted-foreground hover:text-foreground">
             Abbrechen
           </Link>
           {!isEdit && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void saveAndNew()}
-              disabled={!canSave || saving}
-            >
+            <Button type="button" variant="outline" onClick={() => void saveAndNew()} disabled={saving}>
               Speichern & weiteren anlegen
             </Button>
           )}
-          <Button type="submit" disabled={!canSave || saving}>
+          <Button type="submit" disabled={saving}>
             {saving ? 'Speichern…' : isEdit ? 'Änderungen speichern' : 'Kontakt anlegen'}
           </Button>
         </div>

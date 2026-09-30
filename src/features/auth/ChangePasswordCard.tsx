@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { FieldHint, Notice } from '@/components/ui/notice'
 
 /** Mindestlänge; Supabase lehnt kürzere Passwörter ohnehin ab. */
 const MIN_LENGTH = 10
@@ -23,14 +24,26 @@ export function ChangePasswordCard({ email }: { email?: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>()
   const [done, setDone] = useState(false)
+  const [tried, setTried] = useState(false)
 
   const tooShort = next.length > 0 && next.length < MIN_LENGTH
   const mismatch = repeat.length > 0 && next !== repeat
-  const canSubmit =
-    current.length > 0 && next.length >= MIN_LENGTH && next === repeat && !busy
+  // Was noch fehlt — erscheint erst nach dem Klick, der Knopf bleibt klickbar.
+  const missing = !current
+    ? 'Gib dein aktuelles Passwort ein.'
+    : next.length < MIN_LENGTH
+      ? `Das neue Passwort braucht mindestens ${MIN_LENGTH} Zeichen.`
+      : next !== repeat
+        ? 'Wiederhole das neue Passwort genau gleich.'
+        : undefined
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (missing) {
+      setTried(true)
+      return
+    }
+    setTried(false)
     setBusy(true)
     setError(undefined)
     setDone(false)
@@ -53,11 +66,11 @@ export function ChangePasswordCard({ email }: { email?: string }) {
 
       const { error: updateError } = await supabase.auth.updateUser({ password: next })
       if (updateError) {
-        setError(
-          /same/i.test(updateError.message)
-            ? 'Das neue Passwort entspricht dem alten.'
-            : updateError.message,
-        )
+        if (/same/i.test(updateError.message)) setError('Das neue Passwort entspricht dem alten. Wähle ein anderes.')
+        else {
+          console.warn('[Passwort] Originaltext:', updateError.message)
+          setError('Das Passwort ließ sich nicht ändern. Versuch es noch einmal.')
+        }
         return
       }
       setDone(true)
@@ -65,7 +78,8 @@ export function ChangePasswordCard({ email }: { email?: string }) {
       setNext('')
       setRepeat('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      console.warn('[Passwort] Originaltext:', err)
+      setError('Das Passwort ließ sich nicht ändern. Versuch es noch einmal.')
     } finally {
       setBusy(false)
     }
@@ -115,26 +129,13 @@ export function ChangePasswordCard({ email }: { email?: string }) {
             />
           </div>
 
-          {tooShort && (
-            <p className="text-xs text-destructive">
-              Noch zu kurz — {MIN_LENGTH} Zeichen sind das Minimum.
-            </p>
-          )}
-          {mismatch && (
-            <p className="text-xs text-destructive">Die beiden Eingaben stimmen nicht überein.</p>
-          )}
-          {error && (
-            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              {error}
-            </p>
-          )}
-          {done && (
-            <p className="rounded-md border border-status-green/30 bg-status-green/10 px-3 py-2 text-xs text-foreground">
-              Passwort geändert. Es gilt ab der nächsten Anmeldung.
-            </p>
-          )}
+          {tooShort && <FieldHint>Noch zu kurz — {MIN_LENGTH} Zeichen sind das Minimum.</FieldHint>}
+          {mismatch && <FieldHint>Die beiden Eingaben stimmen nicht überein.</FieldHint>}
+          {tried && missing && !tooShort && !mismatch && <FieldHint>{missing}</FieldHint>}
+          {error && <Notice tone="error">{error}</Notice>}
+          {done && <Notice tone="success">Passwort geändert. Es gilt ab der nächsten Anmeldung.</Notice>}
 
-          <Button type="submit" disabled={!canSubmit}>
+          <Button type="submit" disabled={busy}>
             {busy ? 'Ändern…' : 'Passwort ändern'}
           </Button>
         </form>

@@ -4,6 +4,8 @@ import type { Contact } from '@/domain/types'
 import type { ContactPatch } from '@/data/repository'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { FieldHint, Notice } from '@/components/ui/notice'
+import { useMissingHint } from '@/lib/useMissingHint'
 import {
   buildExtractionPrompt,
   parseSuggestions,
@@ -41,6 +43,8 @@ export function TranscriptImportCard({
   contact: Contact
   onApply: (patch: ContactPatch) => Promise<void>
 }) {
+  const transcriptHint = useMissingHint()
+  const responseHint = useMissingHint()
   const [transcript, setTranscript] = useState('')
   const [mode, setMode] = useState<'auto' | 'manual'>(autoExtractAvailable() ? 'auto' : 'manual')
   const [autoBusy, setAutoBusy] = useState(false)
@@ -72,7 +76,7 @@ export function TranscriptImportCard({
           // Kein KI-Schlüssel auf der Function → dauerhaft auf manuell umschalten.
           setMode('manual')
           setAutoError(
-            'Der KI-Endpoint ist noch nicht freigeschaltet — unten der manuelle Weg über Gemini (Workspace).',
+            'Die KI-Auswertung ist noch nicht eingerichtet — unten der manuelle Weg über Gemini (Workspace).',
           )
         } else {
           setAutoError(r.error ?? 'KI-Aufruf fehlgeschlagen.')
@@ -102,7 +106,7 @@ export function TranscriptImportCard({
         if (r.notConfigured) {
           setMode('manual')
           setAutoError(
-            'Der KI-Endpoint ist noch nicht freigeschaltet — Sprachnotizen brauchen ihn; unten der manuelle Weg über Gemini (Workspace).',
+            'Die KI-Auswertung ist noch nicht eingerichtet — Sprachnotizen brauchen sie; unten der manuelle Weg über Gemini (Workspace).',
           )
         } else {
           setAutoError(r.error ?? 'Transkription fehlgeschlagen.')
@@ -175,7 +179,7 @@ export function TranscriptImportCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Sparkles className="size-4 text-primary" /> Aus Transkript importieren
+          <Sparkles className="size-4 text-muted-foreground" /> Aus Transkript importieren
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           Gesprächstranskript (z. B. aus Jamie) einfügen — oder nach dem Gespräch eine
@@ -210,7 +214,13 @@ export function TranscriptImportCard({
               />
               {mode === 'auto' ? (
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button size="sm" onClick={autoRun} disabled={!transcript.trim() || autoBusy}>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (transcriptHint.check(!transcript.trim())) void autoRun()
+                    }}
+                    disabled={autoBusy}
+                  >
                     <Sparkles className="size-4" />
                     {autoBusy ? 'Extrahiere…' : 'Vorschläge erzeugen'}
                   </Button>
@@ -233,11 +243,23 @@ export function TranscriptImportCard({
                   </button>
                 </div>
               ) : (
-                <Button size="sm" onClick={makePrompt} disabled={!transcript.trim()}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (transcriptHint.check(!transcript.trim())) makePrompt()
+                  }}
+                >
                   Prompt für Gemini erzeugen
                 </Button>
               )}
-              {autoError && <p className="text-sm text-destructive">{autoError}</p>}
+              {transcriptHint.tried && !transcript.trim() && (
+                <FieldHint>
+                  {mode === 'auto'
+                    ? 'Füg zuerst das Transkript ein — oder sprich eine Notiz ein.'
+                    : 'Füg zuerst das Transkript ein.'}
+                </FieldHint>
+              )}
+              {autoError && <Notice tone="error">{autoError}</Notice>}
             </div>
 
             {prompt && (
@@ -272,10 +294,16 @@ export function TranscriptImportCard({
                   onChange={(e) => setResponse(e.target.value)}
                   placeholder='[ { "target": "sideFact", … } ]'
                 />
-                <Button size="sm" onClick={check} disabled={!response.trim()}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (responseHint.check(!response.trim())) check()
+                  }}
+                >
                   Vorschläge prüfen
                 </Button>
-                {parseError && <p className="text-sm text-destructive">{parseError}</p>}
+                {responseHint.tried && !response.trim() && <FieldHint>Füg die Antwort aus Gemini ein.</FieldHint>}
+                {parseError && <Notice tone="error">{parseError}</Notice>}
               </div>
             )}
 

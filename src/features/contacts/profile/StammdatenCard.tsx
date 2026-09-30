@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { FieldHint } from '@/components/ui/notice'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { formatDate, daysUntilBirthday } from '@/lib/format'
 import { EMPTY_SUGGESTIONS, type FieldSuggestions } from '../useFieldSuggestions'
 import { SuggestionDatalist } from '../SuggestionDatalist'
@@ -135,6 +137,10 @@ export function StammdatenCard({
   const [showNewRegion, setShowNewRegion] = useState(false)
   const [newRegionName, setNewRegionName] = useState('')
   const [creatingRegion, setCreatingRegion] = useState(false)
+  const newRegionHint = useMissingHint()
+  // Letzte Region entfernen geht nicht — statt gesperrtem Knopf mit Tooltip
+  // (auf dem Tablet unsichtbar) ein Hinweis beim Klick.
+  const [lastRegionHint, setLastRegionHint] = useState(false)
 
   const regionOptions = useMemo(() => {
     const known = new Set(regions.map((r) => r.id))
@@ -147,7 +153,7 @@ export function StammdatenCard({
   const createRegion = async () => {
     if (!onCreateRegion) return
     const name = newRegionName.trim()
-    if (!name) return
+    if (!newRegionHint.check(!name)) return
     setCreatingRegion(true)
     try {
       const created = await onCreateRegion(name)
@@ -251,13 +257,17 @@ export function StammdatenCard({
                         {r?.isPlaceholder ? ' (Platzhalter)' : ''}
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
+                            if (last) {
+                              setLastRegionHint(true)
+                              return
+                            }
+                            setLastRegionHint(false)
                             set('regionIds', draft.regionIds.filter((x) => x !== id))
-                          }
-                          disabled={last}
-                          title={last ? 'Mindestens eine Region ist nötig' : 'Region entfernen'}
+                          }}
+                          title="Region entfernen"
                           aria-label={`Region ${r?.name ?? ''} entfernen`}
-                          className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-destructive disabled:opacity-40"
+                          className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-destructive"
                         >
                           <X className="size-3.5" />
                         </button>
@@ -265,13 +275,21 @@ export function StammdatenCard({
                     )
                   })}
                 </div>
+                {lastRegionHint && draft.regionIds.length === 1 && (
+                  <FieldHint className="mt-1">
+                    Mindestens eine Region muss bleiben — ohne Region sieht kein Account Manager den Kontakt.
+                  </FieldHint>
+                )}
                 <select
                   className={`${selectCls} mt-1.5`}
                   value=""
                   aria-label="Region hinzufügen"
                   onChange={(e) => {
                     const id = e.target.value
-                    if (id) set('regionIds', [...draft.regionIds, id])
+                    if (id) {
+                      setLastRegionHint(false)
+                      set('regionIds', [...draft.regionIds, id])
+                    }
                   }}
                 >
                   <option value="">+ Region hinzufügen …</option>
@@ -286,6 +304,7 @@ export function StammdatenCard({
                 </select>
                 {onCreateRegion &&
                   (showNewRegion ? (
+                    <>
                     <div className="mt-1.5 flex items-center gap-2">
                       <Input
                         value={newRegionName}
@@ -300,12 +319,7 @@ export function StammdatenCard({
                         }}
                         autoFocus
                       />
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={createRegion}
-                        disabled={creatingRegion || !newRegionName.trim()}
-                      >
+                      <Button type="button" size="sm" onClick={createRegion} disabled={creatingRegion}>
                         {creatingRegion ? 'Anlegen…' : 'Anlegen'}
                       </Button>
                       <Button
@@ -320,6 +334,10 @@ export function StammdatenCard({
                         Abbrechen
                       </Button>
                     </div>
+                    {newRegionHint.tried && !newRegionName.trim() && (
+                      <FieldHint className="mt-1">Gib einen Namen für die neue Region ein.</FieldHint>
+                    )}
+                    </>
                   ) : (
                     <button
                       type="button"
@@ -490,7 +508,7 @@ export function StammdatenCard({
               <EditField label="Haustiere">
                 <Input value={draft.pets} onChange={(e) => set('pets', e.target.value)} />
               </EditField>
-              <EditField label="Active Devices">
+              <EditField label="Aktive Geräte">
                 <Input value={draft.activeDevices} onChange={(e) => set('activeDevices', e.target.value)} />
               </EditField>
               <EditField label="Gewonnene Kunden">
@@ -540,7 +558,7 @@ export function StammdatenCard({
                 </button>
               </div>
               {draft.socialLinks.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Noch keine Links.</p>
+                <p className="text-xs text-muted-foreground">Noch keine Links. Über „+ Link“ den ersten eintragen.</p>
               ) : (
                 draft.socialLinks.map((link, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -703,7 +721,7 @@ export function StammdatenCard({
             <FieldRow icon={PawPrint} label="Haustiere" locked={!canSensitive}>
               {contact.pets || '—'}
             </FieldRow>
-            <FieldRow icon={Smartphone} label="Active Devices" locked={!canSensitive}>
+            <FieldRow icon={Smartphone} label="Aktive Geräte" locked={!canSensitive}>
               {contact.activeDevices || '—'}
             </FieldRow>
             <FieldRow icon={Trophy} label="Gewonnene Kunden">

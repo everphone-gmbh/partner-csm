@@ -152,7 +152,7 @@ describe('TranscriptImportCard — Auto-Extraktion (Edge Function)', () => {
     await user.click(screen.getByRole('button', { name: /Vorschläge erzeugen/ }))
 
     // Hinweis + manueller Weg; der Auto-Knopf ist weg.
-    expect(await screen.findByText(/noch nicht freigeschaltet/)).toBeInTheDocument()
+    expect(await screen.findByText(/noch nicht eingerichtet/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Prompt für Gemini erzeugen' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Vorschläge erzeugen/ })).toBeNull()
   })

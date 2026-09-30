@@ -8,6 +8,8 @@ import { useRepoQuery } from '@/app/useRepoQuery'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { FieldHint, Notice } from '@/components/ui/notice'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
@@ -26,6 +28,7 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
   const [otherId, setOtherId] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const pickHint = useMissingHint()
 
   const { data, loading, error, retry } = useRepoQuery(
     () => Promise.all([repository.listContactLinks(contact.id), repository.listContacts()]),
@@ -52,7 +55,7 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
   const regionOverflow = regionAll.length - regionColleagues.length
 
   const add = async () => {
-    if (!otherId) return
+    if (!pickHint.check(!otherId)) return
     setSaving(true)
     try {
       await repository.addContactLink({
@@ -101,9 +104,10 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
                 key={m}
                 type="button"
                 onClick={() => setMode(m)}
+                aria-pressed={mode === m}
                 className={cn(
-                  'rounded-full px-2.5 py-0.5 text-xs transition-colors',
-                  mode === m ? 'bg-card font-medium shadow-sm' : 'text-muted-foreground',
+                  'inline-flex h-7 items-center rounded-full px-3 text-xs font-medium transition-colors',
+                  mode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
                 {m === 'graph' ? 'Graph' : 'Liste'}
@@ -123,12 +127,16 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
       </CardHeader>
       <CardContent className="space-y-3">
         {error && (
-          <p className="text-sm text-muted-foreground">
-            Netzwerk konnte nicht geladen werden.{' '}
-            <button type="button" onClick={retry} className="text-primary hover:underline">
-              Erneut versuchen
-            </button>
-          </p>
+          <Notice
+            tone="error"
+            action={
+              <button type="button" onClick={retry} className="shrink-0 font-medium underline-offset-2 hover:underline">
+                Erneut versuchen
+              </button>
+            }
+          >
+            Das Netzwerk konnte nicht geladen werden.
+          </Notice>
         )}
         {!error &&
           !loading &&
@@ -137,7 +145,7 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
           regionColleagues.length === 0 &&
           !adding && (
             <p className="text-sm text-muted-foreground">
-              Noch keine Verknüpfungen — wer kennt {contact.fullName.split(' ')[0]}?
+              Noch keine Verknüpfungen. Wer kennt {contact.fullName.split(' ')[0]}? Über „Verknüpfen“ oben eintragen.
             </p>
           )}
         {mode === 'graph' &&
@@ -223,10 +231,11 @@ export function NetworkCard({ contact, canEdit }: { contact: Contact; canEdit: b
               <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
                 Abbrechen
               </Button>
-              <Button size="sm" onClick={add} disabled={!otherId || saving}>
+              <Button size="sm" onClick={add} disabled={saving}>
                 {saving ? 'Speichern…' : 'Verknüpfen'}
               </Button>
             </div>
+            {pickHint.tried && !otherId && <FieldHint className="justify-end">Wähle einen Kontakt aus.</FieldHint>}
           </div>
         )}
       </CardContent>

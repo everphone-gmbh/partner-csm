@@ -13,6 +13,8 @@ import { QueryError } from '@/components/QueryError'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { Notice } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/confirm'
 import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +29,7 @@ import { cn } from '@/lib/utils'
 export function MergePage() {
   const { user } = useSession()
   const { toast } = useToast()
+  const confirm = useConfirm()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const aId = params.get('a') ?? ''
@@ -72,13 +75,11 @@ export function MergePage() {
 
   if (!allowed) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        Dubletten zusammenführen darf nur die Leitung.
-      </div>
+      <Notice tone="info">Dubletten zusammenführen darf nur die Leitung.</Notice>
     )
   }
   if (q.error) return <QueryError error={q.error} retry={q.retry} />
-  if (!q.data) return <p className="text-sm text-muted-foreground">Lädt …</p>
+  if (!q.data) return <p className="text-sm text-muted-foreground">Lädt…</p>
   if (!a || !b || !winner || !loser) {
     return <p className="text-sm text-muted-foreground">Einer der beiden Kontakte existiert nicht mehr.</p>
   }
@@ -104,10 +105,12 @@ export function MergePage() {
       .join(' · ')
 
   const run = async () => {
-    const sure = window.confirm(
-      `„${loser.fullName}" in „${winner.fullName}" zusammenführen?\n\n` +
-        `„${loser.fullName}" wird danach gelöscht. Das lässt sich nicht rückgängig machen.`,
-    )
+    const sure = await confirm({
+      title: `„${loser.fullName}“ in „${winner.fullName}“ zusammenführen?`,
+      message: `Aktivitäten, Reminder, Verknüpfungen und Geschenke ziehen um, „${loser.fullName}“ wird danach gelöscht. Das lässt sich nicht rückgängig machen.`,
+      confirmLabel: 'Zusammenführen',
+      tone: 'danger',
+    })
     if (!sure) return
     setRunning(true)
     try {
@@ -251,7 +254,7 @@ function FieldRow({
       <li className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm">
         <span className="w-44 shrink-0 text-xs text-muted-foreground">{row.label}</span>
         <span className="font-medium">{show(row.key, row.loser)}</span>
-        <span className="text-xs text-teal">wird von „{loserName}" übernommen</span>
+        <span className="text-xs text-info-ink">wird von „{loserName}" übernommen</span>
       </li>
     )
   }
@@ -274,7 +277,7 @@ function FieldRow({
             onClick={() => onChoose(c)}
             className={cn(
               'max-w-72 truncate rounded-lg border px-2.5 py-1 text-left text-sm',
-              choice === c ? 'border-primary bg-primary/10 font-medium text-primary' : 'border-border text-muted-foreground',
+              choice === c ? 'border-primary/50 bg-primary-soft font-medium text-primary-ink' : 'border-border text-muted-foreground',
             )}
           >
             {show(row.key, v)}

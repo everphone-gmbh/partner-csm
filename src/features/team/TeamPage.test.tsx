@@ -78,7 +78,7 @@ describe('TeamPage — Team & Rechte', () => {
     const roleSelect = await screen.findByLabelText('Rolle von Alexandra v. Königsmarck')
     await userEvent.selectOptions(roleSelect, 'account_manager')
 
-    expect(await screen.findByText(/Speichern fehlgeschlagen: Kein Zugriff/)).toBeInTheDocument()
+    expect(await screen.findByText(/Speichern hat nicht geklappt: Kein Zugriff/)).toBeInTheDocument()
     // Rücknahme: das Feld steht wieder auf dem alten Wert.
     await waitFor(() => expect(roleSelect).toHaveValue('sub_admin'))
   })

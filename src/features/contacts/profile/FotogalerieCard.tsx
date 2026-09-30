@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { fileToResizedBlob } from '@/lib/image'
 import { fileStore } from '@/lib/fileStore'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm'
 import { useFileUrl } from '@/lib/useFileUrl'
 
 export function FotogalerieCard({
@@ -21,6 +22,7 @@ export function FotogalerieCard({
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const { toast } = useToast()
+  const confirm = useConfirm()
 
   const addFiles = async (files: FileList) => {
     setBusy(true)
@@ -43,7 +45,14 @@ export function FotogalerieCard({
     const photo = gallery.find((p) => p.id === photoId)
     // Rückfrage, seit der Knopf dauerhaft sichtbar ist: auf dem Tablet sitzt er
     // dicht am Bild, und ein Fehlgriff wäre nicht rückgängig zu machen.
-    if (!window.confirm('Dieses Foto entfernen? Die Bilddatei wird gelöscht.')) return
+    const ok = await confirm({
+      title: 'Dieses Foto entfernen?',
+      message: 'Die Bilddatei wird gelöscht. Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Foto entfernen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await onSave({ gallery: gallery.filter((p) => p.id !== photoId) })
     } catch (err) {
@@ -66,9 +75,9 @@ export function FotogalerieCard({
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={busy}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-60"
+              className="inline-flex h-8 items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-60"
             >
-              <Camera className="size-3.5" /> {busy ? 'Lädt…' : 'Hinzufügen'}
+              <Camera className="size-3.5" /> {busy ? 'Lädt hoch…' : 'Hinzufügen'}
             </button>
             <input
               ref={inputRef}
@@ -85,7 +94,9 @@ export function FotogalerieCard({
       </CardHeader>
       <CardContent>
         {gallery.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Noch keine Fotos.</p>
+          <p className="text-sm text-muted-foreground">
+            Noch keine Fotos.{canEdit ? ' Über „Hinzufügen“ oben das erste hochladen.' : ''}
+          </p>
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {gallery.map((p) => (
@@ -102,8 +113,8 @@ export function FotogalerieCard({
                     // Dauerhaft sichtbar statt nur beim Überfahren: auf Tablet
                     // und Handy gibt es kein Hover, dort war der Knopf bisher
                     // unauffindbar — und damit das Löschen faktisch unmöglich.
-                    // 24px statt 16px, sonst ist er mit dem Finger nicht zu treffen.
-                    className="absolute right-1 top-1 rounded-full bg-card/90 p-1 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                    // 32px statt 16px, sonst ist er mit dem Finger nicht zu treffen.
+                    className="absolute right-1 top-1 inline-flex size-8 items-center justify-center rounded-full bg-card/90 text-destructive shadow-sm ring-1 ring-border transition-colors hover:bg-destructive hover:text-destructive-foreground"
                   >
                     <X className="size-4" />
                   </button>

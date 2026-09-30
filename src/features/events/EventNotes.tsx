@@ -327,12 +327,12 @@ export function EventNotes({
                 <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                   {formatDateTime(n.createdAt)} · {n.authorName}
                   {n.contactId && (
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                    <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-primary-ink">
                       {contactName(n.contactId)}
                     </span>
                   )}
                   {n.guestId && (
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                    <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-primary-ink">
                       Gast: {guestName(n.guestId)}
                     </span>
                   )}

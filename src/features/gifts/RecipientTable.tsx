@@ -227,7 +227,7 @@ export function RecipientTable({
                           </span>
                         )}
                         {isAddressMissing(r) && (
-                          <span className="rounded-full bg-status-amber/15 px-2 py-0.5 text-[11px] font-semibold text-status-amber">
+                          <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning-ink">
                             Adresse fehlt
                           </span>
                         )}

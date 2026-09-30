@@ -10,6 +10,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { FieldHint } from '@/components/ui/notice'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { formatDate } from '@/lib/format'
 
 /**
@@ -22,6 +24,7 @@ export function BoardPage() {
   const { toast } = useToast()
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
+  const hint = useMissingHint()
 
   const { data, loading, error, retry } = useRepoQuery(() => repository.listIntroRequests(), [])
   const requests = data ?? []
@@ -30,7 +33,7 @@ export function BoardPage() {
 
   const post = async () => {
     const t = text.trim()
-    if (!t) return
+    if (!hint.check(!t)) return
     setPosting(true)
     try {
       await repository.addIntroRequest({ text: t, createdById: user.id, createdByName: user.name })
@@ -50,7 +53,7 @@ export function BoardPage() {
       toast(saveErrorMessage(err))
       return
     }
-    toast('Danke! Der Kollege wird es im Board sehen.', 'success')
+    toast('Danke. Wer gefragt hat, sieht es im Board.', 'success')
     retry()
   }
 
@@ -83,8 +86,11 @@ export function BoardPage() {
             rows={2}
             placeholder="z. B. „Ich brauche einen Kontakt zum Einkauf in Region Ost — wer kennt dort jemanden?“"
           />
-          <div className="flex justify-end">
-            <Button size="sm" onClick={post} disabled={!text.trim() || posting}>
+          <div className="flex items-center justify-end gap-3">
+            {hint.tried && !text.trim() && (
+              <FieldHint className="mr-auto">Schreib zuerst, zu wem du einen Draht brauchst.</FieldHint>
+            )}
+            <Button size="sm" onClick={post} disabled={posting}>
               <Plus className="size-4" /> {posting ? 'Posten…' : 'Posten'}
             </Button>
           </div>
@@ -101,7 +107,7 @@ export function BoardPage() {
             </h2>
             {open.length === 0 && (
               <p className="px-1 text-sm text-muted-foreground">
-                Keine offenen Anfragen — alle Türen offen. 🚪
+                Keine offenen Anfragen. Brauchst du selbst einen Draht zu jemandem? Poste es oben.
               </p>
             )}
             {open.map((req) => (
@@ -118,7 +124,7 @@ export function BoardPage() {
                           type="button"
                           onClick={() => remove(req)}
                           aria-label="Anfrage löschen"
-                          className="text-muted-foreground hover:text-destructive"
+                          className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-destructive"
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -141,9 +147,10 @@ export function BoardPage() {
                 Erledigt ({resolved.length})
               </h2>
               {resolved.map((req) => (
-                <Card key={req.id} className="opacity-70">
+                <Card key={req.id}>
                   <CardContent className="space-y-2 pt-5 sm:pt-5">
-                    <p className="text-sm">{req.text}</p>
+                    {/* Erledigt: grauer Text statt durchscheinender Karte — die war schwer lesbar. */}
+                    <p className="text-sm text-muted-foreground">{req.text}</p>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs text-muted-foreground">
                         {req.createdByName} · {formatDate(req.createdAt)}

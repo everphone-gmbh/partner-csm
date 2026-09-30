@@ -233,7 +233,7 @@ describe('Timeline — Sprachmemo im Composer', () => {
     await user.click(screen.getByRole('button', { name: 'Sprachmemo' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'KI-Endpoint ist noch nicht freigeschaltet.',
+      'Die KI-Auswertung ist noch nicht eingerichtet.',
     )
     expect(screen.queryByRole('button', { name: 'Sprachmemo' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Fakten für die Karte vorschlagen' })).toBeNull()

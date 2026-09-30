@@ -89,7 +89,7 @@ export function LinkedInPicker({
           onClick={() => onChange(value)}
           aria-pressed={status === value}
           className={cn(
-            'inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors',
+            'inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs transition-colors',
             status === value
               ? 'bg-secondary font-medium text-foreground'
               : 'text-muted-foreground hover:bg-secondary/60',

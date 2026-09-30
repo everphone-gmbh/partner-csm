@@ -100,7 +100,7 @@ export function NetworkGraph({
   if (nodes.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Noch keine Verknüpfungen oder Kunden — der Graph wächst mit dem Netzwerk.
+        Noch keine Verknüpfungen oder Kunden. Trag sie in den Karten „Netzwerk“ und „Kunden“ ein, dann wächst der Graph.
       </p>
     )
   }

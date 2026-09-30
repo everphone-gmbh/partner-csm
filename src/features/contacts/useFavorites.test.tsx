@@ -63,7 +63,7 @@ describe('useFavorites', () => {
     expect(result.current.isFavorite('c-anke')).toBe(false)
     // Die Meldung der Datenbank wird übersetzt, nicht durchgereicht.
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Speichern fehlgeschlagen: Dafür fehlt dir die Berechtigung.',
+      'Speichern hat nicht geklappt: Dafür fehlt dir die Berechtigung.',
     )
     expect(await repo.listFavorites('u-alex')).toEqual([])
   })

@@ -123,16 +123,16 @@ export function GiftsPage() {
       <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Anlässe">
         {tabs.map((o) => (
           <TabButton key={o.id} active={!onBirthdayTab && o.id === selected?.id} onClick={() => selectTab(o.id)}>
-            {o.name} <span className="ml-1 tabular-nums opacity-70">{byOccasion.get(o.id)?.length ?? 0}</span>
+            {o.name} <span className="ml-1 font-normal tabular-nums">{byOccasion.get(o.id)?.length ?? 0}</span>
           </TabButton>
         ))}
         <TabButton active={onBirthdayTab} onClick={() => selectTab(BIRTHDAY_TAB)}>
-          Geburtstage <span className="ml-1 opacity-70">laufend</span>
+          Geburtstage <span className="ml-1 font-normal">laufend</span>
         </TabButton>
         <button
           type="button"
           onClick={() => setOccasionDialog({})}
-          className="rounded-full border border-dashed border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
+          className="inline-flex h-8 items-center rounded-full border border-dashed border-border px-3 text-xs text-muted-foreground hover:text-foreground"
         >
           + Anlass
         </button>
@@ -241,9 +241,10 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        'rounded-full border px-3 py-1 text-xs transition-colors',
+        'inline-flex h-8 items-center rounded-full border px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        // Wie die Filter überall: leises Magenta statt schwarzer Fläche.
         active
-          ? 'border-foreground bg-foreground font-semibold text-background'
+          ? 'border-transparent bg-primary-soft font-semibold text-primary-ink'
           : 'border-border bg-card text-muted-foreground hover:text-foreground',
       )}
     >

@@ -7,6 +7,9 @@ import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/confirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 
 /**
  * Selbstverwaltung der Vertriebsgebiete — nur für RM+ (in AccountPage über
@@ -25,6 +28,9 @@ import { Input } from '@/components/ui/input'
  */
 export function RegionManagementCard() {
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const createHint = useMissingHint()
+  const editHint = useMissingHint()
   const { data, loading, error, retry } = useRepoQuery(
     () => Promise.all([repository.listRegions(), repository.listContacts(), repository.listUsers()]),
     [],
@@ -52,7 +58,7 @@ export function RegionManagementCard() {
 
   const create = async () => {
     const name = newName.trim()
-    if (!name) return
+    if (!createHint.check(!name)) return
     setCreating(true)
     try {
       await repository.createRegion(name)
@@ -69,11 +75,12 @@ export function RegionManagementCard() {
   const startEdit = (id: string, name: string) => {
     setEditingId(id)
     setEditName(name)
+    editHint.reset()
   }
 
   const saveEdit = async (id: string) => {
     const name = editName.trim()
-    if (!name) return
+    if (!editHint.check(!name)) return
     setSavingId(id)
     try {
       await repository.renameRegion(id, name)
@@ -88,7 +95,14 @@ export function RegionManagementCard() {
   }
 
   const remove = async (id: string, name: string) => {
-    if (!window.confirm(`Region „${name}“ löschen?`)) return
+    const ok = await confirm({
+      title: `Region „${name}“ löschen?`,
+      message: 'Ihr sind keine Kontakte und keine Nutzer zugeordnet. Das Löschen lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Region löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     setSavingId(id)
     try {
       await repository.deleteRegion(id)
@@ -122,7 +136,7 @@ export function RegionManagementCard() {
         ) : (
           <ul className="divide-y divide-border">
             {regions.map((r) => (
-              <li key={r.id} className="flex items-center gap-2 py-2">
+              <li key={r.id} className="flex flex-wrap items-center gap-2 py-2">
                 <MapPin className="size-4 shrink-0 text-muted-foreground" />
                 {editingId === r.id ? (
                   <>
@@ -138,16 +152,15 @@ export function RegionManagementCard() {
                       }}
                       autoFocus
                     />
-                    <Button
-                      size="sm"
-                      onClick={() => saveEdit(r.id)}
-                      disabled={savingId === r.id || !editName.trim()}
-                    >
+                    <Button size="sm" onClick={() => saveEdit(r.id)} disabled={savingId === r.id}>
                       {savingId === r.id ? 'Speichern…' : 'Speichern'}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
                       Abbrechen
                     </Button>
+                    {editHint.tried && !editName.trim() && (
+                      <FieldHint className="basis-full pl-6">Gib einen Namen ein.</FieldHint>
+                    )}
                   </>
                 ) : (
                   <>
@@ -186,8 +199,9 @@ export function RegionManagementCard() {
           </ul>
         )}
 
-        <div className="flex items-center gap-2 border-t border-border pt-4">
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
           <Input
+            className="min-w-0 flex-1"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Neue Region, z. B. Südwest"
@@ -199,9 +213,12 @@ export function RegionManagementCard() {
               }
             }}
           />
-          <Button size="sm" onClick={create} disabled={creating || !newName.trim()}>
+          <Button size="sm" onClick={create} disabled={creating}>
             <Plus className="size-4" /> {creating ? 'Anlegen…' : 'Anlegen'}
           </Button>
+          {createHint.tried && !newName.trim() && (
+            <FieldHint className="basis-full">Gib einen Namen für die neue Region ein.</FieldHint>
+          )}
         </div>
       </CardContent>
     </Card>

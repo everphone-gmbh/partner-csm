@@ -81,19 +81,28 @@ export async function transcribeViaServer(audio: Blob): Promise<TranscribeResult
     // Nacktes „Failed to fetch" heißt meist: der Worker ist an einer zu großen
     // Aufnahme gestorben (die 500-Antwort des Routers trägt keine CORS-Header,
     // der Browser zeigt dann nur den Netzwerkfehler).
+    console.warn('[Sprachnotiz] Originaltext:', err)
     return {
       ok: false,
-      error: `Transkription fehlgeschlagen — bei langen Aufnahmen bitte in mehreren kürzeren Notizen einsprechen. (${String(err)})`,
+      error:
+        'Die Sprachnotiz ließ sich nicht umwandeln. Bei langen Aufnahmen hilft es, mehrere kürzere Notizen einzusprechen.',
     }
   }
-  if (!resp.ok) return { ok: false, error: `Transkription fehlgeschlagen (HTTP ${resp.status}).` }
+  if (!resp.ok) {
+    console.warn('[Sprachnotiz] HTTP', resp.status)
+    return { ok: false, error: 'Die Sprachnotiz ließ sich nicht umwandeln. Versuch es gleich noch einmal.' }
+  }
 
   const d = (await resp.json()) as { transcript?: string; error?: string } | null
   if (d?.error === 'not_configured') {
-    return { ok: false, notConfigured: true, error: 'KI-Endpoint ist noch nicht freigeschaltet.' }
+    return { ok: false, notConfigured: true, error: 'Die KI-Auswertung ist noch nicht eingerichtet.' }
   }
-  if (d?.error) return { ok: false, error: d.error }
-  if (!d?.transcript) return { ok: false, error: 'Leere Antwort vom KI-Endpoint.' }
+  if (d?.error) {
+    // Die Meldung der Function ist Technik (englisch) — nur für die Fehlersuche.
+    console.warn('[Sprachnotiz] Originaltext:', d.error)
+    return { ok: false, error: 'Die Sprachnotiz ließ sich nicht umwandeln. Versuch es gleich noch einmal.' }
+  }
+  if (!d?.transcript) return { ok: false, error: 'Die Sprachnotiz kam leer zurück. Sprich sie noch einmal ein.' }
   return { ok: true, transcript: d.transcript }
 }
 
@@ -132,15 +141,22 @@ export async function extractViaServer(
       body: JSON.stringify({ transcript, contactName }),
     })
   } catch (err) {
-    return { ok: false, error: `KI-Aufruf fehlgeschlagen: ${String(err)}` }
+    console.warn('[KI-Auswertung] Originaltext:', err)
+    return { ok: false, error: 'Die KI-Auswertung war nicht erreichbar. Prüf die Verbindung und versuch es noch einmal.' }
   }
-  if (!resp.ok) return { ok: false, error: `KI-Aufruf fehlgeschlagen (HTTP ${resp.status}).` }
+  if (!resp.ok) {
+    console.warn('[KI-Auswertung] HTTP', resp.status)
+    return { ok: false, error: 'Die KI-Auswertung hat nicht geklappt. Versuch es gleich noch einmal.' }
+  }
 
   const d = (await resp.json()) as { raw?: string; error?: string } | null
   if (d?.error === 'not_configured') {
-    return { ok: false, notConfigured: true, error: 'KI-Endpoint ist noch nicht freigeschaltet.' }
+    return { ok: false, notConfigured: true, error: 'Die KI-Auswertung ist noch nicht eingerichtet.' }
   }
-  if (d?.error) return { ok: false, error: d.error }
-  if (!d?.raw) return { ok: false, error: 'Leere Antwort vom KI-Endpoint.' }
+  if (d?.error) {
+    console.warn('[KI-Auswertung] Originaltext:', d.error)
+    return { ok: false, error: 'Die KI-Auswertung hat nicht geklappt. Versuch es gleich noch einmal.' }
+  }
+  if (!d?.raw) return { ok: false, error: 'Die KI-Auswertung kam leer zurück. Versuch es noch einmal.' }
   return { ok: true, raw: d.raw }
 }

@@ -28,8 +28,10 @@ const buttonVariants = cva(
   },
 )
 
+// ComponentProps<'button'> schließt `ref` ein (React 19 reicht es als normale
+// Prop durch) — die Rückfrage setzt so den Fokus auf „Abbrechen".
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends React.ComponentProps<'button'>,
     VariantProps<typeof buttonVariants> {}
 
 export function Button({ className, variant, size, ...props }: ButtonProps) {

@@ -378,7 +378,7 @@ export function MonitoringPage() {
 const KPI_TONE: Record<'neutral' | 'good' | 'ok' | 'bad', string> = {
   neutral: 'text-foreground',
   good: 'text-status-green',
-  ok: 'text-status-amber',
+  ok: 'text-warning-ink',
   bad: 'text-status-red',
 }
 

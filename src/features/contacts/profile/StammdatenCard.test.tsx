@@ -69,7 +69,7 @@ describe('StammdatenCard — neue Felder & Social-Links-Editor', () => {
     // Der Social-Links-Editor rendert (das war der bislang nicht visuell
     // bestätigte Teil) und startet leer.
     expect(screen.getByText('Social-Media-Links')).toBeInTheDocument()
-    expect(screen.getByText('Noch keine Links.')).toBeInTheDocument()
+    expect(screen.getByText(/^Noch keine Links\./)).toBeInTheDocument()
 
     // Skalare über eindeutige Platzhalter füllen.
     await user.type(screen.getByPlaceholderText('+49 30 000000-123'), '+49 30 111-222')
@@ -230,8 +230,11 @@ describe('StammdatenCard — mehrere Regionen', () => {
     await user.click(screen.getByRole('button', { name: /bearbeiten/i }))
 
     // Ein Kontakt ohne Gebiet wäre für jeden Account Manager unsichtbar, und die
-    // Datenbank lehnt es ohnehin ab — die Oberfläche bietet es gar nicht erst an.
-    expect(screen.getByRole('button', { name: /Region Public Süd\/Südwest entfernen/ })).toBeDisabled()
+    // Datenbank lehnt es ohnehin ab. Der Knopf bleibt klickbar und erklärt das —
+    // ein gesperrter Knopf mit Tooltip verriet es auf dem Tablet nicht.
+    await user.click(screen.getByRole('button', { name: /Region Public Süd\/Südwest entfernen/ }))
+    expect(screen.getByText(/Mindestens eine Region muss bleiben/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Region Public Süd\/Südwest entfernen/ })).toBeInTheDocument()
   })
 
   it('bietet eine bereits zugeordnete Region nicht noch einmal an', async () => {

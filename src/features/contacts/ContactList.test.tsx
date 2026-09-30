@@ -183,7 +183,7 @@ describe('ContactList — Favoriten', () => {
 
     // Frisches Repository: noch keine Sterne.
     expect(await screen.findByText(/0 von 8 Kontakten/)).toBeInTheDocument()
-    expect(screen.getByText('Keine Kontakte gefunden.')).toBeInTheDocument()
+    expect(screen.getByText(/^Keine Kontakte gefunden\./)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Filter „Favoriten“ entfernen' }))
     expect(await screen.findByText(/8 von 8 Kontakten/)).toBeInTheDocument()

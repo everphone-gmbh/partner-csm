@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { repository } from '@/data/repositoryProvider'
+import { loadErrorMessage } from '@/lib/errorText'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
 
 export interface Favorites {
@@ -47,9 +48,7 @@ export function useFavorites(userId: string): Favorites {
         // Lesefehler (z. B. Tabelle noch nicht angelegt) sollen die Liste nicht
         // blockieren: Sterne bleiben leer, der Rest der Seite funktioniert.
         setLoading(false)
-        toast(
-          `Favoriten konnten nicht geladen werden: ${err instanceof Error ? err.message : String(err)}`,
-        )
+        toast(`Favoriten konnten nicht geladen werden. ${loadErrorMessage(err)}`)
       },
     )
     return () => {

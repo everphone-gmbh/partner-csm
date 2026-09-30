@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { FieldHint } from '@/components/ui/notice'
+import { useMissingHint } from '@/lib/useMissingHint'
 import type { ExtractionSuggestion, ExtractionTarget } from './extraction'
 
 const TARGET_LABEL: Record<ExtractionTarget, string> = {
@@ -51,10 +53,11 @@ export function SuggestionReview({
   result?: ApplyResult | null
   children?: ReactNode
 }) {
+  const hint = useMissingHint()
   if (result) {
     return (
       <div className="space-y-2 text-sm">
-        <p className="font-medium text-status-green">{result.applied} Fakt(en) übernommen.</p>
+        <p className="font-medium text-success-ink">{result.applied} Fakt(en) übernommen.</p>
         {result.skipped.length > 0 && (
           <div className="text-muted-foreground">
             <p>Übersprungen:</p>
@@ -89,7 +92,9 @@ export function SuggestionReview({
         </span>
       </p>
       {suggestions.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Keine belegbaren Fakten gefunden.</p>
+        <p className="text-sm text-muted-foreground">
+          Keine belegbaren Fakten gefunden. Im Transkript steht vermutlich noch nichts, was auf die Karte gehört.
+        </p>
       ) : (
         <ul className="space-y-2">
           {suggestions.map((s) => (
@@ -113,10 +118,10 @@ export function SuggestionReview({
                   )}
                 </div>
                 {s.evidence && (
-                  <p className="text-xs italic text-muted-foreground">„{s.evidence}"</p>
+                  <p className="text-xs italic text-muted-foreground">„{s.evidence}“</p>
                 )}
                 {s.blocked && (
-                  <p className="flex items-center gap-1 text-xs text-destructive">
+                  <p className="flex items-center gap-1 text-xs text-danger-ink">
                     <ShieldAlert className="size-3.5" /> Art. 9 ({s.blockReason}) — nicht übernehmbar
                   </p>
                 )}
@@ -128,10 +133,17 @@ export function SuggestionReview({
       {(suggestions.length > 0 || children) && (
         <div className="flex flex-wrap items-center gap-3">
           {suggestions.length > 0 && (
-            <Button size="sm" onClick={onApply} disabled={applying || approvedCount === 0}>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (hint.check(approvedCount === 0)) onApply()
+              }}
+              disabled={applying}
+            >
               {applying ? 'Übernehme…' : `Übernehmen (${approvedCount})`}
             </Button>
           )}
+          {hint.tried && approvedCount === 0 && <FieldHint>Hak mindestens einen Vorschlag an.</FieldHint>}
           {children}
         </div>
       )}

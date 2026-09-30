@@ -102,7 +102,7 @@ export function CommandPaletteDialog({ open, onClose }: { open: boolean; onClose
                   onMouseEnter={() => setActiveIndex(i)}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors',
-                    i === activeIndex ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-secondary',
+                    i === activeIndex ? 'bg-primary-soft text-primary-ink' : 'text-foreground hover:bg-secondary',
                   )}
                 >
                   {item.type === 'contact' ? (

@@ -39,7 +39,7 @@ export function BackLink({
 export function LockedNote() {
   return (
     <p className="inline-flex items-center gap-1.5 text-sm italic text-muted-foreground">
-      <Lock className="size-3.5" /> Für Ihre Rolle ausgeblendet
+      <Lock className="size-3.5" /> Für deine Rolle ausgeblendet
     </p>
   )
 }
@@ -83,7 +83,7 @@ export function FieldRow({
         <div className="text-xs text-muted-foreground">{label}</div>
         {locked ? (
           <div className="inline-flex items-center gap-1.5 text-sm italic text-muted-foreground">
-            <Lock className="size-3.5" /> Für Ihre Rolle ausgeblendet
+            <Lock className="size-3.5" /> Für deine Rolle ausgeblendet
           </div>
         ) : (
           <div className="break-words text-sm text-foreground">{children}</div>

@@ -8,6 +8,7 @@ import { useSession } from '@/app/SessionContext'
 import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm'
 import { UnsavedChangesScope } from '@/app/UnsavedChangesScope'
 import { GeschenkeCard } from './profile/GeschenkeCard'
 import { contactRegionIds } from '@/domain/contactRegions'
@@ -44,6 +45,7 @@ export function ContactProfile() {
   const navigate = useNavigate()
   const { user } = useSession()
   const { toast } = useToast()
+  const confirm = useConfirm()
   const [raw, setRaw] = useState<Contact | undefined>(undefined)
   // Firma-/Team-Vorschläge für die Stammdaten-Bearbeitung; die Karte selbst
   // bleibt wie regions/users rein über Props versorgt.
@@ -152,9 +154,14 @@ export function ContactProfile() {
   // existierte also NUR hier in der Oberfläche und war über die API umgehbar.
   const erase = async () => {
     if (!raw) return
-    const sure = window.confirm(
-      `„${raw.fullName}“ und ALLE zugehörigen Daten (Aktivitäten, Fotos, Reminder) unwiderruflich löschen?`,
-    )
+    const sure = await confirm({
+      title: `„${raw.fullName}“ endgültig löschen?`,
+      message:
+        'Mit dem Kontakt verschwinden alle zugehörigen Daten: Aktivitäten, Fotos, Reminder und Geschenke. Das lässt sich nicht rückgängig machen. Ist es eine Dublette, führ die beiden besser zusammen.',
+      confirmLabel: 'Endgültig löschen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
     if (!sure) return
     try {
       await repository.deleteContact(raw.id)
@@ -241,12 +248,13 @@ export function ContactProfile() {
         onSavePhoto={savePhoto}
       />
 
-      {/* AI summary — pinned prominently at the top */}
-      <Card className="border-primary/30 bg-primary/5">
+      {/* AI summary — pinned prominently at the top; ruhig statt Magenta-Fläche,
+          die bleibt der Hauptaktion vorbehalten. */}
+      <Card>
         <CardContent className="flex gap-3 pt-5 sm:pt-5">
-          <Sparkles className="size-5 shrink-0 text-primary" />
+          <Sparkles className="size-5 shrink-0 text-muted-foreground" />
           <div className="space-y-1">
-            <div className="text-xs font-medium uppercase tracking-wide text-primary">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               KI-Zusammenfassung
             </div>
             <p className="text-sm text-foreground">{aiIntro}</p>

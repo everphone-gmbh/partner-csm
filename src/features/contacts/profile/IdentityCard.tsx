@@ -19,6 +19,7 @@ import { BUYING_ROLE_LABEL, BUYING_ROLE_VARIANT } from '@/domain/buyingCenter'
 import { LinkedInField, LinkedInPicker } from '@/components/LinkedInField'
 import { safeLinkedInUrl } from '@/domain/urls'
 import { formatDate } from '@/lib/format'
+import { useConfirm } from '@/components/ui/confirm'
 
 function LinkedInLogo({ className }: { className?: string }) {
   return (
@@ -77,6 +78,7 @@ export function IdentityCard({
   /** Eigener Speicherweg fürs Foto — `null` entfernt es. */
   onSavePhoto: (photoUrl: string | null) => Promise<void>
 }) {
+  const confirm = useConfirm()
   const rateSentiment = (value: TrafficLight) => {
     const history: SentimentEntry[] = [
       ...(contact.sentimentHistory ?? []),
@@ -105,9 +107,14 @@ export function IdentityCard({
   const removePhoto = async () => {
     const previous = contact.photoUrl
     if (!previous) return
-    if (!window.confirm(`Foto von ${contact.fullName} entfernen? Die Bilddatei wird gelöscht.`)) {
-      return
-    }
+    const ok = await confirm({
+      title: `Foto von ${contact.fullName} entfernen?`,
+      message: 'Die Bilddatei wird gelöscht. Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Foto entfernen',
+      cancelLabel: 'Behalten',
+      tone: 'danger',
+    })
+    if (!ok) return
     await onSavePhoto(null)
     await fileStore.remove(previous).catch(() => undefined)
   }
@@ -120,11 +127,12 @@ export function IdentityCard({
   const closeLightbox = useCallback(() => setLightboxOpen(false), [])
 
   return (
+    // Ohne Farbverlauf-Band (bis 09/26): Schmuck in Magenta konkurrierte mit den
+    // Aktionen oben; der Kopf ist jetzt eine ruhige Karte wie alle anderen.
     <Card className="overflow-hidden">
-      <div className="h-20 bg-gradient-to-r from-primary via-primary to-teal/70" />
-      <CardContent className="pt-0">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-          <div className="relative -mt-10 w-fit">
+      <CardContent className="pt-5 sm:pt-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div className="relative w-fit">
             <EditableAvatar
               src={contact.photoUrl}
               name={contact.fullName}
@@ -132,7 +140,7 @@ export function IdentityCard({
               editable={canEditPhoto}
               onChange={replacePhoto}
               onRemove={removePhoto}
-              className="rounded-full ring-4 ring-card"
+              className="rounded-full"
             />
             {photoUrl && (
               <button

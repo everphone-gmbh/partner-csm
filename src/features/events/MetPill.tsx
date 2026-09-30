@@ -21,9 +21,9 @@ export function MetPill({
 
   const view =
     status === 'attended'
-      ? { label: 'Getroffen', icon: Check, cls: 'bg-status-green/15 text-status-green' }
+      ? { label: 'Getroffen', icon: Check, cls: 'bg-success-soft text-success-ink' }
       : status === 'no_show'
-        ? { label: 'Nicht erschienen', icon: X, cls: 'bg-status-red/15 text-status-red' }
+        ? { label: 'Nicht erschienen', icon: X, cls: 'bg-danger-soft text-danger-ink' }
         : { label: 'Getroffen?', icon: CircleDashed, cls: 'bg-secondary text-muted-foreground' }
 
   const Icon = view.icon

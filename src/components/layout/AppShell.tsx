@@ -136,7 +136,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
   return cn(
     'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
     isActive
-      ? 'bg-primary/10 text-primary'
+      ? 'bg-primary-soft text-primary-ink'
       : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]',
   )
 }

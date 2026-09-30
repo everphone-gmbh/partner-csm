@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Target } from 'lucide-react'
 import type { Activity, Contact, OrgUnit } from '@/domain/types'
 import { repository } from '@/data/repositoryProvider'
 import { useSession } from '@/app/SessionContext'
@@ -9,6 +8,7 @@ import { useRepoQuery } from '@/app/useRepoQuery'
 import { QueryError } from '@/components/QueryError'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { FilterChip } from '@/components/ui/chip'
 import {
   buildCoverage,
   COVERAGE_HINT,
@@ -74,9 +74,7 @@ export function CoveragePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Target className="size-5 text-muted-foreground" /> Abdeckung
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Abdeckung</h1>
         <p className="text-sm text-muted-foreground">
           Zu welchen Einheiten unserer Partner besteht eine echte Beziehung — und zu welchen nicht?
         </p>
@@ -101,21 +99,11 @@ export function CoveragePage() {
         />
       </div>
 
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1.5">
         {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => setFilter(f.value)}
-            className={cn(
-              'rounded-full border px-2.5 py-0.5 text-xs transition-colors',
-              filter === f.value
-                ? 'border-transparent bg-primary text-primary-foreground'
-                : 'border-border text-muted-foreground hover:text-foreground',
-            )}
-          >
+          <FilterChip key={f.value} active={filter === f.value} onClick={() => setFilter(f.value)}>
             {f.label}
-          </button>
+          </FilterChip>
         ))}
       </div>
 
@@ -200,7 +188,7 @@ function Kpi({
           className={cn(
             'text-2xl font-semibold tracking-tight',
             tone === 'bad' && 'text-destructive',
-            tone === 'warn' && 'text-status-amber',
+            tone === 'warn' && 'text-warning-ink',
             tone === 'good' && 'text-status-green',
           )}
         >

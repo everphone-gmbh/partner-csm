@@ -13,6 +13,7 @@ import { CommandPaletteProvider } from '@/app/CommandPaletteContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ToastProvider } from '@/components/ui/toast'
+import { ConfirmProvider } from '@/components/ui/confirm'
 import { Dashboard } from '@/features/dashboard/Dashboard'
 import { ContactList } from '@/features/contacts/ContactList'
 import { ContactProfile } from '@/features/contacts/ContactProfile'
@@ -73,18 +74,20 @@ function RootLayout() {
   const location = useLocation()
   return (
     <ToastProvider>
-      <CommandPaletteProvider>
-        <AppShell>
-          {/* Keyed by path: navigating away from a crashed screen resets the boundary. */}
-          <ErrorBoundary key={location.pathname}>
-            <Suspense
-              fallback={<p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>}
-            >
-              <Outlet />
-            </Suspense>
-          </ErrorBoundary>
-        </AppShell>
-      </CommandPaletteProvider>
+      <ConfirmProvider>
+        <CommandPaletteProvider>
+          <AppShell>
+            {/* Keyed by path: navigating away from a crashed screen resets the boundary. */}
+            <ErrorBoundary key={location.pathname}>
+              <Suspense
+                fallback={<p className="py-10 text-center text-sm text-muted-foreground">Lädt…</p>}
+              >
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
+          </AppShell>
+        </CommandPaletteProvider>
+      </ConfirmProvider>
     </ToastProvider>
   )
 }

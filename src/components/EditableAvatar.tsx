@@ -3,6 +3,7 @@ import { Camera, Trash2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { fileToResizedBlob } from '@/lib/image'
 import { fileStore } from '@/lib/fileStore'
+import { knownErrorText } from '@/lib/errorText'
 import { cn } from '@/lib/utils'
 
 /** Avatar with a camera/upload affordance. On mobile, opens the rear camera.
@@ -54,7 +55,7 @@ export function EditableAvatar({
       // Warten wäre der Knopf schon wieder aktiv, während beides noch läuft.
       await onChange(await fileStore.upload('contact-avatars', folder, blob))
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'Foto konnte nicht gespeichert werden')
+      onError?.(`Das Foto konnte nicht gespeichert werden. ${knownErrorText(err) ?? 'Versuch es noch einmal.'}`)
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''
@@ -67,7 +68,7 @@ export function EditableAvatar({
     try {
       await onRemove()
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'Foto konnte nicht entfernt werden')
+      onError?.(`Das Foto konnte nicht entfernt werden. ${knownErrorText(err) ?? 'Versuch es noch einmal.'}`)
     } finally {
       setBusy(false)
     }
@@ -83,7 +84,7 @@ export function EditableAvatar({
         aria-label="Foto aufnehmen oder hochladen"
         // z-10: sits above an optional photo-zoom overlay placed on the avatar
         // by callers (IdentityCard), so the camera stays clickable.
-        className="absolute -bottom-1 -right-1 z-10 flex size-7 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
+        className="absolute -bottom-1.5 -right-1.5 z-10 flex size-8 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
       >
         <Camera className="size-3.5" />
       </button>
@@ -96,7 +97,7 @@ export function EditableAvatar({
           title="Foto entfernen"
           // Dauerhaft sichtbar, nicht erst beim Überfahren: auf Tablet und Handy
           // gibt es kein Hover, dort wäre der Knopf sonst unauffindbar.
-          className="absolute -right-1 -top-1 z-10 flex size-7 items-center justify-center rounded-full border-2 border-background bg-card text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:opacity-60"
+          className="absolute -right-1.5 -top-1.5 z-10 flex size-8 items-center justify-center rounded-full border-2 border-background bg-card text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:opacity-60"
         >
           <Trash2 className="size-3.5" />
         </button>

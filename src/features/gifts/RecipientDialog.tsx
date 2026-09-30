@@ -362,7 +362,7 @@ export function RecipientDialog({
                 key={s.id}
                 className={cn(
                   'inline-flex items-center gap-1 rounded-full py-1 pl-2.5 pr-1 text-xs',
-                  s.isCLevel ? 'bg-primary/10 font-semibold text-primary' : 'bg-secondary',
+                  s.isCLevel ? 'bg-primary-soft font-semibold text-primary-ink' : 'bg-secondary',
                 )}
               >
                 {s.name}

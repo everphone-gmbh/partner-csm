@@ -236,8 +236,8 @@ export function GiftImportPage() {
         <BackToGifts />
         <Card>
           <CardContent className="space-y-3 pt-5 sm:pt-5">
-            <div className="flex items-center gap-2 text-status-green">
-              <CheckCircle2 className="size-5" />
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="size-5 text-status-green" />
               <h1 className="text-lg font-semibold">{result.total} Empfänger importiert</h1>
             </div>
             <ul className="space-y-1 text-sm">

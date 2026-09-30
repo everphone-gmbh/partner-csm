@@ -22,15 +22,21 @@ export class ErrorBoundary extends Component<Props, State> {
     return { error }
   }
 
+  componentDidCatch(error: Error) {
+    // Der Originaltext hilft nur der Fehlersuche — auf dem Bildschirm steht ein
+    // Satz, mit dem man etwas anfangen kann.
+    console.error('[Seite abgestürzt]', error)
+  }
+
   render() {
     if (this.state.error) {
       return (
         <div className="flex flex-col items-center gap-3 py-16 text-center">
           <TriangleAlert className="size-6 text-destructive" />
           <div>
-            <p className="text-sm font-medium">Hier ist etwas schiefgelaufen.</p>
+            <p className="text-sm font-medium">Diese Seite ist abgestürzt.</p>
             <p className="mt-0.5 max-w-md text-xs text-muted-foreground">
-              {this.state.error.message}
+              Lade sie neu. Klappt es wieder nicht, melde dich bei Jannik Heeland.
             </p>
           </div>
           <Button size="sm" variant="outline" onClick={() => this.setState({ error: null })}>

@@ -85,7 +85,7 @@ export function BirthdayCalendar({
               className={cn(
                 'relative mx-auto flex size-8 items-center justify-center rounded-full text-xs tabular-nums transition-colors',
                 marked
-                  ? 'bg-primary/10 font-semibold text-primary hover:bg-primary/20'
+                  ? 'bg-primary-soft font-semibold text-primary-ink hover:bg-primary/20'
                   : 'text-foreground/70',
                 isToday(day) && 'ring-1 ring-primary/50',
               )}

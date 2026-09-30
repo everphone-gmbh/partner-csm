@@ -46,10 +46,10 @@ const FILTERS: { value: TimelineFilter; label: string }[] = [
 
 /** Coloured type-chip per history kind, using the app's own tokens. */
 const TYPE_CHIP_CLASS: Record<ActivityType | 'sentiment', string> = {
-  note: 'bg-primary/10 text-primary',
-  call: 'bg-status-green/15 text-status-green',
+  note: 'bg-primary-soft text-primary-ink',
+  call: 'bg-success-soft text-success-ink',
   email: 'bg-accent text-accent-foreground',
-  meeting: 'bg-teal/15 text-teal',
+  meeting: 'bg-info-soft text-info-ink',
   social: 'bg-secondary text-secondary-foreground',
   sentiment: 'bg-secondary text-secondary-foreground',
 }
@@ -175,8 +175,9 @@ export function Timeline({
                 aria-current={active ? 'true' : undefined}
                 className={cn(
                   'inline-flex min-h-9 flex-none items-center whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  // Leise Auswahl: gefülltes Magenta gehört dem Speichern-Knopf.
                   active
-                    ? 'border-transparent bg-primary text-primary-foreground'
+                    ? 'border-transparent bg-primary-soft font-medium text-primary-ink'
                     : 'border-border text-muted-foreground hover:text-foreground',
                 )}
               >
@@ -302,7 +303,7 @@ function AddActivityForm({
   })
 
   const notConfigured = () => {
-    toast('KI-Endpoint ist noch nicht freigeschaltet.')
+    toast('Die KI-Auswertung ist noch nicht eingerichtet.')
     setEndpointMissing(true)
   }
 
@@ -630,7 +631,7 @@ function MiniAvatar({ name }: { name?: string }) {
     <span
       title={name}
       aria-label={`Erfasst von ${name}`}
-      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary"
+      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary-ink"
     >
       {initials}
     </span>

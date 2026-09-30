@@ -19,6 +19,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { saveErrorMessage, useToast } from '@/components/ui/toast'
+import { FieldHint, Notice } from '@/components/ui/notice'
+import { knownErrorText } from '@/lib/errorText'
 
 const selectCls =
   'h-10 w-full rounded-[10px] border border-transparent bg-secondary px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -40,6 +42,8 @@ export function ContactImportPage() {
   const [importing, setImporting] = useState(false)
   const [importedCount, setImportedCount] = useState(0)
   const [importFailures, setImportFailures] = useState<{ name: string; reason: string }[]>([])
+  // Welcher Schritt gerade sagt, was fehlt — die Knöpfe bleiben klickbar.
+  const [hint, setHint] = useState<'paste' | 'map' | 'preview' | null>(null)
   const { toast } = useToast()
 
   const parsed = useMemo(() => parseCsv(csvText), [csvText])
@@ -58,7 +62,11 @@ export function ContactImportPage() {
   }
 
   const startMapping = async () => {
-    if (parsed.headers.length === 0 || parsed.rows.length === 0) return
+    if (parsed.headers.length === 0 || parsed.rows.length === 0) {
+      setHint('paste')
+      return
+    }
+    setHint(null)
     try {
       await loadRefData()
     } catch (err) {
@@ -109,7 +117,7 @@ export function ContactImportPage() {
       } catch (err) {
         failures.push({
           name: contact.fullName,
-          reason: err instanceof Error ? err.message : String(err),
+          reason: knownErrorText(err) ?? 'Speichern hat nicht geklappt.',
         })
       }
     }
@@ -125,9 +133,7 @@ export function ContactImportPage() {
         <Link to="/contacts" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> Alle Kontakte
         </Link>
-        <p className="text-sm text-muted-foreground">
-          Für Ihre Rolle ist der Kontakt-Import nicht freigegeben.
-        </p>
+        <Notice tone="info">Für deine Rolle ist der Kontakt-Import nicht freigegeben.</Notice>
       </div>
     )
   }
@@ -162,15 +168,23 @@ export function ContactImportPage() {
             </label>
             <Textarea
               value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
+              onChange={(e) => {
+                setCsvText(e.target.value)
+                setHint(null)
+              }}
               rows={10}
               placeholder={'Name,E-Mail,Funktion\nAnke Richter,anke@example.de,Einkauf\n…'}
               className="font-mono text-xs"
             />
-            <div className="flex justify-end">
-              <Button onClick={startMapping} disabled={!csvText.trim()}>
-                Weiter
-              </Button>
+            <div className="flex items-center justify-end gap-3">
+              {hint === 'paste' && (
+                <FieldHint className="mr-auto">
+                  {csvText.trim()
+                    ? 'Keine Kontakte erkannt. Die erste Zeile braucht Spaltennamen, darunter je Zeile ein Kontakt.'
+                    : 'Füg zuerst die CSV-Daten ein oder wähle eine Datei.'}
+                </FieldHint>
+              )}
+              <Button onClick={startMapping}>Weiter</Button>
             </div>
           </CardContent>
         </Card>
@@ -183,7 +197,7 @@ export function ContactImportPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {parsed.rows.length} Zeilen erkannt. Zuordnung wurde automatisch vorgeschlagen — bitte prüfen.
+              {parsed.rows.length} Zeilen erkannt. Die Zuordnung ist ein Vorschlag — prüf sie kurz.
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {IMPORTABLE_FIELDS.map((f) => (
@@ -234,16 +248,23 @@ export function ContactImportPage() {
                 </select>
               </div>
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-center justify-between gap-3">
               <Button variant="ghost" onClick={() => setStep('paste')}>
                 Zurück
               </Button>
+              {hint === 'map' && !mapping.fullName && (
+                <FieldHint className="ml-auto">Ordne eine Spalte für den Namen zu.</FieldHint>
+              )}
               <Button
                 onClick={() => {
+                  if (!mapping.fullName) {
+                    setHint('map')
+                    return
+                  }
+                  setHint(null)
                   setSkipped(new Set()) // mapping may have changed → old skips are stale
                   setStep('preview')
                 }}
-                disabled={!mapping.fullName}
               >
                 Vorschau
               </Button>
@@ -265,12 +286,9 @@ export function ContactImportPage() {
               {duplicates.size > 0 && ` · ${duplicates.size} mögliche Duplikate`}
             </p>
             {warnings.map((w) => (
-              <div
-                key={`warn-${w.rowIndex}`}
-                className="rounded-md border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-900"
-              >
+              <Notice key={`warn-${w.rowIndex}`} tone="warning">
                 Zeile {w.rowIndex + 1}: {w.reason}
-              </div>
+              </Notice>
             ))}
             <div className="max-h-96 space-y-1.5 overflow-y-auto">
               {results.map(({ rowIndex, contact }) => {
@@ -288,7 +306,8 @@ export function ContactImportPage() {
                       className="size-4 accent-primary"
                       aria-label="Importieren"
                     />
-                    <div className={`min-w-0 flex-1 ${isSkipped ? 'opacity-50' : ''}`}>
+                    {/* Übersprungen: grau statt durchscheinend — bleibt lesbar. */}
+                    <div className={`min-w-0 flex-1 ${isSkipped ? 'text-muted-foreground' : ''}`}>
                       <div className="truncate text-sm font-medium">{contact.fullName}</div>
                       <div className="truncate text-xs text-muted-foreground">
                         {contact.position || '—'} {contact.email ? `· ${contact.email}` : ''}
@@ -304,19 +323,29 @@ export function ContactImportPage() {
                 )
               })}
               {errors.map((e) => (
-                <div
-                  key={`err-${e.rowIndex}`}
-                  className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-                >
+                <Notice key={`err-${e.rowIndex}`} tone="error">
                   Zeile {e.rowIndex + 1}: {e.reason}
-                </div>
+                </Notice>
               ))}
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-center justify-between gap-3">
               <Button variant="ghost" onClick={() => setStep('map')}>
                 Zurück
               </Button>
-              <Button onClick={runImport} disabled={importing || results.length - skipped.size <= 0}>
+              {hint === 'preview' && results.length - skipped.size <= 0 && (
+                <FieldHint className="ml-auto">Wähle mindestens eine Zeile zum Importieren.</FieldHint>
+              )}
+              <Button
+                onClick={() => {
+                  if (results.length - skipped.size <= 0) {
+                    setHint('preview')
+                    return
+                  }
+                  setHint(null)
+                  void runImport()
+                }}
+                disabled={importing}
+              >
                 {importing
                   ? 'Importiere…'
                   : `${results.length - skipped.size} Kontakte importieren`}
@@ -333,20 +362,19 @@ export function ContactImportPage() {
               {importedCount} Kontakt{importedCount === 1 ? '' : 'e'} erfolgreich importiert.
             </p>
             {importFailures.length > 0 && (
-              <div className="space-y-1.5 text-left">
-                <p className="text-sm font-medium text-destructive">
-                  {importFailures.length} Zeile{importFailures.length === 1 ? '' : 'n'} fehlgeschlagen
-                  — bitte prüfen und ggf. nur diese erneut importieren:
+              <Notice tone="error" className="text-left">
+                <p className="font-medium">
+                  {importFailures.length} Zeile{importFailures.length === 1 ? '' : 'n'} nicht importiert.
+                  Prüf sie und importiere nur diese noch einmal:
                 </p>
-                {importFailures.map((f, i) => (
-                  <div
-                    key={i}
-                    className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-                  >
-                    {f.name}: {f.reason}
-                  </div>
-                ))}
-              </div>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                  {importFailures.map((f, i) => (
+                    <li key={i}>
+                      {f.name}: {f.reason}
+                    </li>
+                  ))}
+                </ul>
+              </Notice>
             )}
             <Button onClick={() => navigate('/contacts')}>Zu den Kontakten</Button>
           </CardContent>

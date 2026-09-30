@@ -195,7 +195,7 @@ function ProductGrid({
           </div>
         ) : (
           <div key={p.id} className="group flex items-start gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-lg" aria-hidden>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-lg" aria-hidden>
               {p.emoji || '🎁'}
             </span>
             <div className="min-w-0 flex-1">

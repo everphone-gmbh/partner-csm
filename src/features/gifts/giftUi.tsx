@@ -3,12 +3,12 @@ import { GIFT_STATUSES } from '@/domain/types'
 import { GIFT_STATUS_LABEL, sortSenders } from '@/domain/gifts'
 import { cn } from '@/lib/utils'
 
-/** Farben der Status-Pillen wie im Mockup: grau · bernstein · teal · grün. */
+/** Farben der Status-Pillen: grau · bernstein · teal · grün — helle Fläche, dunkle Schrift. */
 export const GIFT_STATUS_CLASS: Record<GiftStatus, string> = {
-  geplant: 'bg-secondary text-muted-foreground',
-  bestellt: 'bg-status-amber/15 text-status-amber',
-  versandt: 'bg-teal/15 text-teal',
-  zugestellt: 'bg-status-green/15 text-status-green',
+  geplant: 'bg-neutral-soft text-neutral-ink',
+  bestellt: 'bg-warning-soft text-warning-ink',
+  versandt: 'bg-info-soft text-info-ink',
+  zugestellt: 'bg-success-soft text-success-ink',
 }
 
 /** Balkenfarben des Trichters, gleiche Reihenfolge. */
@@ -79,7 +79,7 @@ export function SenderChips({ ids, senders }: { ids: string[]; senders: GiftSend
           key={s.id}
           className={cn(
             'whitespace-nowrap rounded-full px-2 py-0.5 text-[11.5px]',
-            s.isCLevel ? 'bg-primary/10 font-semibold text-primary' : 'bg-secondary text-foreground',
+            s.isCLevel ? 'bg-primary-soft font-semibold text-primary-ink' : 'bg-secondary text-foreground',
           )}
         >
           {s.name}

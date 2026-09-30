@@ -311,7 +311,7 @@ type StatTone = 'neutral' | 'good' | 'ok' | 'bad'
 const TONE_VALUE: Record<StatTone, string> = {
   neutral: 'text-foreground',
   good: 'text-status-green',
-  ok: 'text-status-amber',
+  ok: 'text-warning-ink',
   bad: 'text-status-red',
 }
 const TONE_BAR: Record<StatTone, string> = {
@@ -323,11 +323,11 @@ const TONE_BAR: Record<StatTone, string> = {
 /** Icon chip tint: performance tones color it too; otherwise brand/warm/neutral. */
 const CHIP_CLS: Record<StatTone | 'brand' | 'warm', string> = {
   neutral: 'bg-secondary text-muted-foreground',
-  good: 'bg-status-green/12 text-status-green',
-  ok: 'bg-status-amber/15 text-status-amber',
-  bad: 'bg-status-red/12 text-status-red',
-  brand: 'bg-primary/10 text-primary',
-  warm: 'bg-status-amber/15 text-status-amber',
+  good: 'bg-success-soft text-success-ink',
+  ok: 'bg-warning-soft text-warning-ink',
+  bad: 'bg-danger-soft text-danger-ink',
+  brand: 'bg-primary-soft text-primary-ink',
+  warm: 'bg-warning-soft text-warning-ink',
 }
 
 function StatCard({

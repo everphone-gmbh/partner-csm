@@ -80,7 +80,7 @@ export function FactsCard({
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Keine hinterlegt.</p>
+              <p className="text-sm text-muted-foreground">Noch keine Anknüpfungspunkte.</p>
             )}
             {canEdit && (
               <div className="flex gap-2">

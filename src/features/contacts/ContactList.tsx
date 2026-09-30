@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, HelpCircle, List as ListIcon, Map as MapIcon, Network, Plus, Search, Upload, X } from 'lucide-react'
 import type { Activity, AppUser, Contact, LinkedInStatus, Region } from '@/domain/types'
@@ -20,6 +20,10 @@ import { useFavorites } from './useFavorites'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { FilterChip, Segmented } from '@/components/ui/chip'
+import { FieldHint } from '@/components/ui/notice'
+import { useConfirm } from '@/components/ui/confirm'
+import { useMissingHint } from '@/lib/useMissingHint'
 import { AttentionBadge } from '@/components/AttentionBadge'
 import { TrafficLightDot, TRAFFIC_LABEL } from '@/components/TrafficLight'
 import { cn } from '@/lib/utils'
@@ -29,7 +33,11 @@ type SortMode = 'name' | 'stale'
 
 /** Gleiche Optik wie die vorhandenen Filter-Auswahlfelder. */
 const SELECT_CLS =
-  'h-8 max-w-52 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  'h-9 max-w-52 rounded-[10px] border border-transparent bg-secondary px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
+/** Auswahlfelder der Filterleiste — 36 px hoch, damit sie auch am Handy treffen. */
+const FILTER_SELECT_CLS =
+  'h-9 max-w-40 rounded-[10px] border border-transparent bg-secondary px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 const LINKEDIN_MINI: Record<LinkedInStatus, { icon: typeof Check; cls: string; title: string }> = {
   has_account: { icon: Check, cls: 'text-status-green', title: 'LinkedIn vorhanden' },
@@ -82,6 +90,8 @@ export function ContactList() {
   const [bulkManager, setBulkManager] = useState('')
   const [applying, setApplying] = useState(false)
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const bulkHint = useMissingHint()
   // Vor der Kontaktabfrage, damit die Sterne mit den Zeilen geladen sind.
   const favorites = useFavorites(user.id)
 
@@ -217,7 +227,9 @@ export function ContactList() {
       patch.regionMode = bulkRegionMode
     }
     if (bulkManager) patch.relationshipManagerId = bulkManager
-    if (ids.length === 0 || (!patch.regionId && !patch.relationshipManagerId)) return
+    if (ids.length === 0) return
+    // Knopf bleibt klickbar und sagt, was fehlt.
+    if (!bulkHint.check(!patch.regionId && !patch.relationshipManagerId)) return
 
     // Rückfrage ab 25: eine Massenzuordnung ist nicht einzeln rückgängig zu
     // machen, und der Knopf sitzt neben harmlosen Filtern.
@@ -230,8 +242,15 @@ export function ContactList() {
       patch.relationshipManagerId ? `Betreuer → ${userName(patch.relationshipManagerId)}` : null,
     ]
       .filter(Boolean)
-      .join('\n')
-    if (ids.length > 25 && !window.confirm(`${ids.length} Kontakte ändern?\n\n${what}`)) return
+      .join(' · ')
+    if (ids.length > 25) {
+      const ok = await confirm({
+        title: `${ids.length} Kontakte ändern?`,
+        message: `${what}. Das lässt sich nur Kontakt für Kontakt zurückdrehen.`,
+        confirmLabel: `${ids.length} Kontakte zuordnen`,
+      })
+      if (!ok) return
+    }
 
     setApplying(true)
     try {
@@ -291,7 +310,7 @@ export function ContactList() {
               type="button"
               onClick={() => setParam(chip.key, null)}
               aria-label={`Filter „${chip.label}“ entfernen`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary-soft px-3 text-xs font-medium text-primary-ink transition-colors hover:bg-primary-soft/80"
             >
               {chip.label}
               <X className="size-3" />
@@ -300,7 +319,7 @@ export function ContactList() {
           {regionFilter && (
             <Link
               to={`/regions/${encodeURIComponent(regionFilter)}`}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <Network className="size-3" /> Organigramm
             </Link>
@@ -309,26 +328,15 @@ export function ContactList() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1">
-          {([
-            { mode: 'list', label: 'Liste', icon: ListIcon },
-            { mode: 'map', label: 'Karte', icon: MapIcon },
-          ] as const).map(({ mode, label, icon: Icon }) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setViewMode(mode)}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs transition-colors',
-                viewMode === mode
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Icon className="size-3.5" /> {label}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="Ansicht"
+          value={viewMode}
+          onChange={setViewMode}
+          options={[
+            { value: 'list', label: 'Liste', icon: <ListIcon /> },
+            { value: 'map', label: 'Karte', icon: <MapIcon /> },
+          ]}
+        />
         {viewMode === 'list' && (
           <div className="flex flex-wrap items-center gap-3">
             {companies.length > 0 && (
@@ -337,7 +345,7 @@ export function ContactList() {
                 <select
                   value={companyFilter}
                   onChange={(e) => setCompanyFilter(e.target.value)}
-                  className="h-7 max-w-40 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={FILTER_SELECT_CLS}
                 >
                   <option value="">Alle</option>
                   {companies.map((co) => (
@@ -354,7 +362,7 @@ export function ContactList() {
                 <select
                   value={teamFilter}
                   onChange={(e) => setParam('team', e.target.value || null)}
-                  className="h-7 max-w-40 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={FILTER_SELECT_CLS}
                 >
                   <option value="">Alle</option>
                   {teams.map((team) => (
@@ -370,7 +378,7 @@ export function ContactList() {
               <select
                 value={sortMode}
                 onChange={(e) => setSortMode(e.target.value as SortMode)}
-                className="h-7 rounded-[10px] border border-transparent bg-secondary px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className={FILTER_SELECT_CLS}
               >
                 <option value="name">Name</option>
                 <option value="stale">Zuletzt aktiv</option>
@@ -510,11 +518,14 @@ export function ContactList() {
                 <button
                   type="button"
                   onClick={applyBulk}
-                  disabled={applying || (!bulkRegion && !bulkManager)}
+                  disabled={applying}
                   className={cn(buttonVariants({ size: 'sm' }), 'disabled:opacity-50')}
                 >
                   {applying ? 'Übernimmt…' : 'Zuordnen'}
                 </button>
+                {bulkHint.tried && !bulkRegion && !bulkManager && (
+                  <FieldHint className="w-full">Wähle eine Region oder einen Betreuer.</FieldHint>
+                )}
                 <p className="w-full text-xs text-muted-foreground">
                   Wirkt nur auf die ausgewählten Kontakte. „unverändert“ lässt das Feld, wie es ist —
                   so lässt sich eine Region an einen anderen Betreuer übergeben, ohne die Region
@@ -602,7 +613,7 @@ export function ContactList() {
                     <span>{TRAFFIC_LABEL[c.sentiment]}</span>
                     <span>·</span>
                     <span
-                      className={cn('truncate', placeholderRegion && 'italic text-status-amber')}
+                      className={cn('truncate', placeholderRegion && 'italic text-warning-ink')}
                       title={placeholderRegion ? 'Platzhalter, keine echte Region' : undefined}
                     >
                       {regionName(c.regionId)}
@@ -636,35 +647,12 @@ export function ContactList() {
       </div>
 
       {!loading && visible.length === 0 && (
-        <p className="py-8 text-center text-sm text-muted-foreground">Keine Kontakte gefunden.</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          Keine Kontakte gefunden. Passe die Filter an oder lege einen neuen Kontakt an.
+        </p>
       )}
         </>
       )}
     </div>
-  )
-}
-
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-full border px-3 py-1 text-xs transition-colors',
-        active
-          ? 'border-transparent bg-primary text-primary-foreground'
-          : 'border-border text-muted-foreground hover:text-foreground',
-      )}
-    >
-      {children}
-    </button>
   )
 }
