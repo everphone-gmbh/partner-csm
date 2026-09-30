@@ -3,6 +3,8 @@ import type { AppUser } from '@/domain/types'
 import { activeBackend, repository } from '@/data/repositoryProvider'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { PendingAccessPage } from '@/features/auth/PendingAccessPage'
+import { Button } from '@/components/ui/button'
+import { Notice } from '@/components/ui/notice'
 
 interface SessionValue {
   user: AppUser
@@ -19,6 +21,9 @@ interface SessionValue {
 const SessionContext = createContext<SessionValue | null>(null)
 
 type AuthState = 'loading' | 'signedOut' | 'signedIn'
+
+/** Wie oft ein wartendes Konto nachsieht, ob es freigeschaltet ist. */
+const PENDING_RECHECK_MS = 20_000
 
 /**
  * Mock-Modus: Demo-Session mit Rollen-Umschalter (kein Login).
@@ -82,7 +87,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setUserId((id) => id ?? (supabaseMode ? authUserId : u[0]?.id))
       },
       (err: unknown) => {
-        if (active) setError(err instanceof Error ? err.message : String(err))
+        if (!active) return
+        console.warn('[Sitzung] Nutzerliste nicht geladen:', err)
+        setError(err instanceof Error ? err.message : String(err))
       },
     )
     return () => {
@@ -105,6 +112,37 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return users.find((u) => u.id === userId) ?? users[0]
   }, [supabaseMode, users, userId, authUserId])
 
+  // Wartet das Konto auf Freischaltung, schaut die App selbst nach — alle 20 s
+  // und sobald der Tab wieder vorn ist. Vorher musste man „Neu laden" drücken
+  // und wusste nicht, wann.
+  const pending = supabaseMode && auth === 'signedIn' && usersLoaded && !user
+  useEffect(() => {
+    if (!pending) return
+    let active = true
+    const recheck = () => {
+      repository.listUsers().then(
+        (u) => {
+          if (active && u.some((x) => x.id === authUserId)) setUsers(u)
+        },
+        () => {
+          // Beim nächsten Durchgang noch einmal; die Warte-Seite bleibt stehen.
+        },
+      )
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') recheck()
+    }
+    const timer = window.setInterval(recheck, PENDING_RECHECK_MS)
+    window.addEventListener('focus', recheck)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', recheck)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [pending, authUserId])
+
   const value = useMemo<SessionValue>(
     () => ({
       user: user as AppUser,
@@ -120,9 +158,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   if (supabaseMode && auth === 'signedOut') return <LoginPage />
   if (error) {
     return (
-      <p className="py-16 text-center text-sm text-muted-foreground">
-        Anmeldedaten konnten nicht geladen werden: {error}
-      </p>
+      <div className="mx-auto max-w-sm space-y-3 px-4 py-16">
+        <Notice tone="error">
+          Deine Anmeldung konnte nicht geladen werden. Lade die Seite neu. Klappt es wieder nicht,
+          melde dich bei Jannik Heeland.
+        </Notice>
+        <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
+          Neu laden
+        </Button>
+      </div>
     )
   }
   if (auth === 'loading' || !usersLoaded) {

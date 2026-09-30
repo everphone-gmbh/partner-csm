@@ -11,9 +11,12 @@ const badgeVariants = cva(
         secondary: 'border-transparent bg-secondary text-secondary-foreground',
         outline: 'border-border text-foreground',
         accent: 'border-transparent bg-accent text-accent-foreground',
-        success: 'border-transparent bg-status-green/15 text-status-green',
-        warning: 'border-transparent bg-status-amber/15 text-status-amber',
-        destructive: 'border-transparent bg-destructive/15 text-destructive',
+        // Helle Fläche, dunkle Schrift: die Ampelfarbe als Schrift auf ihrer
+        // eigenen Tönung war kaum lesbar (Amber 2:1).
+        success: 'border-transparent bg-success-soft text-success-ink',
+        warning: 'border-transparent bg-warning-soft text-warning-ink',
+        destructive: 'border-transparent bg-danger-soft text-danger-ink',
+        info: 'border-transparent bg-info-soft text-info-ink',
       },
     },
     defaultVariants: { variant: 'default' },

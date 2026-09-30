@@ -47,6 +47,22 @@ describe('SessionProvider — Konto ohne Profil (0040)', () => {
     expect(signOut).toHaveBeenCalled()
   })
 
+  it('geht nach der Freischaltung von selbst in die App, ohne Neuladen', async () => {
+    listUsers.mockResolvedValue([])
+    render(
+      <SessionProvider>
+        <p>App</p>
+      </SessionProvider>,
+    )
+    expect(await screen.findByText('Dein Zugang wartet auf Freischaltung')).toBeInTheDocument()
+
+    // Die Leitung schaltet frei; beim nächsten Nachsehen (hier: Tab wieder vorn)
+    // ist das eigene Profil da.
+    listUsers.mockResolvedValue([{ id: 'u-neu', name: 'Neu Kollege', role: 'account_manager', regionId: 'r-west' }])
+    window.dispatchEvent(new Event('focus'))
+    expect(await screen.findByText('App')).toBeInTheDocument()
+  })
+
   it('lässt ein freigeschaltetes Konto in die App', async () => {
     listUsers.mockResolvedValue([{ id: 'u-neu', name: 'Neu Kollege', role: 'account_manager', regionId: 'r-west' }])
     render(

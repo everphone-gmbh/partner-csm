@@ -31,12 +31,15 @@ function readReturnError(): string | undefined {
 
 export function friendlyReturnError(message: string): string {
   // Den Riegel aus 0040 (nur everphone.de legt Konten an) meldet Supabase nur
-  // als „Database error saving new user".
+  // als „Database error saving new user". Meist kommt es gar nicht so weit: der
+  // Google-Client steht auf „Intern", fremde Konten weist schon Google ab.
   if (/database error saving new user|everphone\.de/i.test(message)) {
-    return 'Die Anmeldung geht nur mit einem everphone.de-Konto.'
+    return 'Dieses Google-Konto gehört nicht zu everphone.de. Melde dich mit deinem Everphone-Konto an.'
   }
   if (/access.?denied/i.test(message)) return 'Die Google-Anmeldung wurde abgebrochen.'
-  return `Die Google-Anmeldung hat nicht geklappt: ${message}`
+  // Den englischen Originaltext braucht nur die Fehlersuche, nicht der Bildschirm.
+  console.warn('[Google-Anmeldung] Originaltext:', message)
+  return 'Die Google-Anmeldung hat nicht geklappt. Versuch es noch einmal. Klappt es wieder nicht, melde dich bei Jannik Heeland.'
 }
 
 /** Rücksprung-Fehler dieses Seitenaufrufs, einmal beim Laden gelesen. */

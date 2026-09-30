@@ -9,6 +9,7 @@ import { saveErrorMessage, useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { selectCls } from '@/features/contacts/profile/shared'
 import { Button } from '@/components/ui/button'
+import { FieldHint } from '@/components/ui/notice'
 import { formatDate } from '@/lib/format'
 
 const ROLES: Role[] = ['overall_admin', 'sub_admin', 'account_manager']
@@ -65,7 +66,7 @@ export function TeamPage() {
       setUsers((list) => [...(list ?? []), saved])
       toast(`${saved.name} ist freigeschaltet.`, 'success')
     } catch (err) {
-      toast(saveErrorMessage(err))
+      toast(approveErrorMessage(err))
     }
   }
 
@@ -123,8 +124,8 @@ export function TeamPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Diese Konten haben sich mit Google angemeldet und sehen noch nichts. Mit Rolle und
-              Region freischalten — Account Manager brauchen eine Region.
+              Haben sich mit Google angemeldet und sehen noch nichts. Rolle und Region wählen, dann
+              freischalten.
             </p>
             <ul className="divide-y divide-border">
               {pending.map((p) => (
@@ -141,8 +142,8 @@ export function TeamPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Neue Kolleg:innen melden sich mit ihrem Everphone-Google-Konto an und erscheinen dann
-            oben zur Freischaltung — bis dahin sehen sie nichts.
+            Wer neu im Team ist, meldet sich mit dem Everphone-Google-Konto an. Sobald jemand wartet,
+            erscheint die Person oben zum Freischalten. Bis dahin sieht sie nichts.
           </p>
 
           <ul className="divide-y divide-border">
@@ -159,7 +160,15 @@ export function TeamPage() {
                   key={u.id}
                   className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3"
                 >
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{u.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{u.name}</span>
+                    {roleLocked && (
+                      // Der Tooltip allein erscheint auf Tablet und Handy nie.
+                      <span className="block text-xs text-muted-foreground">
+                        {isSelf ? 'Du selbst · deine Rolle ändert jemand anderes' : 'Letzter Overall Admin · Rolle bleibt'}
+                      </span>
+                    )}
+                  </span>
                   <select
                     className={`${selectCls} sm:w-52`}
                     aria-label={`Rolle von ${u.name}`}
@@ -210,54 +219,92 @@ function PendingRow({
   const [role, setRole] = useState<Role>('account_manager')
   const [regionId, setRegionId] = useState('')
   const [busy, setBusy] = useState(false)
+  const [regionMissing, setRegionMissing] = useState(false)
   const needsRegion = role === 'account_manager' && !regionId
+  const hintId = `region-hint-${account.id}`
 
   return (
-    <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3">
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{account.name}</span>
-        <span className="block truncate text-xs text-muted-foreground">
-          {account.email} · angemeldet am {formatDate(account.createdAt)}
+    <li className="py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{account.name}</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {account.email} · angemeldet am {formatDate(account.createdAt)}
+          </span>
         </span>
-      </span>
-      <select
-        className={`${selectCls} sm:w-44`}
-        aria-label={`Rolle für ${account.name}`}
-        value={role}
-        onChange={(e) => setRole(e.target.value as Role)}
-      >
-        {ROLES.map((r) => (
-          <option key={r} value={r}>
-            {ROLE_LABEL[r]}
-          </option>
-        ))}
-      </select>
-      <select
-        className={`${selectCls} sm:w-40`}
-        aria-label={`Region für ${account.name}`}
-        value={regionId}
-        onChange={(e) => setRegionId(e.target.value)}
-      >
-        <option value="">{role === 'account_manager' ? 'Region wählen' : 'Keine Region'}</option>
-        {regions.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
-          </option>
-        ))}
-      </select>
-      <Button
-        type="button"
-        size="sm"
-        disabled={busy || needsRegion}
-        title={needsRegion ? 'Account Manager brauchen eine Region' : undefined}
-        onClick={async () => {
-          setBusy(true)
-          await onApprove(account, role, regionId)
-          setBusy(false)
-        }}
-      >
-        {busy ? 'Schaltet frei…' : 'Freischalten'}
-      </Button>
+        <select
+          className={`${selectCls} sm:w-44`}
+          aria-label={`Rolle für ${account.name}`}
+          value={role}
+          onChange={(e) => {
+            setRole(e.target.value as Role)
+            setRegionMissing(false)
+          }}
+        >
+          {ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABEL[r]}
+            </option>
+          ))}
+        </select>
+        <select
+          id={`region-${account.id}`}
+          className={`${selectCls} sm:w-40 ${regionMissing ? 'ring-2 ring-destructive' : ''}`}
+          aria-label={`Region für ${account.name}`}
+          aria-invalid={regionMissing || undefined}
+          aria-describedby={regionMissing ? hintId : undefined}
+          value={regionId}
+          onChange={(e) => {
+            setRegionId(e.target.value)
+            setRegionMissing(false)
+          }}
+        >
+          <option value="">{role === 'account_manager' ? 'Region wählen' : 'Keine Region'}</option>
+          {regions.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          size="sm"
+          disabled={busy}
+          onClick={async () => {
+            // Knopf bleibt klickbar und sagt, was fehlt — der gesperrte Knopf mit
+            // Tooltip verriet das auf dem Tablet nicht.
+            if (needsRegion) {
+              setRegionMissing(true)
+              document.getElementById(`region-${account.id}`)?.focus()
+              return
+            }
+            setBusy(true)
+            await onApprove(account, role, regionId)
+            setBusy(false)
+          }}
+        >
+          {busy ? 'Schaltet frei…' : 'Freischalten'}
+        </Button>
+      </div>
+      {regionMissing && (
+        <FieldHint id={hintId} className="mt-2 sm:justify-end">
+          Wähle eine Region. Account Manager sehen nur Kontakte ihrer Region.
+        </FieldHint>
+      )}
     </li>
   )
+}
+
+/**
+ * Die Meldungen von approve_account() (0040) sind schon deutsch, sagen aber nicht,
+ * was jetzt zu tun ist — meist hat jemand anderes gerade dasselbe Konto bearbeitet.
+ */
+function approveErrorMessage(err: unknown): string {
+  const detail = err instanceof Error ? err.message : String(err)
+  if (/bereits freigeschaltet/i.test(detail)) return 'Das Konto ist schon freigeschaltet. Lade die Seite neu.'
+  if (/konto nicht gefunden/i.test(detail)) return 'Dieses Konto gibt es nicht mehr. Lade die Seite neu.'
+  if (/brauchen eine region/i.test(detail)) {
+    return 'Wähle eine Region. Account Manager sehen nur Kontakte ihrer Region.'
+  }
+  return saveErrorMessage(err)
 }

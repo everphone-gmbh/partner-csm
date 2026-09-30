@@ -107,11 +107,21 @@ describe('TeamPage — Team & Rechte', () => {
 
       expect(await screen.findByText('Wartet auf Freischaltung (1)')).toBeInTheDocument()
       expect(screen.getByText(/lena\.kramer@everphone\.de/)).toBeInTheDocument()
-      // Vorgabe Account Manager — ohne Region geht es nicht.
+      // Vorgabe Account Manager — ohne Region geht es nicht. Der Knopf bleibt
+      // klickbar und sagt, was fehlt, statt still gesperrt zu sein.
       const button = screen.getByRole('button', { name: 'Freischalten' })
-      expect(button).toBeDisabled()
+      expect(button).toBeEnabled()
+      await userEvent.click(button)
+      expect(
+        screen.getByText('Wähle eine Region. Account Manager sehen nur Kontakte ihrer Region.'),
+      ).toBeInTheDocument()
+      const region = screen.getByLabelText('Region für Lena Kramer')
+      expect(region).toHaveAttribute('aria-invalid', 'true')
+      expect(region).toHaveFocus()
+      expect(await repo.listPendingAccounts()).toHaveLength(1)
 
-      await userEvent.selectOptions(screen.getByLabelText('Region für Lena Kramer'), 'r-west')
+      await userEvent.selectOptions(region, 'r-west')
+      expect(screen.queryByText(/Wähle eine Region/)).toBeNull()
       await userEvent.click(button)
 
       await waitFor(async () => {

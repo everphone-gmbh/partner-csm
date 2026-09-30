@@ -30,7 +30,9 @@
   --secondary-foreground: #1d1d1f;
 
   --muted: #f2f2f7;
-  --muted-foreground: #86868b;
+  /* #86868b (bis 09/26) kam auf dem Grund nur auf 3,3:1 — zu blass für
+     Kleintext. #6e6e73 erreicht 4,6:1 (Soll 4,5:1). */
+  --muted-foreground: #6e6e73;
 
   /* Everphone teal accent */
   --accent: #e6f7f4;
@@ -56,6 +58,40 @@
   --status-amber: #f59e0b;
   --status-red: #dc2626;
   --status-neutral: #a1a1aa;
+
+  /*
+    Zustände als Fläche + Schrift (Pillen, Hinweisboxen): helle Fläche, dunkle
+    Schrift derselben Farbe, feine Linie. Die Ampelfarben oben bleiben für
+    Punkte, Balken und Symbole — als Schrift auf ihrer eigenen Tönung kamen sie
+    nur auf 2:1 bis 3:1.
+  */
+  --success-soft: #ecfdf5;
+  --success-line: #a7f3d0;
+  --success-ink: #065f46;
+  --warning-soft: #fffbeb;
+  --warning-line: #fde68a;
+  --warning-ink: #92400e;
+  --danger-soft: #fef2f2;
+  --danger-line: #fecaca;
+  --danger-ink: #991b1b;
+  --info-soft: #f0fdfa;
+  --info-line: #99f6e4;
+  --info-ink: #115e59;
+  --neutral-soft: #f2f2f7;
+  --neutral-line: #e5e5ea;
+  --neutral-ink: #3a3a3c;
+
+  /* Auswahl (aktiver Filter, Reiter, Navigation): Magenta leise statt gefüllt —
+     gefülltes Magenta ist der einen Hauptaktion einer Ansicht vorbehalten. */
+  --primary-soft: #fdeaf3;
+  --primary-ink: #a3005a;
+
+  /* „Mit Google anmelden": Googles Vorgabe für Knöpfe mit dem G-Logo — dunkel
+     auf heller Seite, hell auf dunkler. Keine Markenfarbe, bewusst. */
+  --google-fill: #131314;
+  --google-stroke: #8e918f;
+  --google-text: #e3e3e3;
+  --google-hover: #2a2a2c;
 }
 
 .dark {
@@ -96,6 +132,30 @@
   --status-amber: #fbbf24;
   --status-red: #f87171;
   --status-neutral: #71717a;
+
+  --success-soft: #0f2a1c;
+  --success-line: #1f5134;
+  --success-ink: #86efac;
+  --warning-soft: #2e2410;
+  --warning-line: #5c4514;
+  --warning-ink: #fcd34d;
+  --danger-soft: #321416;
+  --danger-line: #5f2226;
+  --danger-ink: #fca5a5;
+  --info-soft: #0e2b28;
+  --info-line: #134e48;
+  --info-ink: #5eead4;
+  --neutral-soft: #26242d;
+  --neutral-line: #2e2c37;
+  --neutral-ink: #d4d2da;
+
+  --primary-soft: #3a1026;
+  --primary-ink: #ff7ac0;
+
+  --google-fill: #ffffff;
+  --google-stroke: #747775;
+  --google-text: #1f1f1f;
+  --google-hover: #f2f2f2;
 }
 
 @theme inline {
@@ -132,6 +192,28 @@
   --color-status-amber: var(--status-amber);
   --color-status-red: var(--status-red);
   --color-status-neutral: var(--status-neutral);
+
+  --color-success-soft: var(--success-soft);
+  --color-success-line: var(--success-line);
+  --color-success-ink: var(--success-ink);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-line: var(--warning-line);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-line: var(--danger-line);
+  --color-danger-ink: var(--danger-ink);
+  --color-info-soft: var(--info-soft);
+  --color-info-line: var(--info-line);
+  --color-info-ink: var(--info-ink);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-line: var(--neutral-line);
+  --color-neutral-ink: var(--neutral-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+  --color-google-fill: var(--google-fill);
+  --color-google-stroke: var(--google-stroke);
+  --color-google-text: var(--google-text);
+  --color-google-hover: var(--google-hover);
 
   /* System stack first: SF Pro on Apple devices, native elsewhere. */
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue',
