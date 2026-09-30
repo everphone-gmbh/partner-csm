@@ -248,13 +248,14 @@ export function ContactProfile() {
         onSavePhoto={savePhoto}
       />
 
-      {/* AI summary — pinned prominently at the top; ruhig statt Magenta-Fläche,
-          die bleibt der Hauptaktion vorbehalten. */}
-      <Card>
+      {/* AI summary — pinned prominently at the top. Bleibt bewusst rosa
+          hinterlegt (Entscheidung Jannik, 30.09.): die einzige Fläche außer der
+          Hauptaktion, die Magenta tragen darf, damit die KI-Zeile auffällt. */}
+      <Card className="border-primary/30 bg-primary/5">
         <CardContent className="flex gap-3 pt-5 sm:pt-5">
-          <Sparkles className="size-5 shrink-0 text-muted-foreground" />
+          <Sparkles className="size-5 shrink-0 text-primary" />
           <div className="space-y-1">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="text-xs font-medium uppercase tracking-wide text-primary">
               KI-Zusammenfassung
             </div>
             <p className="text-sm text-foreground">{aiIntro}</p>

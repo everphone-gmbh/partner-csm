@@ -109,6 +109,8 @@ Neue Oberflächen halten sich daran, sonst wird die App wieder uneinheitlich:
 - **Gefülltes Magenta nur für die eine Hauptaktion** einer Ansicht. Auswahl
   (Filter, Reiter, Umschalter, Navigation) zeigt sich leise: `FilterChip` und
   `Segmented` aus `components/ui/chip.tsx`, Farben `primary-soft`/`primary-ink`.
+  Einzige Ausnahme: die **KI-Zusammenfassung** im Kontaktprofil und „Wofür" im
+  Briefing bleiben rosa hinterlegt (Entscheidung Jannik, 30.09.).
 - **Kein still gesperrter Knopf, weil eine Eingabe fehlt.** Der Knopf bleibt
   klickbar; `useMissingHint` (`lib/`) und `FieldHint` sagen am Feld, was fehlt.
   Gesperrt nur, solange gespeichert wird. Ein Tooltip allein erklärt nichts —

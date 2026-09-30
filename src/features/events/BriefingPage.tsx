@@ -213,8 +213,9 @@ export function BriefingPage() {
               )}
 
               {attendee.purpose && (
-                <div className="rounded-lg bg-secondary px-3 py-2">
-                  <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                // Rosa hinterlegt wie die KI-Zusammenfassung im Profil (Entscheidung Jannik, 30.09.).
+                <div className="rounded-lg bg-primary/5 px-3 py-2">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-primary">
                     Wofür
                   </div>
                   <p className="text-sm">{attendee.purpose}</p>
@@ -222,7 +223,7 @@ export function BriefingPage() {
               )}
 
               <div className="flex gap-2 rounded-lg bg-secondary/60 px-3 py-2">
-                <Sparkles className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" />
                 <p className="text-sm text-foreground">{intro}</p>
               </div>
 
